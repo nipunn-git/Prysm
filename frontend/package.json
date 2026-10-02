@@ -1,0 +1,30 @@
+{
+  "name": "prompthub-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node dev-runner.js",
+    "dev:frontend": "next dev",
+    "dev:backend": "python -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload --app-dir ../backend",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "backend:start": "node ensure-backend.js",
+    "backend:stop": "node stop-backend.js"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "firebase": "^12.19.0",
+    "framer-motion": "^11.11.17",
+    "lucide-react": "^0.460.0",
+    "next": "^14.2.18",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^2.5.4"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15"
+  }
+}
