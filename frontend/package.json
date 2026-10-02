@@ -13,6 +13,7 @@
     "backend:stop": "node stop-backend.js"
   },
   "dependencies": {
+    "@tailwindcss/typography": "^0.5.20",
     "clsx": "^2.1.1",
     "firebase": "^12.19.0",
     "framer-motion": "^11.11.17",
@@ -20,6 +21,9 @@
     "next": "^14.2.18",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0",
+    "rehype-raw": "^7.0.0",
+    "remark-gfm": "^4.0.1",
     "tailwind-merge": "^2.5.4"
   },
   "devDependencies": {

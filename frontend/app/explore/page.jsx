@@ -219,7 +219,7 @@ export default function ExplorePage() {
                           {repo.name}
                         </h3>
                         <div className="text-xs text-[#8b949e] mt-1 flex items-center gap-1.5">
-                          <span className="font-medium text-[#c9d1d9]">@{repo.owner_name?.toLowerCase().replace(/\s+/g, '') || "user"}</span>
+                          <span className="font-medium text-[#c9d1d9]">@{repo.owner_username || repo.owner_name?.toLowerCase().replace(/\s+/g, '') || "user"}</span>
                           <span>·</span>
                           <span>{new Date(repo.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                           <span>·</span>

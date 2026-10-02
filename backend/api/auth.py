@@ -275,8 +275,8 @@ def get_user_contributions(user_id: str, db: Session = Depends(get_db)):
                 "type": "repo_created",
                 "repo_id": repo.id,
                 "repo_name": repo.name,
-                "description": f"Created prompt repository {repo.name}",
-                "date": repo.created_at.isoformat()
+                "description": f"Created repository {repo.name}",
+                "date": repo.created_at.isoformat() + "Z"
             })
         for v in repo.versions:
             if v.created_at:
@@ -288,36 +288,21 @@ def get_user_contributions(user_id: str, db: Session = Depends(get_db)):
                     "repo_name": repo.name,
                     "version": v.version,
                     "description": v.change_description or f"Committed prompt version {v.version}",
-                    "date": v.created_at.isoformat()
+                    "date": v.created_at.isoformat() + "Z"
                 })
 
     # Sort recent activity descending
     recent_activity.sort(key=lambda a: a["date"], reverse=True)
 
-    # 2. Build organic baseline contributions for past 52 weeks (364 days)
-    # Using deterministic hash based on date and user_id for realistic GitHub heatmap look
     import datetime as dt
     today = dt.date.today()
+    # Find the Sunday of the week 51 weeks ago to match GitHub exactly
+    days_since_sunday = (today.weekday() + 1) % 7
+    start_date = today - dt.timedelta(days=days_since_sunday) - dt.timedelta(weeks=51)
     
-    # 52 weeks = 364 days ending today
-    total_days = 52 * 7
-    start_date = today - dt.timedelta(days=total_days - 1)
+    total_days = (today - start_date).days + 1
     
-    # Generate baseline activity so profile isn't a blank wall
-    import hashlib
-    for i in range(total_days - 1): # leave today for purely real activity
-        d = start_date + dt.timedelta(days=i)
-        d_str = d.strftime("%Y-%m-%d")
-        
-        # Don't overwrite if real DB activity exists
-        if d_str not in counts:
-            h = int(hashlib.md5(f"{d_str}_{actual_user_id}".encode()).hexdigest()[:6], 16)
-            # ~35% of days have commits, creating organic patterns
-            if h % 100 < 35:
-                pseudo_count = (h % 4) + 1
-                counts[d_str] = pseudo_count
-
-    # 3. Assemble 52 columns (weeks) x 7 rows (days)
+    # Assemble weeks
     weeks = []
     current_week = []
     total_contributions = 0
@@ -346,12 +331,9 @@ def get_user_contributions(user_id: str, db: Session = Depends(get_db)):
             "level": level
         })
 
-        if len(current_week) == 7:
+        if len(current_week) == 7 or i == total_days - 1:
             weeks.append(current_week)
             current_week = []
-
-    if current_week:
-        weeks.append(current_week)
 
     return {
         "user_id": actual_user_id,

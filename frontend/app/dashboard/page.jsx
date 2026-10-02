@@ -91,8 +91,9 @@ export default function DashboardPage() {
         setRepos(userOnlyRepos);
       }
 
-      // Separately fetch public community prompts so user can explore & fork them
-      const expRes = await fetch(`${API_URL}/api/repositories/explore`);
+      // Separately fetch public community prompts so user can explore & fork them (excluding their own)
+      const exploreQuery = user?.id ? `?user_id=${user.id}` : "";
+      const expRes = await fetch(`${API_URL}/api/repositories/explore${exploreQuery}`);
       if (expRes.ok) {
         const expData = await expRes.json();
         setCommunityRepos(Array.isArray(expData) ? expData : []);
@@ -115,6 +116,17 @@ export default function DashboardPage() {
       chatEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [chatMessages, isAiThinking]);
+
+  // Handle incoming prompt optimization from other repositories
+  useEffect(() => {
+    const promptToOptimize = sessionStorage.getItem('optimize_prompt');
+    if (promptToOptimize) {
+      sessionStorage.removeItem('optimize_prompt');
+      setTimeout(() => {
+        sendMessage(`Please optimize this prompt to be more token efficient while maintaining its functionality:\n\n\`\`\`prompt\n${promptToOptimize}\n\`\`\``);
+      }, 500); // slight delay to ensure UI is ready
+    }
+  }, []);
 
   // Send a chat message to AI (AI answers in chat WITHOUT auto-creating repo)
   const sendMessage = async (overrideText) => {
@@ -808,7 +820,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-[#f0f6fc] flex items-center gap-2">
                 <Compass className="w-4 h-4 text-[#58a6ff]" />
-                Public Prompts to Fork
+                Trending in Community
               </h2>
               <Link href="/explore" className="text-[11px] text-[#58a6ff] hover:underline">
                 Explore all →

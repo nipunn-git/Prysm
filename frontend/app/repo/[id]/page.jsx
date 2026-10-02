@@ -39,7 +39,8 @@ import {
   saveForkInfo, 
   getForkInfo, 
   isRepoStarred, 
-  toggleStarRepo 
+  toggleStarRepo,
+  removeCreatedRepoId
 } from "../../../lib/repoStore";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
@@ -47,7 +48,9 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 // Helper to format relative time (e.g. "2 hours ago", "just now")
 function formatRelativeTime(dateString) {
   if (!dateString) return "recently";
-  const date = new Date(dateString);
+  // Append Z to enforce UTC parsing since FastAPI returns naive UTC datetimes
+  const parseStr = dateString.endsWith('Z') ? dateString : `${dateString}Z`;
+  const date = new Date(parseStr);
   const now = new Date();
   const diffInSeconds = Math.floor((now - date) / 1000);
 
@@ -110,6 +113,11 @@ export default function RepositoryPage() {
   // Visibility toggle modal in Settings / Header
   const [visibilityModalOpen, setVisibilityModalOpen] = useState(false);
   const [isUpdatingVisibility, setIsUpdatingVisibility] = useState(false);
+
+  // Delete repository modal
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   // Compare Tab state
   const [compareA, setCompareA] = useState("");
@@ -216,6 +224,11 @@ export default function RepositoryPage() {
     }
   };
 
+  const optimizeInChatbot = () => {
+    sessionStorage.setItem('optimize_prompt', currentPrompt);
+    router.push('/dashboard');
+  };
+
   // Toggle repository visibility: Public <-> Private
   const handleToggleVisibility = async () => {
     if (!repo) return;
@@ -243,6 +256,30 @@ export default function RepositoryPage() {
     }
   };
 
+  // Delete repository
+  const handleDeleteRepository = async () => {
+    if (!repo) return;
+    setIsDeleting(true);
+    try {
+      const userQuery = user?.id ? `?user_id=${user.id}` : "";
+      const res = await fetch(`${API_URL}/api/repositories/${repo.id}${userQuery}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        removeCreatedRepoId(repo.id);
+        router.push("/profile");
+      } else {
+        const err = await res.json();
+        alert(err.detail || "Failed to delete repository");
+      }
+    } catch (e) {
+      console.error("Delete failed:", e);
+      alert("Failed to delete repository");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // Fork repository
   const handleExecuteFork = async () => {
     if (!repo) return;
@@ -255,7 +292,7 @@ export default function RepositoryPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: forkName,
-          description: `Forked from ${repo.owner_name || 'community'}/${repo.name}. ${repo.description || ''}`,
+          description: `Forked from ${repo.owner_username || 'community'}/${repo.name}. ${repo.description || ''}`,
           category: repo.category || "Other",
           visibility: forkVisibility, // Default Private
           initial_prompt: currentPrompt || repo.latest_prompt || "Forked prompt instructions."
@@ -292,7 +329,7 @@ export default function RepositoryPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: cloneName,
-          description: `Cloned from ${repo.owner_name || 'community'}/${repo.name}.`,
+          description: `Cloned from ${repo.owner_username || 'community'}/${repo.name}.`,
           category: repo.category || "Other",
           visibility: "Private", // Private by default
           initial_prompt: currentPrompt || repo.latest_prompt || "Cloned prompt instructions."
@@ -328,7 +365,8 @@ export default function RepositoryPage() {
     if (!repo?.versions) return {};
     const groups = {};
     repo.versions.forEach(ver => {
-      const dateKey = new Date(ver.created_at).toLocaleDateString("en-US", {
+      const parseStr = ver.created_at.endsWith('Z') ? ver.created_at : `${ver.created_at}Z`;
+      const dateKey = new Date(parseStr).toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
         year: "numeric"
@@ -381,7 +419,7 @@ export default function RepositoryPage() {
               <div className="flex items-center gap-2 flex-wrap text-lg">
                 <Book className="w-5 h-5 text-[#8b949e]" />
                 <span className="text-[#58a6ff] font-normal hover:underline cursor-pointer">
-                  {repo.owner_name ? repo.owner_name.toLowerCase().replace(/\s+/g, '-') : 'user'}
+                  {repo.owner_username || 'user'}
                 </span>
                 <span className="text-[#8b949e]">/</span>
                 <span className="font-bold text-[#58a6ff] hover:underline cursor-pointer">
@@ -414,7 +452,7 @@ export default function RepositoryPage() {
                 <div className="text-xs text-[#8b949e] mt-1 flex items-center gap-1">
                   <span>forked from</span>
                   <Link href={`/repo/${forkInfo.id}`} className="text-[#58a6ff] hover:underline font-mono">
-                    {forkInfo.owner_name}/{forkInfo.name}
+                    {forkInfo.owner_username || forkInfo.owner_name}/{forkInfo.name}
                   </Link>
                 </div>
               )}
@@ -550,7 +588,7 @@ export default function RepositoryPage() {
               <div className="flex items-center gap-2 relative">
                 {!isEditing ? (
                   <>
-                    {isOwner && (
+                    {isOwner ? (
                       <>
                         <button 
                           onClick={startEditing}
@@ -569,6 +607,14 @@ export default function RepositoryPage() {
                           {optimizing ? "Optimizing..." : "Optimize with AI"}
                         </button>
                       </>
+                    ) : (
+                      <button 
+                        onClick={optimizeInChatbot}
+                        className="bg-[#238636] hover:bg-[#2ea043] border border-[#2ea043]/60 text-white text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5 shadow-sm transition"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Optimize with AI
+                      </button>
                     )}
 
                     {/* GitHub Green "<> Code" Dropdown */}
@@ -657,7 +703,7 @@ export default function RepositoryPage() {
                   <UserIcon className="w-3 h-3 text-[#8b949e]" />
                 </div>
                 <span className="font-semibold text-[#f0f6fc] hover:underline cursor-pointer truncate">
-                  {repo.owner_name || 'Author'}
+                  {repo.owner_username || repo.owner_name || 'Author'}
                 </span>
                 <span className="text-[#c9d1d9] truncate font-medium">
                   {latestVersion?.change_description || "Initial prompt commit"}
@@ -908,7 +954,7 @@ export default function RepositoryPage() {
                                 {ver.change_description || `Updated prompt to ${ver.version}`}
                               </p>
                               <div className="flex items-center gap-2 text-[11px] text-[#8b949e] mt-1 flex-wrap">
-                                <span className="font-medium text-[#c9d1d9]">{repo.owner_name || "Author"}</span>
+                                <span className="font-medium text-[#c9d1d9]">{repo.owner_username || repo.owner_name || "Author"}</span>
                                 <span>committed {formatRelativeTime(ver.created_at)}</span>
                                 <span className="bg-[#161b22] border border-[#30363d] text-[10px] font-mono px-1.5 py-0.2 rounded text-[#58a6ff]">
                                   {ver.version}
@@ -1084,7 +1130,7 @@ export default function RepositoryPage() {
                 Danger Zone
               </h2>
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-2 border-b border-[#da3633]/20 pb-4 mb-4">
                 <div>
                   <h3 className="text-xs font-semibold text-[#f0f6fc]">
                     Change repository visibility
@@ -1104,12 +1150,85 @@ export default function RepositoryPage() {
                   Change to {repo.visibility === "Public" ? "Private" : "Public"}
                 </button>
               </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 py-2">
+                <div>
+                  <h3 className="text-xs font-semibold text-[#f0f6fc]">
+                    Delete this repository
+                  </h3>
+                  <p className="text-xs text-[#8b949e] mt-0.5 max-w-lg">
+                    Once you delete a repository, there is no going back. Please be certain.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setDeleteModalOpen(true)}
+                  className="bg-[#21262d] hover:bg-[#da3633] border border-[#da3633]/60 text-[#f85149] hover:text-white text-xs font-semibold px-4 py-2 rounded-md transition whitespace-nowrap"
+                >
+                  Delete repository
+                </button>
+              </div>
             </div>
 
           </div>
         )}
 
       </div>
+
+      {/* ========================================================
+          DELETE CONFIRMATION MODAL
+         ======================================================== */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-[#161b22] border border-[#da3633]/60 rounded-xl max-w-md w-full p-6 shadow-2xl relative">
+            <h2 className="text-base font-semibold text-[#f0f6fc] flex items-center gap-2 mb-2">
+              <AlertTriangle className="w-5 h-5 text-[#f85149]" />
+              Delete repository
+            </h2>
+
+            <div className="bg-[#f85149]/10 border border-[#f85149]/30 rounded-md p-3 mb-4">
+              <p className="text-xs text-[#f0f6fc] leading-relaxed">
+                This action <strong>cannot</strong> be undone. This will permanently delete the 
+                <b className="font-mono bg-[#0d1117] px-1 rounded mx-1">{repo.owner_username || repo.owner_name}/{repo.name}</b> 
+                repository, its prompt history, and all versions.
+              </p>
+            </div>
+            
+            <label className="block text-xs font-medium text-[#c9d1d9] mb-1">
+              Please type <b className="font-mono bg-[#0d1117] px-1 rounded">{repo.owner_username || repo.owner_name}/{repo.name}</b> to confirm.
+            </label>
+            <input 
+              type="text"
+              value={deleteConfirmText}
+              onChange={e => setDeleteConfirmText(e.target.value)}
+              className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-2 text-xs text-[#f0f6fc] focus:outline-none focus:border-[#da3633] mb-4"
+            />
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                onClick={() => { setDeleteModalOpen(false); setDeleteConfirmText(""); }}
+                className="bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-[#c9d1d9] text-xs font-medium px-4 py-2 rounded-md transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteRepository}
+                disabled={isDeleting || deleteConfirmText !== `${repo.owner_username || repo.owner_name}/${repo.name}`}
+                className="bg-[#da3633] hover:bg-[#b62324] text-white text-xs font-semibold px-4 py-2 rounded-md transition disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <span>I understand the consequences, delete this repository</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================
           VISIBILITY CONFIRMATION MODAL (Public <-> Private)

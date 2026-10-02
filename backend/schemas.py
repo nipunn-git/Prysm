@@ -13,6 +13,7 @@ class UserBase(BaseModel):
     location: Optional[str] = None
     website: Optional[str] = None
     twitter: Optional[str] = None
+    status_emoji: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str
@@ -22,12 +23,15 @@ class UserLogin(BaseModel):
     password: str
 
 class UserUpdate(BaseModel):
+    username: Optional[str] = None
+    avatar: Optional[str] = None
     name: Optional[str] = None
     bio: Optional[str] = None
     company: Optional[str] = None
     location: Optional[str] = None
     website: Optional[str] = None
     twitter: Optional[str] = None
+    status_emoji: Optional[str] = None
 
 class UserResponse(UserBase):
     id: str
@@ -73,6 +77,7 @@ class RepositoryUpdate(BaseModel):
 class RepositoryResponse(RepositoryBase):
     id: str
     owner_id: str
+    owner_username: str = "user"
     owner_name: str
     owner_avatar: Optional[str] = None
     created_at: datetime

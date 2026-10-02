@@ -11,13 +11,12 @@ def optimize_prompt(prompt_text: str, custom_instructions: str = "") -> dict:
     openai_key = os.getenv("OPENAI_API_KEY")
 
     system_prompt = """You are an expert prompt engineer. Your task is to analyze and optimize the user's prompt.
+Specifically, your goal is to make the prompt **MORE EFFICIENT AND SMALLER** so that it consumes **fewer tokens/credits** while accomplishing the exact same work.
 Improve the prompt in terms of:
-1. Clarity & Precision
-2. Role definition & Persona
-3. Context & Background
-4. Clear constraints & Boundaries
-5. Output structure & Format specification
-6. Eliminating ambiguity
+1. Token Efficiency: Condense verbose phrasing and remove unnecessary filler words.
+2. Clarity & Precision: Use exact, impactful words rather than long descriptions.
+3. Strict Boundaries & Structure: Maintain the original constraints and format in the most compact way possible.
+4. Elimination of Redundancy: Remove repeated instructions.
 
 Return your response ONLY as a JSON object with two keys:
 1. "improved_prompt": string containing the complete rewritten prompt formatted cleanly with Markdown.

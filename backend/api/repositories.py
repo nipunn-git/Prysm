@@ -61,6 +61,7 @@ def ai_generate_repository(
     return schemas.RepositoryResponse(
         id=new_repo.id,
         owner_id=new_repo.owner_id,
+        owner_username=owner.username if owner else "user",
         owner_name=owner.name if owner else "Nipun",
         owner_avatar=owner.avatar if owner else None,
         name=new_repo.name,
@@ -103,6 +104,7 @@ def list_user_repositories(
         res.append(schemas.RepositoryResponse(
             id=r.id,
             owner_id=r.owner_id,
+            owner_username=r.owner.username if r.owner else "user",
             owner_name=r.owner.name if r.owner else "Nipun",
             owner_avatar=r.owner.avatar if r.owner else None,
             name=r.name,
@@ -146,6 +148,7 @@ def explore_public_repositories(
         res.append(schemas.RepositoryResponse(
             id=r.id,
             owner_id=r.owner_id,
+            owner_username=r.owner.username if r.owner else "user",
             owner_name=r.owner.name if r.owner else "Developer",
             owner_avatar=r.owner.avatar if r.owner else None,
             name=r.name,
@@ -231,6 +234,7 @@ def create_repository(
     return schemas.RepositoryResponse(
         id=new_repo.id,
         owner_id=new_repo.owner_id,
+        owner_username=owner.username if owner else "user",
         owner_name=owner.name if owner else "Nipun",
         owner_avatar=owner.avatar if owner else None,
         name=new_repo.name,
@@ -259,6 +263,7 @@ def get_repository_by_id(repo_id: str, db: Session = Depends(get_db)):
     return schemas.RepositoryDetailResponse(
         id=repo.id,
         owner_id=repo.owner_id,
+        owner_username=repo.owner.username if repo.owner else "user",
         owner_name=repo.owner.name if repo.owner else "Nipun",
         owner_avatar=repo.owner.avatar if repo.owner else None,
         name=repo.name,
@@ -307,6 +312,7 @@ def update_repository(
     return schemas.RepositoryResponse(
         id=repo.id,
         owner_id=repo.owner_id,
+        owner_username=repo.owner.username if repo.owner else "user",
         owner_name=repo.owner.name if repo.owner else "Nipun",
         owner_avatar=repo.owner.avatar if repo.owner else None,
         name=repo.name,
@@ -319,3 +325,21 @@ def update_repository(
         latest_version=latest.version if latest else "v1.0",
         latest_prompt=latest.content if latest else ""
     )
+
+@router.delete("/{repo_id}")
+def delete_repository(
+    repo_id: str,
+    user_id: str = Query(...),
+    db: Session = Depends(get_db)
+):
+    repo = db.query(models.Repository).filter(models.Repository.id == repo_id).first()
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    
+    if repo.owner_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this repository")
+        
+    db.delete(repo)
+    db.commit()
+    return {"detail": "Repository deleted successfully"}
+

@@ -1,10 +1,13 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Book, Star, GitMerge, Users, MapPin, Link as LinkIcon, Twitter, Building, Lock, Eye } from 'lucide-react';
+import { Book, Star, GitMerge, Users, MapPin, Link as LinkIcon, Twitter, Building, Lock, Eye, Sparkles } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import { useAuth } from '../../context/AuthContext';
-import { filterUserRepos } from '../../lib/repoStore';
+import { filterUserRepos, addCreatedRepoId } from '../../lib/repoStore';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
@@ -32,6 +35,30 @@ export default function ProfilePage() {
   const [repos, setRepos] = useState([]);
   const [contributions, setContributions] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [isCreatingSpecial, setIsCreatingSpecial] = useState(false);
+  
+  // GitHub Fetch Modal State
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewContent, setPreviewContent] = useState('');
+  const [showGithubInput, setShowGithubInput] = useState(false);
+  const [githubUsername, setGithubUsername] = useState('');
+  const [isFetchingGithub, setIsFetchingGithub] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit for base64 DB storage
+        alert("Image is too large. Please choose an image under 2MB.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData({ ...formData, avatar: reader.result });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   useEffect(() => {
     if (isLoading) return;
@@ -40,12 +67,15 @@ export default function ProfilePage() {
       return;
     }
     setFormData({
+      username: user.username || '',
       name: user.name || '',
       bio: user.bio || '',
       company: user.company || '',
       location: user.location || '',
       website: user.website || '',
-      twitter: user.twitter || ''
+      twitter: user.twitter || '',
+      avatar: user.avatar || '',
+      status_emoji: user.status_emoji || '🎯'
     });
     fetchRepos();
     fetchContributions();
@@ -57,6 +87,10 @@ export default function ProfilePage() {
       const res = await fetch(`${API_URL}/api/repositories${query}`);
       if (res.ok) {
         const data = await res.json();
+        // Auto-recover special repo if it exists in DB but not in localStorage
+        const special = data.find(r => r.name.toLowerCase() === (user?.username || '').toLowerCase());
+        if (special) addCreatedRepoId(special.id);
+        
         setRepos(filterUserRepos(data));
       }
     } catch (e) {
@@ -86,12 +120,15 @@ export default function ProfilePage() {
 
   const handleCancel = () => {
     setFormData({
+      username: user.username || '',
       name: user.name || '',
       bio: user.bio || '',
       company: user.company || '',
       location: user.location || '',
       website: user.website || '',
-      twitter: user.twitter || ''
+      twitter: user.twitter || '',
+      avatar: user.avatar || '',
+      status_emoji: user.status_emoji || '🎯'
     });
     setIsEditing(false);
   };
@@ -115,15 +152,91 @@ export default function ProfilePage() {
     });
   }
 
+  const specialRepo = repos.find(r => r.name.toLowerCase() === user.username.toLowerCase());
+
+  const fetchGithubReadme = async () => {
+    if (!githubUsername.trim()) return;
+    setIsFetchingGithub(true);
+    try {
+      // Extract username if they pasted a URL
+      let uname = githubUsername.trim();
+      if (uname.includes('github.com/')) {
+        const parts = uname.split('github.com/');
+        uname = parts[1].split('/')[0];
+      }
+      
+      let res = await fetch(`https://raw.githubusercontent.com/${uname}/${uname}/main/README.md`);
+      if (!res.ok) {
+        res = await fetch(`https://raw.githubusercontent.com/${uname}/${uname}/master/README.md`);
+      }
+      
+      if (res.ok) {
+        const text = await res.text();
+        setPreviewContent(text);
+        setPreviewModalOpen(true);
+        setShowGithubInput(false);
+      } else {
+        alert("Could not find a special README for that GitHub user. Make sure they have a public repository named exactly after their username with a README.md");
+      }
+    } catch (e) {
+      alert("Error fetching from GitHub");
+    } finally {
+      setIsFetchingGithub(false);
+    }
+  };
+
+  const confirmCreateSpecialRepo = async () => {
+    setIsCreatingSpecial(true);
+    try {
+      const res = await fetch(`${API_URL}/api/repositories?user_id=${user.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: user.username,
+          description: "My public profile README",
+          category: "Other",
+          visibility: "Public",
+          initial_prompt: previewContent
+        })
+      });
+      
+      let resData;
+      if (res.ok) {
+        resData = await res.json();
+        addCreatedRepoId(resData.id);
+        await fetchRepos(); 
+        setPreviewModalOpen(false);
+      } else {
+        resData = await res.json();
+        if (resData.detail && resData.detail.includes("already exists")) {
+          // If the repository already exists but was missing from local storage,
+          // fetchRepos (which we just patched) will auto-recover it on next load.
+          await fetchRepos();
+          setPreviewModalOpen(false);
+        } else {
+          alert("Failed to create repository: " + resData.detail);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Network error occurred.");
+    } finally {
+      setIsCreatingSpecial(false);
+    }
+  };
+
   return (
     <div className="max-w-[1280px] mx-auto px-4 sm:px-6 md:px-8 py-8 flex flex-col md:flex-row gap-8">
       {/* Sidebar */}
       <div className="w-full md:w-[296px] shrink-0">
-        <div className="relative mb-4">
-          <div className="w-full aspect-square rounded-full border border-[#30363d] bg-[#21262d] overflow-hidden flex items-center justify-center">
-            {user.avatar ? (
+        <div className="relative mb-4 group cursor-pointer" onClick={() => {
+          if (!isEditing) setIsEditing(true);
+          else if (fileInputRef.current) fileInputRef.current.click();
+        }}>
+          <div className="w-full aspect-square rounded-full border border-[#30363d] bg-[#21262d] overflow-hidden flex items-center justify-center relative">
+            {(isEditing ? formData.avatar : user.avatar) ? (
               <img 
-                src={user.avatar} 
+                src={isEditing ? formData.avatar : user.avatar} 
                 alt="Profile Avatar" 
                 className="w-full h-full object-cover"
               />
@@ -132,14 +245,34 @@ export default function ProfilePage() {
                 {user.name?.charAt(0)?.toUpperCase() || 'U'}
               </span>
             )}
+            {/* Hover overlay like GitHub */}
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="text-white text-sm font-semibold">{isEditing ? "Upload" : "Edit"}</span>
+            </div>
           </div>
-          <div className="absolute bottom-6 right-0 bg-[#161b22] border border-[#30363d] rounded-full p-2 cursor-pointer shadow-sm hover:text-[#58a6ff] transition">
-            <span className="text-xl">🎯</span>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleImageUpload} 
+            accept="image/*" 
+            className="hidden" 
+          />
+          <div className="absolute bottom-6 right-0 bg-[#161b22] border border-[#30363d] rounded-full p-2 cursor-pointer shadow-sm hover:text-[#58a6ff] transition z-10" onClick={() => !isEditing && setIsEditing(true)}>
+            <span className="text-xl">{user.status_emoji || '🎯'}</span>
           </div>
         </div>
 
         {isEditing ? (
           <div className="flex flex-col gap-3 mb-6">
+            <div>
+              <label className="block text-sm font-semibold text-[#f0f6fc] mb-1">Username</label>
+              <input 
+                type="text" 
+                value={formData.username} 
+                onChange={(e) => setFormData({...formData, username: e.target.value})}
+                className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1 text-sm focus:outline-none focus:border-[#58a6ff] text-[#c9d1d9]"
+              />
+            </div>
             <div>
               <label className="block text-sm font-semibold text-[#f0f6fc] mb-1">Name</label>
               <input 
@@ -147,6 +280,17 @@ export default function ProfilePage() {
                 value={formData.name} 
                 onChange={(e) => setFormData({...formData, name: e.target.value})}
                 className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1 text-sm focus:outline-none focus:border-[#58a6ff] text-[#c9d1d9]"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-[#f0f6fc] mb-1">Status Emoji</label>
+              <input 
+                type="text" 
+                maxLength="2"
+                value={formData.status_emoji} 
+                onChange={(e) => setFormData({...formData, status_emoji: e.target.value})}
+                className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1 text-sm focus:outline-none focus:border-[#58a6ff] text-[#c9d1d9]"
+                placeholder="🎯"
               />
             </div>
             <div>
@@ -209,6 +353,16 @@ export default function ProfilePage() {
                   placeholder="X username"
                 />
               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-[#f0f6fc] mb-1">Avatar URL</label>
+              <input 
+                type="text" 
+                value={formData.avatar} 
+                onChange={(e) => setFormData({...formData, avatar: e.target.value})}
+                className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1 text-sm focus:outline-none focus:border-[#58a6ff] text-[#c9d1d9]"
+                placeholder="https://example.com/avatar.png"
+              />
             </div>
             <div className="flex items-center gap-2 mt-2">
               <button onClick={handleSave} className="bg-[#238636] hover:bg-[#2ea043] text-white text-sm font-semibold py-1.5 px-3 rounded-md transition border border-transparent">
@@ -304,6 +458,72 @@ export default function ProfilePage() {
         {/* Overview Tab */}
         {activeTab === 'overview' && (
           <>
+            {/* Special Profile README */}
+            {specialRepo ? (
+              <div className="mb-8 border border-[#30363d] rounded-md bg-[#0d1117] overflow-hidden">
+                <div className="bg-[#161b22] px-4 py-2 border-b border-[#30363d] text-xs font-medium text-[#c9d1d9] flex items-center gap-2">
+                  <span className="text-[10px] bg-[#21262d] px-1.5 py-0.5 rounded border border-[#30363d] font-semibold">{user.username}</span>
+                  / README.md
+                </div>
+                <div className="p-6 text-sm text-[#c9d1d9] prose prose-invert prose-sm max-w-none prose-a:text-[#58a6ff] prose-a:no-underline hover:prose-a:underline prose-headings:border-b prose-headings:border-[#30363d] prose-headings:pb-2 prose-pre:bg-[#161b22] prose-pre:border prose-pre:border-[#30363d]">
+                  {specialRepo.latest_prompt ? (
+                    <ReactMarkdown 
+                      remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[rehypeRaw]}
+                    >
+                      {specialRepo.latest_prompt}
+                    </ReactMarkdown>
+                  ) : (
+                    <p>This is your special repository.</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="mb-8 border border-[#30363d] rounded-md p-4 bg-[#161b22] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-[#f0f6fc] mb-1">
+                    {user.username} / {user.username} is a special repository
+                  </h3>
+                  <p className="text-xs text-[#8b949e]">
+                    Its `README.md` will appear on your public profile!
+                  </p>
+                </div>
+                {showGithubInput ? (
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <input 
+                      type="text" 
+                      value={githubUsername}
+                      onChange={(e) => setGithubUsername(e.target.value)}
+                      placeholder="GitHub username or URL..."
+                      className="bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1.5 text-xs text-[#c9d1d9] focus:outline-none focus:border-[#58a6ff] min-w-[200px]"
+                      onKeyDown={(e) => e.key === 'Enter' && fetchGithubReadme()}
+                    />
+                    <button 
+                      onClick={fetchGithubReadme}
+                      disabled={isFetchingGithub || !githubUsername.trim()}
+                      className="bg-[#238636] hover:bg-[#2ea043] border border-[#2ea043]/60 text-white text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5 shadow-sm transition disabled:opacity-50 whitespace-nowrap"
+                    >
+                      {isFetchingGithub ? "Fetching..." : "Fetch"}
+                    </button>
+                    <button 
+                      onClick={() => setShowGithubInput(false)}
+                      className="text-[#8b949e] hover:text-[#c9d1d9] text-xs px-2"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={() => setShowGithubInput(true)}
+                    className="bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-[#f0f6fc] text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5 shadow-sm transition whitespace-nowrap"
+                  >
+                    <Book className="w-3.5 h-3.5" />
+                    Fetch from GitHub
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Pinned Repos */}
             <div className="mb-8">
               <div className="flex items-center justify-between mb-3">
@@ -357,18 +577,12 @@ export default function ProfilePage() {
               <h2 className="text-sm text-[#f0f6fc] mb-2">{totalContributions} contributions in the last year</h2>
               <div className="border border-[#30363d] rounded-md p-4 bg-[#0d1117]">
                 {/* Month labels */}
-                <div className="flex gap-1 mb-1 pl-8 overflow-x-auto no-scrollbar">
+                <div className="relative h-4 mb-1 pl-8">
                   {monthLabels.map(({ idx, label }, i) => (
                     <div 
                       key={i} 
-                      className="text-[10px] text-[#8b949e]"
-                      style={{ 
-                        position: 'relative',
-                        left: `${idx * 13}px`,
-                        marginRight: i < monthLabels.length - 1 
-                          ? `${(monthLabels[i + 1]?.idx - idx) * 13 - 30}px` 
-                          : 0
-                      }}
+                      className="absolute text-[10px] text-[#8b949e]"
+                      style={{ left: `${32 + (idx * 13)}px` }}
                     >
                       {label}
                     </div>
@@ -441,11 +655,13 @@ export default function ProfilePage() {
                       </div>
                       <div>
                         <p className="text-[#c9d1d9]">
-                          {activity.description}
-                          {activity.repo_name && (
-                            <Link href={`/repo/${activity.repo_id}`} className="text-[#58a6ff] hover:underline ml-1 font-medium">
-                              {activity.repo_name}
+                          {activity.type === 'repo_created' ? 'Created repository ' : 'Made a commit in '}
+                          {activity.repo_name ? (
+                            <Link href={`/repo/${activity.repo_id}`} className="text-[#58a6ff] hover:underline font-medium">
+                              {user.username}/{activity.repo_name}
                             </Link>
+                          ) : (
+                            <span className="text-[#8b949e]">unknown repository</span>
                           )}
                         </p>
                         <p className="text-[11px] text-[#8b949e] mt-0.5">
@@ -529,6 +745,46 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+
+      {/* AI Preview Modal */}
+      {previewModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+          <div className="bg-[#0d1117] border border-[#30363d] rounded-xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between p-4 border-b border-[#30363d]">
+              <h2 className="text-[#f0f6fc] text-lg font-semibold flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-[#58a6ff]" />
+                Preview Profile README
+              </h2>
+            </div>
+            
+            <div className="p-4 overflow-y-auto flex-1">
+              <label className="block text-sm font-semibold text-[#f0f6fc] mb-2">Edit your fetched README:</label>
+              <textarea
+                value={previewContent}
+                onChange={(e) => setPreviewContent(e.target.value)}
+                className="w-full bg-[#161b22] border border-[#30363d] rounded-lg p-3 text-sm text-[#c9d1d9] font-mono focus:outline-none focus:border-[#58a6ff] transition"
+                rows={12}
+              />
+            </div>
+            
+            <div className="p-4 border-t border-[#30363d] flex justify-end gap-2 bg-[#161b22]">
+              <button 
+                onClick={() => setPreviewModalOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-[#c9d1d9] bg-[#21262d] border border-[#363b42] hover:bg-[#30363d] rounded-md transition"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmCreateSpecialRepo}
+                disabled={isCreatingSpecial}
+                className="px-4 py-2 text-sm font-medium text-white bg-[#238636] hover:bg-[#2ea043] border border-[#2ea043]/60 rounded-md transition flex items-center gap-2 shadow-sm disabled:opacity-50"
+              >
+                {isCreatingSpecial ? "Creating..." : "Looks good, create repo!"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

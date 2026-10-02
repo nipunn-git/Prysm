@@ -21,6 +21,7 @@ class User(Base):
     location = Column(String, nullable=True)
     website = Column(String, nullable=True)
     twitter = Column(String, nullable=True)
+    status_emoji = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     repositories = relationship("Repository", back_populates="owner", cascade="all, delete-orphan")
