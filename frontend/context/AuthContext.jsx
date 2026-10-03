@@ -116,30 +116,18 @@ export function AuthProvider({ children }) {
     if (isAuthenticating) return;
     setIsAuthenticating(true);
     try {
-      let idToken = null;
-      let email = null;
-      let name = null;
-      let avatar = null;
-
-      try {
-        const provider = providerName === 'google' ? googleProvider : appleProvider;
-        const result = await signInWithPopup(auth, provider);
-        idToken = await result.user.getIdToken();
-        email = result.user.email;
-        name = result.user.displayName;
-        avatar = result.user.photoURL;
-      } catch (popupErr) {
-        console.warn("Firebase popup sign-in did not complete, falling back smoothly:", popupErr);
-        // Resilient fallback for local development / popup restrictions
-        email = "nipunndhiman@gmail.com";
-        name = "Nipun Dhiman";
-      }
+      const provider = providerName === 'google' ? googleProvider : appleProvider;
+      const result = await signInWithPopup(auth, provider);
+      const idToken = await result.user.getIdToken();
+      const email = result.user.email;
+      const name = result.user.displayName;
+      const avatar = result.user.photoURL;
 
       const res = await fetch(`${API_URL}/api/auth/firebase-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          token: idToken || "dev_google_token",
+          token: idToken,
           email: email,
           name: name,
           avatar: avatar
@@ -157,8 +145,8 @@ export function AuthProvider({ children }) {
       localStorage.setItem('prompthub_token', data.access_token);
       return data.user;
     } catch (e) {
-      console.warn("Provider login failed, activating resilient demo login fallback:", e);
-      return await demoLogin();
+      console.error("Provider login failed:", e);
+      throw e;
     } finally {
       setIsAuthenticating(false);
     }
