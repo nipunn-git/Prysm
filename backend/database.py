@@ -1,13 +1,23 @@
+import os
 from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-DB_PATH = Path(__file__).resolve().parent / "prompthub.db"
-SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
+if os.getenv("DATABASE_URL"):
+    SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
+    connect_args = {} # Postgres doesn't need check_same_thread
+elif os.environ.get("VERCEL"):
+    DB_PATH = Path("/tmp/prompthub.db")
+    SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
+    connect_args = {"check_same_thread": False}
+else:
+    DB_PATH = Path(__file__).resolve().parent / "prompthub.db"
+    SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
+    connect_args = {"check_same_thread": False}
 
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    SQLALCHEMY_DATABASE_URL, connect_args=connect_args
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
