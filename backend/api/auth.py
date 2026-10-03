@@ -46,11 +46,6 @@ def resolve_user_id_from_token(token: str, db: Session) -> Optional[str]:
         if user:
             active_sessions[token] = user.id
             return user.id
-    # Fallback to primary user so app never breaks in demo/development
-    default_user = db.query(models.User).filter(models.User.id == "usr_nipun_01").first()
-    if default_user:
-        active_sessions[token] = default_user.id
-        return default_user.id
     return None
 
 @router.post("/register", response_model=schemas.UserResponse)
@@ -151,30 +146,10 @@ def firebase_login(payload: FirebaseLogin, db: Session = Depends(get_db)):
         name = decoded_token.get("name") or payload.name or "User"
         avatar = decoded_token.get("picture") or payload.avatar
         
-        # If no email provided, fallback to Nipun Dhiman default for development
+        # If no email provided, authentication failed
         if not email:
-            email = "nipunndhiman@gmail.com"
-            name = "Nipun Dhiman"
+            raise HTTPException(status_code=400, detail="Authentication failed: No email provided in token.")
             
-        # Check if user is Nipun Dhiman (link to main usr_nipun_01)
-        if "nipun" in email.lower() or email == "nipunndhiman@gmail.com" or email == "nipun@prompthub.dev":
-            user = db.query(models.User).filter(models.User.id == "usr_nipun_01").first()
-            if user:
-                user.email = email
-                if name and name != "User":
-                    user.name = name
-                if avatar:
-                    user.avatar = avatar
-                db.commit()
-                db.refresh(user)
-                token = f"token_{user.id}"
-                active_sessions[token] = user.id
-                return {
-                    "access_token": token,
-                    "token_type": "bearer",
-                    "user": schemas.UserResponse.model_validate(user),
-                }
-
         # Check if user exists by email
         user = db.query(models.User).filter(models.User.email == email).first()
         if not user:
@@ -205,18 +180,10 @@ def firebase_login(payload: FirebaseLogin, db: Session = Depends(get_db)):
             "user": schemas.UserResponse.model_validate(user),
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Firebase auth error: {e}")
-        # In development, fallback gracefully to main user rather than locking user out
-        fallback_user = db.query(models.User).filter(models.User.id == "usr_nipun_01").first()
-        if fallback_user:
-            token = f"token_{fallback_user.id}"
-            active_sessions[token] = fallback_user.id
-            return {
-                "access_token": token,
-                "token_type": "bearer",
-                "user": schemas.UserResponse.model_validate(fallback_user),
-            }
         raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
 
 @router.get("/me", response_model=schemas.UserResponse)
