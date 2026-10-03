@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext, useState, useEffect } from 'react';
-import { signInWithPopup } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect, getRedirectResult } from 'firebase/auth';
 import { auth, googleProvider, appleProvider } from '../lib/firebase';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
@@ -15,13 +15,49 @@ export function AuthProvider({ children }) {
 
   // Initialize from local storage on mount
   useEffect(() => {
-    const storedToken = localStorage.getItem('prompthub_token');
-    if (!storedToken) {
-      setIsLoading(false);
-      return;
-    }
-    setToken(storedToken);
-    fetchUser(storedToken).finally(() => setIsLoading(false));
+    const initAuth = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+          const idToken = await result.user.getIdToken();
+          const email = result.user.email;
+          const name = result.user.displayName;
+          const avatar = result.user.photoURL;
+
+          const res = await fetch(`${API_URL}/api/auth/firebase-login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              token: idToken,
+              email: email,
+              name: name,
+              avatar: avatar
+            })
+          });
+          
+          if (res.ok) {
+            const data = await res.json();
+            setToken(data.access_token);
+            setUser(data.user);
+            localStorage.setItem('prompthub_token', data.access_token);
+            setIsLoading(false);
+            return;
+          }
+        }
+      } catch (error) {
+        console.error("Redirect login failed:", error);
+      }
+
+      const storedToken = localStorage.getItem('prompthub_token');
+      if (!storedToken) {
+        setIsLoading(false);
+        return;
+      }
+      setToken(storedToken);
+      fetchUser(storedToken).finally(() => setIsLoading(false));
+    };
+
+    initAuth();
   }, []);
 
   const fetchUser = async (authToken) => {
@@ -145,6 +181,11 @@ export function AuthProvider({ children }) {
       localStorage.setItem('prompthub_token', data.access_token);
       return data.user;
     } catch (e) {
+      if (e.code === 'auth/popup-blocked') {
+        const provider = providerName === 'google' ? googleProvider : appleProvider;
+        await signInWithRedirect(auth, provider);
+        return;
+      }
       console.error("Provider login failed:", e);
       throw e;
     } finally {
