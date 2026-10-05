@@ -233,8 +233,25 @@ def chat_with_ai(
     if not messages:
         raise HTTPException(status_code=400, detail="No messages provided")
     
+    # Fetch user's repos and their latest prompts to give AI context
+    user_repos = db.query(models.Repository).filter(models.Repository.owner_id == user_id).all()
+    user_context = "## User's Repositories Context\nThe user has the following repositories and prompts:\n"
+    if user_repos:
+        for repo in user_repos:
+            latest_version = db.query(models.PromptVersion).filter(
+                models.PromptVersion.repository_id == repo.id
+            ).order_by(models.PromptVersion.created_at.desc()).first()
+            prompt_content = latest_version.content if latest_version else "No prompt content"
+            # Truncate content to avoid token overflow
+            prompt_content = prompt_content[:800] + ("..." if len(prompt_content) > 800 else "")
+            user_context += f"- Repo: {repo.name} | Category: {repo.category}\n  Content: {prompt_content}\n\n"
+    else:
+        user_context += "The user currently has no repositories.\n"
+        
+    dynamic_system_prompt = f"{CHATBOT_SYSTEM_PROMPT}\n\n{user_context}"
+    
     # Call Gemini
-    raw_reply = call_gemini_chat(messages, CHATBOT_SYSTEM_PROMPT)
+    raw_reply = call_gemini_chat(messages, dynamic_system_prompt)
     
     # Extract repo metadata if present
     repo_meta = extract_repo_meta(raw_reply)

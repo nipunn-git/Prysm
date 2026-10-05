@@ -92,13 +92,18 @@ export function isUserRepo(repoOrId) {
 export function filterUserRepos(allRepos = []) {
   if (!Array.isArray(allRepos)) return [];
   const userIds = getUserRepoIds();
-  if (userIds.length === 0) return [];
-  
   const userSet = new Set(userIds);
+  
   return allRepos.filter(repo => {
     if (!repo || !repo.id) return false;
-    // Must be in user's created IDs
-    return userSet.has(repo.id);
+    
+    // If it's a known demo repo and user hasn't explicitly saved it in their session, hide it
+    if (DEMO_REPO_IDS.has(repo.id) && !userSet.has(repo.id)) {
+      return false;
+    }
+    
+    // Otherwise, show it! This ensures repos created on other devices are shown.
+    return true;
   });
 }
 

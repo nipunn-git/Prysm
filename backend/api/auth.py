@@ -157,7 +157,7 @@ def firebase_login(payload: FirebaseLogin, db: Session = Depends(get_db)):
             username = email.split('@')[0]
             base_username = username
             count = 1
-            while db.query(models.User).filter(models.User.username == username).first():
+            while db.query(models.User).filter(models.User.username.ilike(username)).first():
                 username = f"{base_username}{count}"
                 count += 1
                 
