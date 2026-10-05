@@ -84,7 +84,7 @@ export default function ProfilePage() {
   const fetchRepos = async () => {
     try {
       const query = user?.id ? `?user_id=${user.id}` : '';
-      const res = await fetch(`${API_URL}/api/repositories${query}`);
+      const res = await fetch(`${API_URL}/api/repositories${query}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         // Auto-recover special repo if it exists in DB but not in localStorage
@@ -101,7 +101,7 @@ export default function ProfilePage() {
   const fetchContributions = async () => {
     try {
       const userId = user?.id || user?.username || 'default';
-      const res = await fetch(`${API_URL}/api/auth/users/${userId}/contributions`);
+      const res = await fetch(`${API_URL}/api/auth/users/${userId}/contributions`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setContributions(data);
@@ -196,7 +196,7 @@ export default function ProfilePage() {
           name: user.username,
           description: "My public profile README",
           category: "Other",
-          visibility: "Public",
+          visibility: "Private",
           initial_prompt: previewContent
         })
       });

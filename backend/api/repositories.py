@@ -84,9 +84,7 @@ def list_user_repositories(
 ):
     query = db.query(models.Repository)
     if user_id:
-        user_query = query.filter(models.Repository.owner_id == user_id)
-        if user_query.count() > 0:
-            query = user_query
+        query = query.filter(models.Repository.owner_id == user_id)
     if search:
         search_pattern = f"%{search}%"
         query = query.filter(
