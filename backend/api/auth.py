@@ -150,8 +150,8 @@ def firebase_login(payload: FirebaseLogin, db: Session = Depends(get_db)):
         if not email:
             raise HTTPException(status_code=400, detail="Authentication failed: No email provided in token.")
             
-        # Check if user exists by email
-        user = db.query(models.User).filter(models.User.email == email).first()
+        # Check if user exists by email (case-insensitive)
+        user = db.query(models.User).filter(models.User.email.ilike(email)).first()
         if not user:
             # Create user automatically
             username = email.split('@')[0]

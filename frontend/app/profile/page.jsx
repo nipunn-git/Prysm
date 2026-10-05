@@ -165,10 +165,11 @@ export default function ProfilePage() {
         uname = parts[1].split('/')[0];
       }
       
-      let res = await fetch(`https://raw.githubusercontent.com/${uname}/${uname}/main/README.md`);
-      if (!res.ok) {
-        res = await fetch(`https://raw.githubusercontent.com/${uname}/${uname}/master/README.md`);
-      }
+      let res = await fetch(`https://api.github.com/repos/${uname}/${uname}/readme`, {
+        headers: {
+          'Accept': 'application/vnd.github.v3.raw'
+        }
+      });
       
       if (res.ok) {
         const text = await res.text();
