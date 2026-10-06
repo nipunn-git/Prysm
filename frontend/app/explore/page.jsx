@@ -29,6 +29,7 @@ export default function ExplorePage() {
   const router = useRouter();
   const { user } = useAuth();
   const [repos, setRepos] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState("All");
   const [search, setSearch] = useState("");
@@ -51,6 +52,16 @@ export default function ExplorePage() {
         if (res.ok) {
           const data = await res.json();
           setRepos(data);
+        }
+
+        if (search) {
+          const usersRes = await fetch(`${API_URL}/api/auth/users/search?q=${encodeURIComponent(search)}`);
+          if (usersRes.ok) {
+            const usersData = await usersRes.json();
+            setUsers(usersData);
+          }
+        } else {
+          setUsers([]);
         }
       } catch (e) {
         console.error(e);
@@ -192,14 +203,44 @@ export default function ExplorePage() {
                 <Loader2 className="w-8 h-8 animate-spin mb-4" />
                 <span className="text-sm font-medium">Loading prompts...</span>
               </div>
-            ) : repos.length === 0 ? (
+            ) : repos.length === 0 && users.length === 0 ? (
               <div className="py-20 text-center flex flex-col items-center bg-[#0d1117] border border-[#30363d] rounded-2xl">
                 <Compass className="w-8 h-8 text-[#8b949e] mb-3" />
                 <p className="text-base font-semibold text-[#f0f6fc] mb-1">Nothing found</p>
-                <p className="text-sm text-[#8b949e] max-w-sm">No public prompts match your criteria.</p>
+                <p className="text-sm text-[#8b949e] max-w-sm">No users or public prompts match your criteria.</p>
               </div>
             ) : (
-              repos.map(repo => (
+              <>
+                {users.length > 0 && (
+                  <div className="mb-8">
+                    <h3 className="text-sm font-semibold text-[#8b949e] uppercase tracking-widest mb-4">Users</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {users.map(u => (
+                        <Link 
+                          key={u.id}
+                          href={`/u/${u.username}`}
+                          className="bg-[#0d1117] border border-[#30363d] rounded-xl p-4 flex items-center gap-4 hover:border-[#8b949e] transition group"
+                        >
+                          <img 
+                            src={u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`} 
+                            alt={u.username}
+                            className="w-12 h-12 rounded-full border border-[#30363d] object-cover"
+                          />
+                          <div>
+                            <div className="font-semibold text-[#f0f6fc] group-hover:text-[#58a6ff] transition">{u.name}</div>
+                            <div className="text-xs text-[#8b949e]">@{u.username}</div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {repos.length > 0 ? (
+                  <>
+                    <h3 className="text-sm font-semibold text-[#8b949e] uppercase tracking-widest mb-4">Repositories</h3>
+                    <div className="space-y-6">
+                      {repos.map(repo => (
                 <div 
                   key={repo.id} 
                   className="bg-[#0d1117] border border-[#30363d] rounded-2xl p-6 transition-colors hover:border-[#8b949e] cursor-pointer group"
@@ -263,7 +304,9 @@ export default function ExplorePage() {
                     </pre>
                   </div>
                 </div>
-              ))
+              ))}
+              </div>
+            </>
             )}
           </div>
         </main>

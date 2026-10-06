@@ -273,6 +273,10 @@ def chat_with_ai(
                 count += 1
             
             visibility = request.visibility or "Private"
+            owner = db.query(models.User).filter(models.User.id == user_id).first()
+            if owner and final_name.lower() == owner.username.lower():
+                visibility = "Private"
+                
             new_repo = models.Repository(
                 owner_id=user_id,
                 name=final_name,
@@ -388,6 +392,10 @@ def quick_generate(
         count += 1
     
     visibility = payload.visibility or "Private"
+    owner = db.query(models.User).filter(models.User.id == user_id).first()
+    if owner and final_name.lower() == owner.username.lower():
+        visibility = "Private"
+        
     new_repo = models.Repository(
         owner_id=user_id,
         name=final_name,

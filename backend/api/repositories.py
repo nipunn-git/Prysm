@@ -32,8 +32,14 @@ def ai_generate_repository(
         final_name = f"{base_name}-{count}"
         count += 1
         
+    owner = db.query(models.User).filter(models.User.id == user_id).first()
+    owner_username = owner.username if owner else ""
+
     # 2. Create new repository (default Private)
     visibility = payload.visibility or "Private"
+    if final_name.lower() == owner_username.lower():
+        visibility = "Private"
+
     new_repo = models.Repository(
         owner_id=user_id,
         name=final_name,
@@ -124,7 +130,7 @@ def explore_public_repositories(
     user_id: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    query = db.query(models.Repository).filter(models.Repository.visibility == "Public")
+    query = db.query(models.Repository).filter(models.Repository.visibility.ilike("Public"))
     if user_id:
         query = query.filter(models.Repository.owner_id != user_id)
     if category and category.lower() != "all":
@@ -139,6 +145,41 @@ def explore_public_repositories(
             )
         )
     repos = query.order_by(desc(models.Repository.updated_at)).all()
+    
+    res = []
+    for r in repos:
+        latest = r.versions[0] if r.versions else None
+        res.append(schemas.RepositoryResponse(
+            id=r.id,
+            owner_id=r.owner_id,
+            owner_username=r.owner.username if r.owner else "user",
+            owner_name=r.owner.name if r.owner else "Developer",
+            owner_avatar=r.owner.avatar if r.owner else None,
+            name=r.name,
+            description=r.description or "",
+            category=r.category,
+            visibility=r.visibility,
+            created_at=r.created_at,
+            updated_at=r.updated_at,
+            versions_count=len(r.versions),
+            latest_version=latest.version if latest else "v1.0",
+            latest_prompt=latest.content if latest else ""
+        ))
+    return res
+
+@router.get("/user/{username}", response_model=List[schemas.RepositoryResponse])
+def list_public_repositories_for_user(
+    username: str,
+    db: Session = Depends(get_db)
+):
+    user = db.query(models.User).filter(models.User.username.ilike(username)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    repos = db.query(models.Repository).filter(
+        models.Repository.owner_id == user.id,
+        models.Repository.visibility.ilike("Public")
+    ).order_by(desc(models.Repository.updated_at)).all()
     
     res = []
     for r in repos:
@@ -203,12 +244,19 @@ def create_repository(
     if existing:
         raise HTTPException(status_code=400, detail=f"Repository '{repo_in.name}' already exists.")
 
+    owner = db.query(models.User).filter(models.User.id == user_id).first()
+    owner_username = owner.username if owner else ""
+    
+    visibility = repo_in.visibility
+    if repo_in.name.strip().lower().replace(" ", "-") == owner_username.lower():
+        visibility = "Private"
+
     new_repo = models.Repository(
         owner_id=user_id,
         name=repo_in.name.strip().lower().replace(" ", "-"),
         description=repo_in.description,
         category=repo_in.category,
-        visibility=repo_in.visibility
+        visibility=visibility
     )
     db.add(new_repo)
     db.commit()

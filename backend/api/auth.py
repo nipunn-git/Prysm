@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 import models
 import schemas
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel
 import firebase_admin
 from firebase_admin import credentials, auth as firebase_auth
@@ -212,6 +212,24 @@ def update_profile(updates: schemas.UserUpdate, token: str, db: Session = Depend
     db.commit()
     db.refresh(user)
     return user
+
+@router.get("/users/search", response_model=List[schemas.UserResponse])
+def search_users(q: str, db: Session = Depends(get_db)):
+    search_pattern = f"%{q}%"
+    users = db.query(models.User).filter(
+        (models.User.username.ilike(search_pattern)) | 
+        (models.User.name.ilike(search_pattern))
+    ).limit(10).all()
+    return users
+
+
+@router.get("/users/{username}", response_model=schemas.UserResponse)
+def get_user_profile(username: str, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.username.ilike(username)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
 
 
 @router.get("/users/{user_id}/contributions")
