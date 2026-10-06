@@ -236,7 +236,7 @@ export default function ExplorePage() {
                   </div>
                 )}
                 
-                {repos.length > 0 ? (
+                {repos.length > 0 && (
                   <>
                     <h3 className="text-sm font-semibold text-[#8b949e] uppercase tracking-widest mb-4">Repositories</h3>
                     <div className="space-y-6">
@@ -308,6 +308,8 @@ export default function ExplorePage() {
               </div>
             </>
             )}
+          </>
+          )}
           </div>
         </main>
       </div>
