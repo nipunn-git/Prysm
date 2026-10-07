@@ -229,6 +229,7 @@ export default function ExplorePage() {
                           <div>
                             <div className="font-semibold text-[#f0f6fc] group-hover:text-[#58a6ff] transition">{u.name}</div>
                             <div className="text-xs text-[#8b949e]">@{u.username}</div>
+                            <div className="text-[10px] text-[#484f58] mt-0.5">ID: {u.id}</div>
                           </div>
                         </Link>
                       ))}
