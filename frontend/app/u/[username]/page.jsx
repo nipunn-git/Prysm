@@ -128,7 +128,8 @@ export default function PublicProfilePage() {
 
         <h1 className="mb-4">
           <span className="block text-2xl font-bold text-[#f0f6fc]">{profileUser.name}</span>
-          <span className="block text-xl font-light text-[#8b949e]">{profileUser.username}</span>
+          <span className="block text-xl font-light text-[#8b949e]">@{profileUser.username}</span>
+          <span className="block text-xs text-[#484f58] mt-1">ID: {profileUser.id}</span>
         </h1>
 
         {profileUser.bio && <p className="text-sm text-[#c9d1d9] mb-4">{profileUser.bio}</p>}
