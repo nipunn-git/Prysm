@@ -30,6 +30,31 @@ export default function Navbar() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(async () => {
+      if (searchQuery.trim().length > 0) {
+        setIsSearching(true);
+        try {
+          const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+          const res = await fetch(`${API_URL}/api/auth/users/search?q=${encodeURIComponent(searchQuery.trim())}`);
+          if (res.ok) {
+            const data = await res.json();
+            setSearchResults(data);
+          }
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setIsSearching(false);
+        }
+      } else {
+        setSearchResults([]);
+      }
+    }, 300);
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
 
   const profileRef = useRef(null);
   const createRef = useRef(null);
@@ -93,6 +118,42 @@ export default function Navbar() {
               onKeyDown={handleSearchSubmit}
               className="w-full bg-[#0d1117] border border-[#30363d] rounded-md pl-8 pr-7 py-1 text-xs focus:outline-none focus:border-[#58a6ff] focus:ring-1 focus:ring-[#58a6ff] transition-colors placeholder:text-[#8b949e] text-[#c9d1d9]"
             />
+            {searchQuery.trim().length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-[#161b22] border border-[#30363d] rounded-md shadow-xl py-1.5 z-50 overflow-hidden">
+                {isSearching ? (
+                  <div className="px-3 py-2 text-xs text-[#8b949e]">Searching...</div>
+                ) : searchResults.length > 0 ? (
+                  searchResults.map(u => (
+                    <Link
+                      key={u.id}
+                      href={`/u/${u.username}`}
+                      onClick={() => { setSearchQuery(''); setSearchResults([]); }}
+                      className="flex items-center gap-3 px-3 py-2 hover:bg-[#1f6feb] hover:text-white transition group"
+                    >
+                      <img 
+                        src={u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`} 
+                        alt={u.username}
+                        className="w-6 h-6 rounded-full border border-[#30363d] object-cover group-hover:border-white/20"
+                      />
+                      <div className="flex flex-col">
+                        <span className="text-xs font-semibold text-[#c9d1d9] group-hover:text-white">{u.name}</span>
+                        <span className="text-[10px] text-[#8b949e] group-hover:text-white/80">@{u.username} • ID: {u.id}</span>
+                      </div>
+                    </Link>
+                  ))
+                ) : (
+                  <div className="px-3 py-2 text-xs text-[#8b949e]">No users found for "{searchQuery}"</div>
+                )}
+                <div className="border-t border-[#30363d] my-1"></div>
+                <Link
+                  href={`/explore?search=${encodeURIComponent(searchQuery.trim())}`}
+                  onClick={() => { setSearchQuery(''); setSearchResults([]); }}
+                  className="block px-3 py-2 text-xs text-[#58a6ff] hover:bg-[#1f6feb] hover:text-white transition"
+                >
+                  See all results
+                </Link>
+              </div>
+            )}
             <div className="absolute right-2 top-1.5 flex items-center">
               <span className="border border-[#30363d] rounded px-1 text-[10px] text-[#8b949e] font-mono leading-tight">/</span>
             </div>
