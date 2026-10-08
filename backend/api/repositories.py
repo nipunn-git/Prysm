@@ -176,9 +176,13 @@ def list_public_repositories_for_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
         
+    # Get public repos + the special profile repo (private but its content shows on profile)
     repos = db.query(models.Repository).filter(
         models.Repository.owner_id == user.id,
-        models.Repository.visibility.ilike("Public")
+        or_(
+            models.Repository.visibility.ilike("Public"),
+            models.Repository.name.ilike(user.username)  # Special profile repo
+        )
     ).order_by(desc(models.Repository.updated_at)).all()
     
     res = []

@@ -13,6 +13,14 @@ export function AuthProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
+  // Persist user data to localStorage whenever it changes
+  const persistUser = (userData, authToken) => {
+    if (userData && authToken) {
+      localStorage.setItem('prompthub_token', authToken);
+      localStorage.setItem('prompthub_user', JSON.stringify(userData));
+    }
+  };
+
   // Initialize from local storage on mount
   useEffect(() => {
     const initAuth = async () => {
@@ -39,7 +47,7 @@ export function AuthProvider({ children }) {
             const data = await res.json();
             setToken(data.access_token);
             setUser(data.user);
-            localStorage.setItem('prompthub_token', data.access_token);
+            persistUser(data.user, data.access_token);
             setIsLoading(false);
             return;
           }
@@ -49,12 +57,43 @@ export function AuthProvider({ children }) {
       }
 
       const storedToken = localStorage.getItem('prompthub_token');
+      const storedUser = localStorage.getItem('prompthub_user');
+      
       if (!storedToken) {
         setIsLoading(false);
         return;
       }
-      setToken(storedToken);
-      fetchUser(storedToken).finally(() => setIsLoading(false));
+      
+      // Immediately restore cached user so there's no blank screen
+      if (storedUser) {
+        try {
+          const cachedUser = JSON.parse(storedUser);
+          setUser(cachedUser);
+          setToken(storedToken);
+        } catch (e) {
+          console.error("Failed to parse cached user:", e);
+        }
+      }
+      
+      // Validate token with backend in background, update user data if needed
+      try {
+        const res = await fetch(`${API_URL}/api/auth/me?token=${encodeURIComponent(storedToken)}`);
+        if (res.ok) {
+          const userData = await res.json();
+          setUser(userData);
+          setToken(storedToken);
+          persistUser(userData, storedToken);
+        } else {
+          // Token invalid - but don't log out if we have cached data
+          // The user's data is still in the DB, just the session expired
+          console.warn("Token validation failed, keeping cached user data");
+        }
+      } catch (e) {
+        // Network error - keep cached data, user can work offline-ish
+        console.warn("Network error during token validation, using cached data");
+      }
+      
+      setIsLoading(false);
     };
 
     initAuth();
@@ -67,6 +106,7 @@ export function AuthProvider({ children }) {
         const userData = await res.json();
         setUser(userData);
         setToken(authToken);
+        persistUser(userData, authToken);
         return true;
       }
       logout();
@@ -91,7 +131,7 @@ export function AuthProvider({ children }) {
     const data = await res.json();
     setToken(data.access_token);
     setUser(data.user);
-    localStorage.setItem('prompthub_token', data.access_token);
+    persistUser(data.user, data.access_token);
     return data.user;
   };
 
@@ -107,7 +147,7 @@ export function AuthProvider({ children }) {
     const data = await res.json();
     setToken(data.access_token);
     setUser(data.user);
-    localStorage.setItem('prompthub_token', data.access_token);
+    persistUser(data.user, data.access_token);
     return data.user;
   };
 
@@ -136,9 +176,15 @@ export function AuthProvider({ children }) {
       if (res.ok) {
         const updatedUser = await res.json();
         setUser(updatedUser);
+        persistUser(updatedUser, token);
+        return { success: true, user: updatedUser };
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        return { success: false, error: errorData.detail || 'Update failed' };
       }
     } catch (e) {
       console.error(e);
+      return { success: false, error: e.message };
     }
   };
 
@@ -146,6 +192,9 @@ export function AuthProvider({ children }) {
     setUser(null);
     setToken(null);
     localStorage.removeItem('prompthub_token');
+    localStorage.removeItem('prompthub_user');
+    // NOTE: We do NOT clear repo data from localStorage here.
+    // User's repos are in the database and will be restored on next login.
   };
 
   const loginWithProvider = async (providerName) => {
@@ -178,7 +227,7 @@ export function AuthProvider({ children }) {
       const data = await res.json();
       setToken(data.access_token);
       setUser(data.user);
-      localStorage.setItem('prompthub_token', data.access_token);
+      persistUser(data.user, data.access_token);
       return data.user;
     } catch (e) {
       if (e.code === 'auth/popup-blocked') {

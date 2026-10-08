@@ -2,12 +2,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Book, Star, GitMerge, Users, MapPin, Link as LinkIcon, Twitter, Building, Lock, Eye, Sparkles } from 'lucide-react';
+import { Book, Star, GitMerge, Users, MapPin, Link as LinkIcon, Twitter, Building, Lock, Eye, Sparkles, AlertCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { useAuth } from '../../context/AuthContext';
-import { filterUserRepos, addCreatedRepoId } from '../../lib/repoStore';
+import { addCreatedRepoId } from '../../lib/repoStore';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
@@ -24,6 +24,8 @@ export default function ProfilePage() {
   const router = useRouter();
   
   const [isEditing, setIsEditing] = useState(false);
+  const [usernameError, setUsernameError] = useState('');
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     bio: '',
@@ -83,15 +85,16 @@ export default function ProfilePage() {
 
   const fetchRepos = async () => {
     try {
-      const query = user?.id ? `?user_id=${user.id}` : '';
-      const res = await fetch(`${API_URL}/api/repositories${query}`, { cache: 'no-store' });
+      if (!user?.id) return;
+      const res = await fetch(`${API_URL}/api/repositories?user_id=${user.id}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         // Auto-recover special repo if it exists in DB but not in localStorage
         const special = data.find(r => r.name.toLowerCase() === (user?.username || '').toLowerCase());
         if (special) addCreatedRepoId(special.id);
         
-        setRepos(filterUserRepos(data));
+        // All repos from DB for this user - no localStorage filtering
+        setRepos(data);
       }
     } catch (e) {
       console.error(e);
@@ -113,9 +116,54 @@ export default function ProfilePage() {
 
   if (isLoading || !user) return null;
 
-  const handleSave = () => {
-    updateProfile(formData);
+  // Check username uniqueness
+  const checkUsername = async (username) => {
+    if (!username || username === user.username) {
+      setUsernameError('');
+      return true;
+    }
+    // Validate format
+    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+      setUsernameError('Username can only contain letters, numbers, hyphens, and underscores');
+      return false;
+    }
+    if (username.length < 3) {
+      setUsernameError('Username must be at least 3 characters');
+      return false;
+    }
+    setIsCheckingUsername(true);
+    try {
+      const res = await fetch(`${API_URL}/api/auth/users/check-username?username=${encodeURIComponent(username)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (!data.available) {
+          setUsernameError(`Username "${username}" is already taken`);
+          return false;
+        }
+        setUsernameError('');
+        return true;
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsCheckingUsername(false);
+    }
+    return true;
+  };
+
+  const handleSave = async () => {
+    // Check username uniqueness if it changed
+    if (formData.username !== user.username) {
+      const isAvailable = await checkUsername(formData.username);
+      if (!isAvailable) return;
+    }
+    const result = await updateProfile(formData);
+    if (result?.success === false) {
+      setUsernameError(result.error || 'Update failed');
+      return;
+    }
     setIsEditing(false);
+    setUsernameError('');
   };
 
   const handleCancel = () => {
@@ -270,9 +318,23 @@ export default function ProfilePage() {
               <input 
                 type="text" 
                 value={formData.username} 
-                onChange={(e) => setFormData({...formData, username: e.target.value})}
-                className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1 text-sm focus:outline-none focus:border-[#58a6ff] text-[#c9d1d9]"
+                onChange={(e) => {
+                  const val = e.target.value.toLowerCase().replace(/\s+/g, '-');
+                  setFormData({...formData, username: val});
+                  setUsernameError('');
+                }}
+                onBlur={() => formData.username !== user.username && checkUsername(formData.username)}
+                className={`w-full bg-[#0d1117] border rounded-md px-3 py-1 text-sm focus:outline-none text-[#c9d1d9] ${usernameError ? 'border-[#da3633] focus:border-[#da3633]' : 'border-[#30363d] focus:border-[#58a6ff]'}`}
               />
+              {isCheckingUsername && (
+                <span className="text-[11px] text-[#8b949e] mt-1 block">Checking availability...</span>
+              )}
+              {usernameError && (
+                <span className="text-[11px] text-[#da3633] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{usernameError}</span>
+              )}
+              {!usernameError && formData.username && formData.username !== user.username && !isCheckingUsername && (
+                <span className="text-[11px] text-[#3fb950] mt-1 block">✓ Username available</span>
+              )}
             </div>
             <div>
               <label className="block text-sm font-semibold text-[#f0f6fc] mb-1">Name</label>

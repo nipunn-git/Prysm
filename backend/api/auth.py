@@ -206,12 +206,33 @@ def update_profile(updates: schemas.UserUpdate, token: str, db: Session = Depend
         raise HTTPException(status_code=404, detail="User not found")
     
     update_data = updates.dict(exclude_unset=True)
+    
+    # If username is being changed, check uniqueness
+    if 'username' in update_data and update_data['username'] and update_data['username'] != user.username:
+        new_username = update_data['username'].strip().lower()
+        if len(new_username) < 3:
+            raise HTTPException(status_code=400, detail="Username must be at least 3 characters")
+        existing = db.query(models.User).filter(
+            models.User.username.ilike(new_username),
+            models.User.id != user_id
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail=f"Username '{new_username}' is already taken")
+        update_data['username'] = new_username
+    
     for key, value in update_data.items():
         setattr(user, key, value)
     
     db.commit()
     db.refresh(user)
     return user
+
+@router.get("/users/check-username")
+def check_username_availability(username: str, db: Session = Depends(get_db)):
+    if not username or len(username.strip()) < 3:
+        return {"available": False, "reason": "Username must be at least 3 characters"}
+    existing = db.query(models.User).filter(models.User.username.ilike(username.strip())).first()
+    return {"available": existing is None}
 
 @router.get("/users/search", response_model=List[schemas.UserResponse])
 def search_users(q: str, db: Session = Depends(get_db)):

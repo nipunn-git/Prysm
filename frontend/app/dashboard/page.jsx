@@ -79,21 +79,22 @@ export default function DashboardPage() {
   // Copy state
   const [copiedId, setCopiedId] = useState(null);
 
-  // Fetch repositories from API - ONLY user data is stored in repos, NO demo data!
+  // Fetch repositories from API - uses owner_id from DB so repos survive logout/login
   const fetchRepos = useCallback(async () => {
     try {
-      const userQuery = user?.id ? `?user_id=${user.id}` : "";
-      const res = await fetch(`${API_URL}/api/repositories${userQuery}`);
+      if (!user?.id) {
+        setLoading(false);
+        return;
+      }
+      const res = await fetch(`${API_URL}/api/repositories?user_id=${user.id}`);
       if (res.ok) {
         const data = await res.json();
-        // Filter out demo data! Only show repositories created/forked by this user
-        const userOnlyRepos = filterUserRepos(data);
-        setRepos(userOnlyRepos);
+        // All repos from DB for this user - no localStorage filtering needed
+        setRepos(data);
       }
 
       // Separately fetch public community prompts so user can explore & fork them (excluding their own)
-      const exploreQuery = user?.id ? `?user_id=${user.id}` : "";
-      const expRes = await fetch(`${API_URL}/api/repositories/explore${exploreQuery}`);
+      const expRes = await fetch(`${API_URL}/api/repositories/explore?user_id=${user.id}`);
       if (expRes.ok) {
         const expData = await expRes.json();
         setCommunityRepos(Array.isArray(expData) ? expData : []);
