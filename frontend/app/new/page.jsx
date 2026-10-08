@@ -6,7 +6,7 @@ import { Book } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { addCreatedRepoId } from "../../lib/repoStore";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+import { API_URL } from "../../lib/api";
 
 export default function CreateRepositoryPage() {
   const router = useRouter();

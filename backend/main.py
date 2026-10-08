@@ -12,6 +12,7 @@ load_dotenv(BACKEND_DIR / ".env")
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
+import models
 from seed import seed_data
 from api import repositories, prompts, optimizer, auth, chat
 

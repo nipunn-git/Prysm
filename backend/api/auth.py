@@ -236,11 +236,16 @@ def check_username_availability(username: str, db: Session = Depends(get_db)):
 
 @router.get("/users/search", response_model=List[schemas.UserResponse])
 def search_users(q: str, db: Session = Depends(get_db)):
-    search_pattern = f"%{q}%"
+    clean_q = (q or "").strip()
+    if not clean_q:
+        return []
+    search_pattern = f"%{clean_q}%"
     users = db.query(models.User).filter(
         (models.User.username.ilike(search_pattern)) | 
-        (models.User.name.ilike(search_pattern))
-    ).limit(10).all()
+        (models.User.name.ilike(search_pattern)) |
+        (models.User.id.ilike(search_pattern)) |
+        (models.User.email.ilike(search_pattern))
+    ).limit(20).all()
     return users
 
 

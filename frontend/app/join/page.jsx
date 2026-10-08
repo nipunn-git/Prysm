@@ -3,15 +3,30 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Terminal } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function JoinPage() {
-  const { register, loginWithProvider } = useAuth();
+  const { user, isLoading: authLoading, register, loginWithProvider } = useAuth();
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+
+  // If already authenticated, skip join page and go straight to dashboard
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedToken = localStorage.getItem('prompthub_token');
+      const storedUser = localStorage.getItem('prompthub_user');
+      if (storedToken && storedUser) {
+        router.replace('/dashboard');
+        return;
+      }
+    }
+    if (!authLoading && user) {
+      router.replace('/dashboard');
+    }
+  }, [user, authLoading, router]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

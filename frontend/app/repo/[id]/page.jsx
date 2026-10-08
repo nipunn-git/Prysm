@@ -43,7 +43,7 @@ import {
   removeCreatedRepoId
 } from "../../../lib/repoStore";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+import { API_URL } from "../../../lib/api";
 
 // Helper to format relative time (e.g. "2 hours ago", "just now")
 function formatRelativeTime(dateString) {

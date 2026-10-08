@@ -3,7 +3,7 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import { signInWithPopup, signInWithRedirect, getRedirectResult } from 'firebase/auth';
 import { auth, googleProvider, appleProvider } from '../lib/firebase';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+import { API_URL } from '../lib/api';
 
 const AuthContext = createContext();
 
@@ -84,12 +84,10 @@ export function AuthProvider({ children }) {
           setToken(storedToken);
           persistUser(userData, storedToken);
         } else {
-          // Token invalid - but don't log out if we have cached data
-          // The user's data is still in the DB, just the session expired
+          // Token invalid - but keep cached data so user stays logged in
           console.warn("Token validation failed, keeping cached user data");
         }
       } catch (e) {
-        // Network error - keep cached data, user can work offline-ish
         console.warn("Network error during token validation, using cached data");
       }
       
@@ -109,11 +107,9 @@ export function AuthProvider({ children }) {
         persistUser(userData, authToken);
         return true;
       }
-      logout();
       return false;
     } catch (e) {
       console.error(e);
-      logout();
       return false;
     }
   };

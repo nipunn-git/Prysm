@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { 
   Compass, 
   Clock, 
@@ -22,22 +22,29 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { addCreatedRepoId, saveForkInfo } from "../../lib/repoStore";
+import { API_URL } from "../../lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-
-export default function ExplorePage() {
+function ExploreContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlSearch = searchParams ? (searchParams.get("search") || "") : "";
   const { user } = useAuth();
   const [repos, setRepos] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState("All");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(urlSearch);
   const [copiedId, setCopiedId] = useState(null);
   const [forkingId, setForkingId] = useState(null);
   const [forkModalRepo, setForkModalRepo] = useState(null);
   const [forkVisibility, setForkVisibility] = useState("Private");
   const [forkRepoName, setForkRepoName] = useState("");
+
+  useEffect(() => {
+    if (urlSearch && urlSearch !== search) {
+      setSearch(urlSearch);
+    }
+  }, [urlSearch]);
 
   useEffect(() => {
     async function fetchData() {
@@ -396,6 +403,18 @@ export default function ExplorePage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ExplorePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-[calc(100vh-56px)] bg-[#010409] flex items-center justify-center text-[#8b949e]">
+        <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    }>
+      <ExploreContent />
+    </Suspense>
   );
 }
 

@@ -40,7 +40,7 @@ import {
   generateRepoName 
 } from "../../lib/repoStore";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+import { API_URL } from "../../lib/api";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -108,8 +108,15 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (authLoading) return;
+    if (!user) {
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      if (!storedToken) {
+        router.replace('/login');
+        return;
+      }
+    }
     fetchRepos();
-  }, [authLoading, fetchRepos]);
+  }, [authLoading, user, router, fetchRepos]);
 
   // Auto-scroll chat to bottom
   useEffect(() => {
