@@ -137,10 +137,14 @@ export default function RepositoryPage() {
 
   const fetchRepo = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/repositories/${id}`);
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const headers = storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {};
+      const res = await fetch(`${API_URL}/api/repositories/${id}${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`, { headers });
       if (res.ok) {
         const data = await res.json();
         setRepo(data);
+        setIsStarred(Boolean(data.is_starred));
+        setStarCount(data.stars_count || 0);
         if (data.versions && data.versions.length > 0) {
           setActiveVersion(data.versions[0]);
           setCurrentPrompt(data.versions[0].content);
@@ -165,11 +169,29 @@ export default function RepositoryPage() {
     setTimeout(() => setCopiedSha(null), 2000);
   };
 
-  const handleToggleStar = () => {
+  const handleToggleStar = async () => {
     if (!repo) return;
-    const nextStarred = toggleStarRepo(repo.id);
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+    const nextStarred = !isStarred;
     setIsStarred(nextStarred);
     setStarCount(prev => nextStarred ? prev + 1 : Math.max(0, prev - 1));
+    toggleStarRepo(repo.id);
+
+    try {
+      if (storedToken) {
+        const res = await fetch(`${API_URL}/api/repositories/${repo.id}/star?token=${encodeURIComponent(storedToken)}`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${storedToken}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setIsStarred(data.starred);
+          setStarCount(data.stars_count);
+        }
+      }
+    } catch (e) {
+      console.error("Star toggle error:", e);
+    }
   };
 
   const startEditing = () => {

@@ -26,10 +26,20 @@ export default function CreateRepositoryPage() {
     setLoading(true);
     setError(null);
     try {
-      const query = user?.id ? `?user_id=${user.id}` : '';
-      const res = await fetch(`${API_URL}/api/repositories${query}`, {
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+      
+      const queryParams = new URLSearchParams();
+      if (effectiveUserId) queryParams.append('user_id', effectiveUserId);
+      if (storedToken) queryParams.append('token', storedToken);
+
+      const headers = { "Content-Type": "application/json" };
+      if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+      if (effectiveUserId) headers['X-User-Id'] = effectiveUserId;
+
+      const res = await fetch(`${API_URL}/api/repositories?${queryParams.toString()}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(formData)
       });
       const data = await res.json();
@@ -41,6 +51,7 @@ export default function CreateRepositoryPage() {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-12">

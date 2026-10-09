@@ -5,27 +5,44 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-DEFAULT_POSTGRES_URL = "postgresql://neondb_owner:npg_0ArFKD6IPkBl@ep-flat-pond-azd31apc.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+logger = logging.getLogger("prompthub.database")
 
-DATABASE_URL = os.getenv("DATABASE_URL") or DEFAULT_POSTGRES_URL
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+# Persistent local SQLite DB file
+DB_FILE = Path(__file__).resolve().parent / "prompthub.db"
+if os.environ.get("VERCEL"):
+    DB_FILE = Path("/tmp/prompthub.db")
 
-try:
-    connect_args = {}
-    if "sqlite" in DATABASE_URL:
-        connect_args = {"check_same_thread": False}
-    engine = create_engine(
-        DATABASE_URL,
-        connect_args=connect_args,
-        pool_pre_ping=True,
-        pool_recycle=300
+def init_engine():
+    db_url = os.getenv("DATABASE_URL", "").strip()
+    
+    # If a remote PostgreSQL database URL is provided, test connection with a short timeout
+    if db_url and not db_url.startswith("sqlite"):
+        if db_url.startswith("postgres://"):
+            db_url = db_url.replace("postgres://", "postgresql://", 1)
+        try:
+            pg_engine = create_engine(
+                db_url,
+                connect_args={"connect_timeout": 3},
+                pool_pre_ping=True,
+                pool_recycle=300
+            )
+            # Verify that connection actually succeeds
+            with pg_engine.connect() as conn:
+                pass
+            logger.info("Connected to remote PostgreSQL database successfully.")
+            return pg_engine
+        except Exception as e:
+            logger.warning(f"Remote PostgreSQL connection failed ({e}). Falling back to SQLite.")
+            
+    # Default to persistent SQLite
+    sqlite_url = f"sqlite:///{DB_FILE}"
+    logger.info(f"Using SQLite database at {sqlite_url}")
+    return create_engine(
+        sqlite_url,
+        connect_args={"check_same_thread": False}
     )
-except Exception as e:
-    logging.error(f"Failed to initialize database engine for {DATABASE_URL}: {e}")
-    db_path = Path("/tmp/prompthub.db") if os.environ.get("VERCEL") else (Path(__file__).resolve().parent / "prompthub.db")
-    engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
 
+engine = init_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -35,3 +52,4 @@ def get_db():
         yield db
     finally:
         db.close()
+

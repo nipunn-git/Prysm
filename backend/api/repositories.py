@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Header
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, desc
 from typing import List, Optional
@@ -82,15 +82,57 @@ def ai_generate_repository(
     )
 
 
+from api.auth import resolve_user_id_from_token
+
+def build_repo_response(r: models.Repository, db: Session, current_user_id: Optional[str] = None) -> schemas.RepositoryResponse:
+    latest = r.versions[0] if r.versions else None
+    stars_count = db.query(models.RepositoryStar).filter(models.RepositoryStar.repository_id == r.id).count()
+    is_starred = False
+    if current_user_id:
+        is_starred = bool(db.query(models.RepositoryStar).filter(
+            models.RepositoryStar.user_id == current_user_id,
+            models.RepositoryStar.repository_id == r.id
+        ).first())
+    return schemas.RepositoryResponse(
+        id=r.id,
+        owner_id=r.owner_id,
+        owner_username=r.owner.username if r.owner else "user",
+        owner_name=r.owner.name if r.owner else "Developer",
+        owner_avatar=r.owner.avatar if r.owner else None,
+        name=r.name,
+        description=r.description or "",
+        category=r.category,
+        visibility=r.visibility,
+        created_at=r.created_at,
+        updated_at=r.updated_at,
+        versions_count=len(r.versions),
+        latest_version=latest.version if latest else "v1.0",
+        latest_prompt=latest.content if latest else "",
+        stars_count=stars_count,
+        forks_count=0,
+        is_starred=is_starred
+    )
+
 @router.get("", response_model=List[schemas.RepositoryResponse])
 def list_user_repositories(
-    user_id: Optional[str] = DEFAULT_USER_ID,
+    user_id: Optional[str] = Query(None),
+    token: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
     search: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
+    current_user_id = resolve_user_id_from_token(token or authorization, db)
+    target_user_id = user_id or current_user_id
+    
     query = db.query(models.Repository)
-    if user_id:
-        query = query.filter(models.Repository.owner_id == user_id)
+    if target_user_id:
+        # Check by id or username
+        matched_user = db.query(models.User).filter(
+            or_(models.User.id == target_user_id, models.User.username.ilike(target_user_id))
+        ).first()
+        target_uid = matched_user.id if matched_user else target_user_id
+        query = query.filter(models.Repository.owner_id == target_uid)
+        
     if search:
         search_pattern = f"%{search}%"
         query = query.filter(
@@ -101,38 +143,21 @@ def list_user_repositories(
             )
         )
     repos = query.order_by(desc(models.Repository.updated_at)).all()
-    
-    res = []
-    for r in repos:
-        latest = r.versions[0] if r.versions else None
-        res.append(schemas.RepositoryResponse(
-            id=r.id,
-            owner_id=r.owner_id,
-            owner_username=r.owner.username if r.owner else "user",
-            owner_name=r.owner.name if r.owner else "Nipun",
-            owner_avatar=r.owner.avatar if r.owner else None,
-            name=r.name,
-            description=r.description or "",
-            category=r.category,
-            visibility=r.visibility,
-            created_at=r.created_at,
-            updated_at=r.updated_at,
-            versions_count=len(r.versions),
-            latest_version=latest.version if latest else "v1.0",
-            latest_prompt=latest.content if latest else ""
-        ))
-    return res
+    return [build_repo_response(r, db, current_user_id) for r in repos]
 
 @router.get("/explore", response_model=List[schemas.RepositoryResponse])
 def explore_public_repositories(
     category: Optional[str] = None,
     search: Optional[str] = None,
     user_id: Optional[str] = None,
+    token: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db)
 ):
+    current_user_id = resolve_user_id_from_token(token or authorization, db) or user_id
     query = db.query(models.Repository).filter(models.Repository.visibility.ilike("Public"))
-    if user_id:
-        query = query.filter(models.Repository.owner_id != user_id)
+    if current_user_id:
+        query = query.filter(models.Repository.owner_id != current_user_id)
     if category and category.lower() != "all":
         query = query.filter(models.Repository.category == category)
     if search:
@@ -145,70 +170,47 @@ def explore_public_repositories(
             )
         )
     repos = query.order_by(desc(models.Repository.updated_at)).all()
-    
-    res = []
-    for r in repos:
-        latest = r.versions[0] if r.versions else None
-        res.append(schemas.RepositoryResponse(
-            id=r.id,
-            owner_id=r.owner_id,
-            owner_username=r.owner.username if r.owner else "user",
-            owner_name=r.owner.name if r.owner else "Developer",
-            owner_avatar=r.owner.avatar if r.owner else None,
-            name=r.name,
-            description=r.description or "",
-            category=r.category,
-            visibility=r.visibility,
-            created_at=r.created_at,
-            updated_at=r.updated_at,
-            versions_count=len(r.versions),
-            latest_version=latest.version if latest else "v1.0",
-            latest_prompt=latest.content if latest else ""
-        ))
-    return res
+    return [build_repo_response(r, db, current_user_id) for r in repos]
 
 @router.get("/user/{username}", response_model=List[schemas.RepositoryResponse])
 def list_public_repositories_for_user(
     username: str,
+    token: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db)
 ):
-    user = db.query(models.User).filter(models.User.username.ilike(username)).first()
+    clean_uname = username.lstrip('@').strip()
+    user = db.query(models.User).filter(
+        or_(
+            models.User.username.ilike(clean_uname),
+            models.User.id == clean_uname,
+            models.User.id == username
+        )
+    ).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
         
-    # Get public repos + the special profile repo (private but its content shows on profile)
-    repos = db.query(models.Repository).filter(
-        models.Repository.owner_id == user.id,
-        or_(
-            models.Repository.visibility.ilike("Public"),
-            models.Repository.name.ilike(user.username)  # Special profile repo
-        )
-    ).order_by(desc(models.Repository.updated_at)).all()
+    current_user_id = resolve_user_id_from_token(token or authorization, db)
+    is_owner = (current_user_id == user.id)
     
-    res = []
-    for r in repos:
-        latest = r.versions[0] if r.versions else None
-        res.append(schemas.RepositoryResponse(
-            id=r.id,
-            owner_id=r.owner_id,
-            owner_username=r.owner.username if r.owner else "user",
-            owner_name=r.owner.name if r.owner else "Developer",
-            owner_avatar=r.owner.avatar if r.owner else None,
-            name=r.name,
-            description=r.description or "",
-            category=r.category,
-            visibility=r.visibility,
-            created_at=r.created_at,
-            updated_at=r.updated_at,
-            versions_count=len(r.versions),
-            latest_version=latest.version if latest else "v1.0",
-            latest_prompt=latest.content if latest else ""
-        ))
-    return res
+    if is_owner:
+        repos = db.query(models.Repository).filter(
+            models.Repository.owner_id == user.id
+        ).order_by(desc(models.Repository.updated_at)).all()
+    else:
+        repos = db.query(models.Repository).filter(
+            models.Repository.owner_id == user.id,
+            or_(
+                models.Repository.visibility.ilike("Public"),
+                models.Repository.name.ilike(user.username)  # Special profile repo
+            )
+        ).order_by(desc(models.Repository.updated_at)).all()
+    
+    return [build_repo_response(r, db, current_user_id) for r in repos]
 
 @router.get("/activity")
 def get_recent_activity(db: Session = Depends(get_db)):
-    # Recent prompt version creations/updates across user's repos
+    # Recent prompt version creations/updates across repos
     versions = (
         db.query(models.PromptVersion)
         .join(models.Repository)
@@ -236,28 +238,47 @@ def get_recent_activity(db: Session = Depends(get_db)):
 @router.post("", response_model=schemas.RepositoryResponse)
 def create_repository(
     repo_in: schemas.RepositoryCreate,
-    user_id: str = DEFAULT_USER_ID,
+    user_id: Optional[str] = Query(None),
+    token: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db)
 ):
+    actual_user_id = user_id
+    if not actual_user_id:
+        actual_user_id = resolve_user_id_from_token(token or authorization, db)
+    
+    # Resolve the owner object
+    owner = None
+    if actual_user_id:
+        owner = db.query(models.User).filter(
+            or_(models.User.id == actual_user_id, models.User.username.ilike(actual_user_id))
+        ).first()
+    
+    if not owner:
+        owner = db.query(models.User).filter(models.User.id == DEFAULT_USER_ID).first()
+    if not owner:
+        owner = db.query(models.User).first()
+        
+    actual_user_id = owner.id if owner else DEFAULT_USER_ID
+    owner_username = owner.username if owner else ""
+
     # Check if repo with same name exists for this user
+    clean_name = repo_in.name.strip().lower().replace(" ", "-")
     existing = (
         db.query(models.Repository)
-        .filter(models.Repository.owner_id == user_id, models.Repository.name == repo_in.name)
+        .filter(models.Repository.owner_id == actual_user_id, models.Repository.name == clean_name)
         .first()
     )
     if existing:
         raise HTTPException(status_code=400, detail=f"Repository '{repo_in.name}' already exists.")
 
-    owner = db.query(models.User).filter(models.User.id == user_id).first()
-    owner_username = owner.username if owner else ""
-    
     visibility = repo_in.visibility
-    if repo_in.name.strip().lower().replace(" ", "-") == owner_username.lower():
+    if clean_name == owner_username.lower():
         visibility = "Private"
 
     new_repo = models.Repository(
-        owner_id=user_id,
-        name=repo_in.name.strip().lower().replace(" ", "-"),
+        owner_id=actual_user_id,
+        name=clean_name,
         description=repo_in.description,
         category=repo_in.category,
         visibility=visibility
@@ -279,33 +300,73 @@ def create_repository(
     db.commit()
     db.refresh(new_repo)
 
-    owner = db.query(models.User).filter(models.User.id == user_id).first()
+    return build_repo_response(new_repo, db, actual_user_id)
 
-    return schemas.RepositoryResponse(
-        id=new_repo.id,
-        owner_id=new_repo.owner_id,
-        owner_username=owner.username if owner else "user",
-        owner_name=owner.name if owner else "Nipun",
-        owner_avatar=owner.avatar if owner else None,
-        name=new_repo.name,
-        description=new_repo.description or "",
-        category=new_repo.category,
-        visibility=new_repo.visibility,
-        created_at=new_repo.created_at,
-        updated_at=new_repo.updated_at,
-        versions_count=1,
-        latest_version="v1.0",
-        latest_prompt=initial_content
-    )
+@router.post("/{repo_id}/star")
+def toggle_star_repository(
+    repo_id: str,
+    token: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
+    current_user_id = resolve_user_id_from_token(token or authorization, db)
+    if not current_user_id:
+        raise HTTPException(status_code=401, detail="Authentication required to star prompts")
+        
+    repo = db.query(models.Repository).filter(
+        or_(models.Repository.id == repo_id, models.Repository.name == repo_id)
+    ).first()
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+        
+    star = db.query(models.RepositoryStar).filter(
+        models.RepositoryStar.user_id == current_user_id,
+        models.RepositoryStar.repository_id == repo.id
+    ).first()
+    
+    if star:
+        db.delete(star)
+        db.commit()
+        starred = False
+    else:
+        new_star = models.RepositoryStar(
+            user_id=current_user_id,
+            repository_id=repo.id
+        )
+        db.add(new_star)
+        db.commit()
+        starred = True
+        
+    stars_count = db.query(models.RepositoryStar).filter(models.RepositoryStar.repository_id == repo.id).count()
+    return {
+        "starred": starred,
+        "stars_count": stars_count,
+        "repo_id": repo.id
+    }
+
 
 @router.get("/{repo_id}", response_model=schemas.RepositoryDetailResponse)
-def get_repository_by_id(repo_id: str, db: Session = Depends(get_db)):
+def get_repository_by_id(
+    repo_id: str, 
+    token: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
     repo = db.query(models.Repository).filter(models.Repository.id == repo_id).first()
     if not repo:
         # Try finding by name if not UUID
         repo = db.query(models.Repository).filter(models.Repository.name == repo_id).first()
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
+
+    current_user_id = resolve_user_id_from_token(token or authorization, db)
+    stars_count = db.query(models.RepositoryStar).filter(models.RepositoryStar.repository_id == repo.id).count()
+    is_starred = False
+    if current_user_id:
+        is_starred = bool(db.query(models.RepositoryStar).filter(
+            models.RepositoryStar.user_id == current_user_id,
+            models.RepositoryStar.repository_id == repo.id
+        ).first())
 
     sorted_versions = sorted(repo.versions, key=lambda v: v.created_at, reverse=True)
     latest = sorted_versions[0] if sorted_versions else None
@@ -325,6 +386,9 @@ def get_repository_by_id(repo_id: str, db: Session = Depends(get_db)):
         versions_count=len(repo.versions),
         latest_version=latest.version if latest else "v1.0",
         latest_prompt=latest.content if latest else "",
+        stars_count=stars_count,
+        forks_count=0,
+        is_starred=is_starred,
         versions=[
             schemas.PromptVersionResponse(
                 id=v.id,

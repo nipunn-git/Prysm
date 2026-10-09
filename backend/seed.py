@@ -305,8 +305,6 @@ Given a database schema DDL and a user analytical question:
         ]
     )
 
-    db.close()
-
     # Add a few more good ones
     ensure_repo(
         repo_id="repo_creative_01",
@@ -341,6 +339,9 @@ Given a database schema DDL and a user analytical question:
             }
         ]
     )
+
+    db.close()
+
 
 if __name__ == "__main__":
     seed_data()

@@ -82,19 +82,21 @@ export default function DashboardPage() {
   // Fetch repositories from API - uses owner_id from DB so repos survive logout/login
   const fetchRepos = useCallback(async () => {
     try {
-      if (!user?.id) {
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+      if (!effectiveUserId) {
         setLoading(false);
         return;
       }
-      const res = await fetch(`${API_URL}/api/repositories?user_id=${user.id}`);
+      const headers = storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {};
+      const res = await fetch(`${API_URL}/api/repositories?user_id=${encodeURIComponent(effectiveUserId)}`, { headers });
       if (res.ok) {
         const data = await res.json();
-        // All repos from DB for this user - no localStorage filtering needed
         setRepos(data);
       }
 
       // Separately fetch public community prompts so user can explore & fork them (excluding their own)
-      const expRes = await fetch(`${API_URL}/api/repositories/explore?user_id=${user.id}`);
+      const expRes = await fetch(`${API_URL}/api/repositories/explore?user_id=${encodeURIComponent(effectiveUserId)}`, { headers });
       if (expRes.ok) {
         const expData = await expRes.json();
         setCommunityRepos(Array.isArray(expData) ? expData : []);
@@ -105,6 +107,7 @@ export default function DashboardPage() {
       setLoading(false);
     }
   }, [user?.id]);
+
 
   useEffect(() => {
     if (authLoading) return;
@@ -227,10 +230,20 @@ export default function DashboardPage() {
     if (!saveTargetPrompt.trim() || !saveRepoName.trim()) return;
     setIsCreatingRepo(true);
     try {
-      const userQuery = user?.id ? `?user_id=${user.id}` : "";
-      const res = await fetch(`${API_URL}/api/repositories${userQuery}`, {
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+      
+      const queryParams = new URLSearchParams();
+      if (effectiveUserId) queryParams.append('user_id', effectiveUserId);
+      if (storedToken) queryParams.append('token', storedToken);
+
+      const headers = { "Content-Type": "application/json" };
+      if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+      if (effectiveUserId) headers['X-User-Id'] = effectiveUserId;
+
+      const res = await fetch(`${API_URL}/api/repositories?${queryParams.toString()}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           name: saveRepoName.trim(),
           description: saveRepoDesc.trim() || "AI prompt repository",
@@ -247,6 +260,7 @@ export default function DashboardPage() {
 
       const createdRepo = await res.json();
       addCreatedRepoId(createdRepo.id);
+
       setSaveModalOpen(false);
 
       // Append success message to chat with direct link

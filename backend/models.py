@@ -52,3 +52,20 @@ class PromptVersion(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     repository = relationship("Repository", back_populates="versions")
+
+class UserFollow(Base):
+    __tablename__ = "user_follows"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    follower_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    following_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+class RepositoryStar(Base):
+    __tablename__ = "repository_stars"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    repository_id = Column(String, ForeignKey("repositories.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+

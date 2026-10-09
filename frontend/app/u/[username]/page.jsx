@@ -3,11 +3,30 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Book, Star, Users, MapPin, Link as LinkIcon, Twitter, Building, GitMerge, Loader2 } from "lucide-react";
+import { 
+  Book, 
+  Star, 
+  Users, 
+  MapPin, 
+  Link as LinkIcon, 
+  Twitter, 
+  Building, 
+  GitMerge, 
+  Loader2, 
+  UserPlus, 
+  UserCheck, 
+  Share2, 
+  Check, 
+  Sparkles,
+  Edit3,
+  Calendar,
+  Lock,
+  Compass
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
-
+import { useAuth } from "../../../context/AuthContext";
 import { API_URL } from "../../../lib/api";
 
 const LEVEL_COLORS = [
@@ -21,33 +40,52 @@ const LEVEL_COLORS = [
 export default function PublicProfilePage() {
   const { username } = useParams();
   const router = useRouter();
+  const { user: currentUser } = useAuth();
 
   const [profileUser, setProfileUser] = useState(null);
   const [repos, setRepos] = useState([]);
   const [contributions, setContributions] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [isFollowLoading, setIsFollowLoading] = useState(false);
+  const [copiedShare, setCopiedShare] = useState(false);
+  const [activeTab, setActiveTab] = useState("prompts"); // "prompts" | "activity"
+
+  const isOwnProfile = Boolean(
+    currentUser && 
+    profileUser && 
+    (currentUser.id === profileUser.id || currentUser.username.toLowerCase() === profileUser.username.toLowerCase())
+  );
 
   useEffect(() => {
     async function fetchPublicProfile() {
       try {
+        const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+        const headers = storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {};
+
         // 1. Fetch user profile
-        const userRes = await fetch(`${API_URL}/api/auth/users/${username}`);
+        const userRes = await fetch(`${API_URL}/api/auth/users/${encodeURIComponent(username)}${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`, { headers });
         if (!userRes.ok) {
           throw new Error("User not found");
         }
         const userData = await userRes.json();
         setProfileUser(userData);
+        setIsFollowing(Boolean(userData.is_following));
+        setFollowersCount(userData.followers_count || 0);
+        setFollowingCount(userData.following_count || 0);
 
         // 2. Fetch user's public repositories
-        const repoRes = await fetch(`${API_URL}/api/repositories/user/${username}`);
+        const repoRes = await fetch(`${API_URL}/api/repositories/user/${encodeURIComponent(username)}${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`, { headers });
         if (repoRes.ok) {
           const repoData = await repoRes.json();
           setRepos(repoData);
         }
 
-        // 3. Fetch user's contributions (reusing existing endpoint)
-        const contribRes = await fetch(`${API_URL}/api/auth/users/${username}/contributions`);
+        // 3. Fetch user's contributions
+        const contribRes = await fetch(`${API_URL}/api/auth/users/${encodeURIComponent(username)}/contributions`);
         if (contribRes.ok) {
           const contribData = await contribRes.json();
           setContributions(contribData);
@@ -60,7 +98,63 @@ export default function PublicProfilePage() {
       }
     }
     fetchPublicProfile();
-  }, [username]);
+  }, [username, currentUser?.id]);
+
+  const handleToggleFollow = async () => {
+    if (!currentUser) {
+      router.push('/login');
+      return;
+    }
+    if (isOwnProfile || isFollowLoading) return;
+
+    setIsFollowLoading(true);
+    try {
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const res = await fetch(`${API_URL}/api/auth/users/${profileUser.id}/follow${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`, {
+        method: 'POST',
+        headers: storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {}
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIsFollowing(data.following);
+        setFollowersCount(data.followers_count);
+      }
+    } catch (e) {
+      console.error("Follow error:", e);
+    } finally {
+      setIsFollowLoading(false);
+    }
+  };
+
+  const handleShare = () => {
+    if (typeof window !== 'undefined') {
+      navigator.clipboard.writeText(window.location.href);
+      setCopiedShare(true);
+      setTimeout(() => setCopiedShare(false), 2000);
+    }
+  };
+
+  const handleToggleStar = async (e, repoId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!currentUser) {
+      router.push('/login');
+      return;
+    }
+    try {
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const res = await fetch(`${API_URL}/api/repositories/${repoId}/star${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`, {
+        method: 'POST',
+        headers: storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {}
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRepos(prev => prev.map(r => r.id === repoId ? { ...r, is_starred: data.starred, stars_count: data.stars_count } : r));
+      }
+    } catch (e) {
+      console.error("Star error:", e);
+    }
+  };
 
   if (loading) {
     return (
@@ -72,12 +166,20 @@ export default function PublicProfilePage() {
 
   if (error || !profileUser) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center text-center px-4">
-        <h1 className="text-3xl font-bold text-[#f0f6fc] mb-4">User not found</h1>
-        <p className="text-[#8b949e] mb-6">The user @{username} does not exist or has been removed.</p>
-        <button onClick={() => router.back()} className="text-[#58a6ff] hover:underline">
-          Go back
-        </button>
+      <div className="min-h-screen flex flex-col items-center justify-center text-center px-4 bg-[#010409]">
+        <div className="w-16 h-16 rounded-full bg-[#161b22] border border-[#30363d] flex items-center justify-center mb-4 text-[#8b949e]">
+          <Users className="w-8 h-8" />
+        </div>
+        <h1 className="text-3xl font-bold text-[#f0f6fc] mb-2">User not found</h1>
+        <p className="text-[#8b949e] mb-6 max-w-sm">
+          The user @{username} doesn&apos;t exist or could not be found.
+        </p>
+        <Link 
+          href="/explore" 
+          className="bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-[#c9d1d9] px-4 py-2 rounded-lg text-sm font-semibold transition"
+        >
+          Explore Community
+        </Link>
       </div>
     );
   }
@@ -86,6 +188,7 @@ export default function PublicProfilePage() {
   const publicRepos = repos.filter(r => r.name.toLowerCase() !== profileUser.username.toLowerCase());
 
   const totalContributions = contributions?.total_contributions || 0;
+  const recentActivities = contributions?.recent_activities || [];
   const weeks = contributions?.weeks || [];
   
   const monthLabels = [];
@@ -104,186 +207,404 @@ export default function PublicProfilePage() {
   }
 
   return (
-    <div className="max-w-[1280px] mx-auto px-4 sm:px-6 md:px-8 py-8 flex flex-col md:flex-row gap-8">
-      {/* Sidebar */}
-      <div className="w-full md:w-[296px] shrink-0">
-        <div className="relative mb-4">
-          <div className="w-full aspect-square rounded-full border border-[#30363d] bg-[#21262d] overflow-hidden flex items-center justify-center relative">
-            {profileUser.avatar ? (
-              <img 
-                src={profileUser.avatar} 
-                alt={`${profileUser.username}'s Avatar`} 
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <span className="text-6xl font-bold text-[#8b949e]">
-                {profileUser.name?.charAt(0)?.toUpperCase() || 'U'}
-              </span>
-            )}
-          </div>
-          <div className="absolute bottom-6 right-0 bg-[#161b22] border border-[#30363d] rounded-full p-2 shadow-sm z-10">
-            <span className="text-xl">{profileUser.status_emoji || '🎯'}</span>
-          </div>
-        </div>
-
-        <h1 className="mb-4">
-          <span className="block text-2xl font-bold text-[#f0f6fc]">{profileUser.name}</span>
-          <span className="block text-xl font-light text-[#8b949e]">@{profileUser.username}</span>
-          <span className="block text-xs text-[#484f58] mt-1">ID: {profileUser.id}</span>
-        </h1>
-
-        {profileUser.bio && <p className="text-sm text-[#c9d1d9] mb-4">{profileUser.bio}</p>}
-
-        <div className="flex items-center gap-1 text-sm mb-4 text-[#8b949e]">
-          <Users className="w-4 h-4" />
-          <span className="font-semibold text-[#c9d1d9] hover:text-[#58a6ff] cursor-pointer">0</span> followers
-          <span className="mx-1">·</span>
-          <span className="font-semibold text-[#c9d1d9] hover:text-[#58a6ff] cursor-pointer">0</span> following
-        </div>
-
-        <ul className="text-sm space-y-2 text-[#c9d1d9]">
-          {profileUser.company && (
-            <li className="flex items-center gap-2">
-              <Building className="w-4 h-4 text-[#8b949e]" />
-              <span className="font-semibold">{profileUser.company}</span>
-            </li>
-          )}
-          {profileUser.location && (
-            <li className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-[#8b949e]" />
-              <span>{profileUser.location}</span>
-            </li>
-          )}
-          {profileUser.website && (
-            <li className="flex items-center gap-2">
-              <LinkIcon className="w-4 h-4 text-[#8b949e]" />
-              <a href={profileUser.website.startsWith('http') ? profileUser.website : `https://${profileUser.website}`} target="_blank" rel="noopener noreferrer" className="hover:text-[#58a6ff] hover:underline">
-                {profileUser.website}
-              </a>
-            </li>
-          )}
-          {profileUser.twitter && (
-            <li className="flex items-center gap-2">
-              <Twitter className="w-4 h-4 text-[#8b949e]" />
-              <a href={`https://twitter.com/${profileUser.twitter}`} target="_blank" rel="noopener noreferrer" className="hover:text-[#58a6ff] hover:underline">
-                @{profileUser.twitter}
-              </a>
-            </li>
-          )}
-        </ul>
+    <div className="min-h-screen bg-[#010409] text-[#c9d1d9] pb-24">
+      
+      {/* Social Media Cover Banner */}
+      <div className="w-full h-44 sm:h-56 bg-gradient-to-r from-[#1f6feb]/20 via-[#238636]/15 to-[#8957e5]/20 border-b border-[#21262d] relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(#30363d_1px,transparent_1px)] [background-size:16px_16px] opacity-25"></div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1">
-        {/* Special Profile README */}
-        {specialRepo && (
-          <div className="mb-8 border border-[#30363d] rounded-md bg-[#0d1117] overflow-hidden">
-            <div className="bg-[#161b22] px-4 py-2 border-b border-[#30363d] text-xs font-medium text-[#c9d1d9] flex items-center gap-2">
-              <span className="text-[10px] bg-[#21262d] px-1.5 py-0.5 rounded border border-[#30363d] font-semibold">{profileUser.username}</span>
-              / README.md
-            </div>
-            <div className="p-6 text-sm text-[#c9d1d9] prose prose-invert prose-sm max-w-none prose-a:text-[#58a6ff] prose-a:no-underline hover:prose-a:underline prose-headings:border-b prose-headings:border-[#30363d] prose-headings:pb-2 prose-pre:bg-[#161b22] prose-pre:border prose-pre:border-[#30363d]">
-              {specialRepo.latest_prompt ? (
-                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-                  {specialRepo.latest_prompt}
-                </ReactMarkdown>
-              ) : (
-                <p>Hello! This is my profile.</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Public Repos */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-[#f0f6fc] font-medium">Public repositories</span>
-          </div>
+      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 md:px-8">
+        
+        {/* Profile Card Header */}
+        <div className="flex flex-col md:flex-row gap-8 -mt-20 sm:-mt-24 mb-8">
           
-          {publicRepos.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {publicRepos.map((repo) => (
-                <Link 
-                  key={repo.id}
-                  href={`/repo/${repo.id}`}
-                  className="border border-[#30363d] rounded-lg p-4 bg-[#0d1117] hover:border-[#8b949e]/50 transition group"
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <Book className="w-4 h-4 text-[#8b949e]" />
-                    <span className="text-sm font-semibold text-[#58a6ff] group-hover:underline">{repo.name}</span>
-                  </div>
-                  <p className="text-xs text-[#8b949e] mb-3 line-clamp-2">{repo.description || "Prompt repository"}</p>
-                  <div className="flex items-center gap-3 text-[11px] text-[#8b949e]">
-                    <div className="flex items-center gap-1">
-                      <span className={`w-2.5 h-2.5 rounded-full ${
-                        repo.category === 'Coding' ? 'bg-[#3178c6]' :
-                        repo.category === 'Research' ? 'bg-[#238636]' :
-                        repo.category === 'Writing' ? 'bg-[#a371f7]' :
-                        repo.category === 'Education' ? 'bg-[#e3b341]' :
-                        'bg-[#8b949e]'
-                      }`}></span>
-                      <span>{repo.category || 'Other'}</span>
-                    </div>
-                    <span className="font-mono">{repo.latest_version || 'v1.0'}</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="border border-[#30363d] border-dashed rounded-md p-8 text-center bg-[#161b22]">
-              <h3 className="text-sm font-medium mb-2 text-[#f0f6fc]">No public repositories yet.</h3>
-              <p className="text-xs text-[#8b949e]">@{profileUser.username} hasn't created any public prompts.</p>
-            </div>
-          )}
-        </div>
-
-        {/* Contribution Graph */}
-        <div>
-          <h2 className="text-sm text-[#f0f6fc] mb-2">{totalContributions} contributions in the last year</h2>
-          <div className="border border-[#30363d] rounded-md p-4 bg-[#0d1117]">
-            <div className="relative h-4 mb-1 pl-8">
-              {monthLabels.map(({ idx, label }, i) => (
-                <div 
-                  key={i} 
-                  className="absolute text-[10px] text-[#8b949e]"
-                  style={{ left: `${32 + (idx * 13)}px` }}
-                >
-                  {label}
-                </div>
-              ))}
-            </div>
-
-            <div className="flex gap-[3px] overflow-x-auto no-scrollbar pb-2">
-              <div className="flex flex-col gap-[3px] pr-1 shrink-0">
-                {['', 'Mon', '', 'Wed', '', 'Fri', ''].map((label, i) => (
-                  <div key={i} className="h-[10px] text-[9px] text-[#8b949e] flex items-center">{label}</div>
-                ))}
+          {/* Left Column: Avatar & Profile Info */}
+          <div className="w-full md:w-[296px] shrink-0">
+            <div className="relative mb-4 inline-block">
+              <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-full border-4 border-[#010409] bg-[#161b22] overflow-hidden flex items-center justify-center shadow-xl relative">
+                {profileUser.avatar ? (
+                  <img 
+                    src={profileUser.avatar} 
+                    alt={`${profileUser.username}'s Avatar`} 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-6xl font-bold text-[#8b949e]">
+                    {profileUser.name?.charAt(0)?.toUpperCase() || 'U'}
+                  </span>
+                )}
               </div>
-              
-              {weeks.length > 0 ? (
-                weeks.map((week, col) => (
-                  <div key={col} className="flex flex-col gap-[3px]">
-                    {week.map((day, row) => (
-                      <div
-                        key={row}
-                        className={`w-[10px] h-[10px] rounded-sm ${LEVEL_COLORS[day.level]} outline outline-1 outline-offset-[-1px] outline-white/5 cursor-pointer hover:outline-white/30 transition-all`}
-                        title={`${day.date}: ${day.count} contribution${day.count !== 1 ? 's' : ''}`}
-                      />
-                    ))}
-                  </div>
-                ))
-              ) : (
-                Array.from({ length: 52 }).map((_, col) => (
-                  <div key={col} className="flex flex-col gap-[3px]">
-                    {Array.from({ length: 7 }).map((_, row) => (
-                      <div key={row} className="w-[10px] h-[10px] rounded-sm bg-[#161b22] outline outline-1 outline-offset-[-1px] outline-white/5" />
-                    ))}
-                  </div>
-                ))
-              )}
+              <div className="absolute bottom-2 right-2 bg-[#161b22] border border-[#30363d] rounded-full p-2 shadow-md z-10" title="Status">
+                <span className="text-xl">{profileUser.status_emoji || '🎯'}</span>
+              </div>
             </div>
+
+            {/* Name & Username */}
+            <div className="mb-4">
+              <h1 className="text-2xl font-bold text-[#f0f6fc] leading-tight flex items-center gap-2">
+                {profileUser.name}
+              </h1>
+              <span className="text-base text-[#8b949e] font-normal block">
+                @{profileUser.username}
+              </span>
+              <span className="text-[11px] text-[#484f58] font-mono mt-0.5 block">
+                ID: {profileUser.id}
+              </span>
+            </div>
+
+            {/* Social Action Buttons: Follow & Share */}
+            <div className="flex items-center gap-2 mb-5">
+              {isOwnProfile ? (
+                <Link
+                  href="/profile"
+                  className="flex-1 bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-[#f0f6fc] text-xs font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  Edit profile
+                </Link>
+              ) : (
+                <button
+                  onClick={handleToggleFollow}
+                  disabled={isFollowLoading}
+                  className={`flex-1 text-xs font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition ${
+                    isFollowing 
+                      ? "bg-[#21262d] hover:bg-red-950/40 hover:border-red-700/60 hover:text-red-400 border border-[#363b42] text-[#c9d1d9]"
+                      : "bg-[#238636] hover:bg-[#2ea043] text-white border border-[#2ea043]"
+                  }`}
+                >
+                  {isFollowing ? (
+                    <>
+                      <UserCheck className="w-3.5 h-3.5" />
+                      Following
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-3.5 h-3.5" />
+                      Follow
+                    </>
+                  )}
+                </button>
+              )}
+
+              <button
+                onClick={handleShare}
+                title="Share profile"
+                className="p-2 bg-[#161b22] hover:bg-[#21262d] border border-[#30363d] hover:border-[#8b949e] rounded-lg text-[#8b949e] hover:text-[#f0f6fc] transition"
+              >
+                {copiedShare ? (
+                  <Check className="w-4 h-4 text-[#3fb950]" />
+                ) : (
+                  <Share2 className="w-4 h-4" />
+                )}
+              </button>
+            </div>
+
+            {/* Bio */}
+            {profileUser.bio && (
+              <p className="text-sm text-[#c9d1d9] mb-5 leading-relaxed bg-[#0d1117] p-3 rounded-lg border border-[#21262d]">
+                {profileUser.bio}
+              </p>
+            )}
+
+            {/* Follower Stats */}
+            <div className="flex items-center gap-4 text-xs mb-5 text-[#8b949e] pb-5 border-b border-[#21262d]">
+              <div className="flex items-center gap-1.5 hover:text-[#58a6ff] cursor-pointer transition">
+                <Users className="w-3.5 h-3.5" />
+                <span className="font-bold text-[#f0f6fc]">{followersCount}</span>
+                <span>followers</span>
+              </div>
+              <span>·</span>
+              <div className="flex items-center gap-1.5 hover:text-[#58a6ff] cursor-pointer transition">
+                <span className="font-bold text-[#f0f6fc]">{followingCount}</span>
+                <span>following</span>
+              </div>
+              <span>·</span>
+              <div className="flex items-center gap-1.5 text-[#8b949e]">
+                <Book className="w-3.5 h-3.5" />
+                <span className="font-bold text-[#f0f6fc]">{repos.length}</span>
+                <span>prompts</span>
+              </div>
+            </div>
+
+            {/* Metadata list */}
+            <ul className="text-xs space-y-2.5 text-[#8b949e]">
+              {profileUser.company && (
+                <li className="flex items-center gap-2">
+                  <Building className="w-3.5 h-3.5 text-[#8b949e] shrink-0" />
+                  <span className="text-[#c9d1d9] font-medium">{profileUser.company}</span>
+                </li>
+              )}
+              {profileUser.location && (
+                <li className="flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-[#8b949e] shrink-0" />
+                  <span className="text-[#c9d1d9]">{profileUser.location}</span>
+                </li>
+              )}
+              {profileUser.website && (
+                <li className="flex items-center gap-2">
+                  <LinkIcon className="w-3.5 h-3.5 text-[#8b949e] shrink-0" />
+                  <a 
+                    href={profileUser.website.startsWith('http') ? profileUser.website : `https://${profileUser.website}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-[#58a6ff] hover:underline truncate"
+                  >
+                    {profileUser.website}
+                  </a>
+                </li>
+              )}
+              {profileUser.twitter && (
+                <li className="flex items-center gap-2">
+                  <Twitter className="w-3.5 h-3.5 text-[#8b949e] shrink-0" />
+                  <a 
+                    href={`https://twitter.com/${profileUser.twitter.replace('@', '')}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-[#58a6ff] hover:underline"
+                  >
+                    @{profileUser.twitter.replace('@', '')}
+                  </a>
+                </li>
+              )}
+              <li className="flex items-center gap-2 text-[#484f58]">
+                <Calendar className="w-3.5 h-3.5 shrink-0" />
+                <span>Joined {new Date(profileUser.created_at).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</span>
+              </li>
+            </ul>
+
           </div>
+
+          {/* Right Column: Profile Navigation & Tabs */}
+          <div className="flex-1 min-w-0 pt-2">
+            
+            {/* Social Profile Navigation Tabs */}
+            <div className="flex items-center gap-2 border-b border-[#21262d] mb-6">
+              <button
+                onClick={() => setActiveTab("prompts")}
+                className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition ${
+                  activeTab === "prompts"
+                    ? "border-[#f78166] text-[#f0f6fc]"
+                    : "border-transparent text-[#8b949e] hover:text-[#c9d1d9]"
+                }`}
+              >
+                <Book className="w-4 h-4" />
+                Prompts
+                <span className="ml-1 text-xs bg-[#21262d] text-[#8b949e] px-2 py-0.5 rounded-full font-mono">
+                  {publicRepos.length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab("activity")}
+                className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition ${
+                  activeTab === "activity"
+                    ? "border-[#f78166] text-[#f0f6fc]"
+                    : "border-transparent text-[#8b949e] hover:text-[#c9d1d9]"
+                }`}
+              >
+                <Sparkles className="w-4 h-4" />
+                Activity & History
+                <span className="ml-1 text-xs bg-[#21262d] text-[#8b949e] px-2 py-0.5 rounded-full font-mono">
+                  {totalContributions}
+                </span>
+              </button>
+            </div>
+
+            {/* Special Profile README (Hero Card) */}
+            {specialRepo && (
+              <div className="mb-8 border border-[#30363d] rounded-xl bg-[#0d1117] overflow-hidden shadow-sm">
+                <div className="bg-[#161b22] px-4 py-2.5 border-b border-[#30363d] text-xs font-medium text-[#c9d1d9] flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] bg-[#21262d] px-1.5 py-0.5 rounded border border-[#30363d] font-semibold text-[#58a6ff]">
+                      {profileUser.username}
+                    </span>
+                    <span>/ README.md</span>
+                  </div>
+                  <span className="text-[10px] text-[#8b949e]">Personal Prompt Bio</span>
+                </div>
+                <div className="p-6 text-sm text-[#c9d1d9] prose prose-invert prose-sm max-w-none prose-a:text-[#58a6ff] prose-a:no-underline hover:prose-a:underline prose-headings:border-b prose-headings:border-[#30363d] prose-headings:pb-2 prose-pre:bg-[#161b22] prose-pre:border prose-pre:border-[#30363d]">
+                  {specialRepo.latest_prompt ? (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                      {specialRepo.latest_prompt}
+                    </ReactMarkdown>
+                  ) : (
+                    <p>Hello! Welcome to my PromptHub profile.</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 1: Prompts */}
+            {activeTab === "prompts" && (
+              <div className="space-y-6">
+                {publicRepos.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {publicRepos.map((repo) => (
+                      <div 
+                        key={repo.id}
+                        onClick={() => router.push(`/repo/${repo.id}`)}
+                        className="border border-[#30363d] hover:border-[#8b949e]/60 rounded-xl p-5 bg-[#0d1117] transition cursor-pointer group flex flex-col justify-between"
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2">
+                              <Book className="w-4 h-4 text-[#8b949e] shrink-0" />
+                              <span className="text-sm font-semibold text-[#58a6ff] group-hover:underline">
+                                {repo.name}
+                              </span>
+                            </div>
+                            <button
+                              onClick={(e) => handleToggleStar(e, repo.id)}
+                              className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] border transition ${
+                                repo.is_starred 
+                                  ? "bg-[#e3b341]/10 border-[#e3b341]/40 text-[#e3b341]"
+                                  : "bg-[#161b22] hover:bg-[#21262d] border-[#30363d] text-[#8b949e]"
+                              }`}
+                            >
+                              <Star className={`w-3 h-3 ${repo.is_starred ? "fill-[#e3b341]" : ""}`} />
+                              <span>{repo.stars_count || 0}</span>
+                            </button>
+                          </div>
+                          <p className="text-xs text-[#8b949e] mb-4 line-clamp-2 leading-relaxed">
+                            {repo.description || "Prompt repository"}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-[#8b949e] pt-3 border-t border-[#21262d]">
+                          <div className="flex items-center gap-2">
+                            <span className={`w-2.5 h-2.5 rounded-full ${
+                              repo.category === 'Coding' ? 'bg-[#3178c6]' :
+                              repo.category === 'Research' ? 'bg-[#238636]' :
+                              repo.category === 'Writing' ? 'bg-[#a371f7]' :
+                              repo.category === 'Education' ? 'bg-[#e3b341]' :
+                              'bg-[#8b949e]'
+                            }`}></span>
+                            <span>{repo.category || 'Other'}</span>
+                          </div>
+                          <span className="font-mono bg-[#161b22] px-1.5 py-0.5 rounded border border-[#30363d]">
+                            {repo.latest_version || 'v1.0'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="border border-[#30363d] border-dashed rounded-xl p-12 text-center bg-[#0d1117]">
+                    <div className="w-12 h-12 rounded-full bg-[#161b22] border border-[#30363d] flex items-center justify-center mx-auto mb-3 text-[#8b949e]">
+                      <Book className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-base font-semibold mb-1 text-[#f0f6fc]">No public prompts yet</h3>
+                    <p className="text-xs text-[#8b949e] max-w-sm mx-auto mb-4">
+                      @{profileUser.username} hasn&apos;t published any prompt repositories yet.
+                    </p>
+                    {isOwnProfile && (
+                      <Link 
+                        href="/new"
+                        className="inline-flex items-center gap-1.5 bg-[#238636] hover:bg-[#2ea043] text-white px-3 py-1.5 rounded-md text-xs font-semibold transition"
+                      >
+                        Create your first prompt
+                      </Link>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 2: Activity */}
+            {activeTab === "activity" && (
+              <div className="space-y-6">
+                {recentActivities.length > 0 ? (
+                  <div className="border border-[#30363d] rounded-xl bg-[#0d1117] divide-y divide-[#21262d] overflow-hidden">
+                    {recentActivities.map((act, index) => (
+                      <div key={index} className="p-4 flex items-center justify-between gap-4 hover:bg-[#161b22]/40 transition">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-[#161b22] border border-[#30363d] flex items-center justify-center text-[#58a6ff]">
+                            {act.type === "repo_created" ? <Book className="w-4 h-4" /> : <GitMerge className="w-4 h-4" />}
+                          </div>
+                          <div>
+                            <div className="text-xs font-semibold text-[#f0f6fc]">
+                              {act.description}
+                            </div>
+                            <div className="text-[11px] text-[#8b949e]">
+                              in <Link href={`/repo/${act.repo_id}`} className="text-[#58a6ff] hover:underline font-mono">{act.repo_name}</Link>
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-[#484f58] whitespace-nowrap">
+                          {new Date(act.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-10 text-xs text-[#8b949e]">
+                    No recent activity recorded.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Contribution Activity Heatmap */}
+            <div className="mt-10">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-[#8b949e]">
+                  Contribution Heatmap
+                </h2>
+                <span className="text-xs text-[#8b949e]">
+                  {totalContributions} contributions in the last year
+                </span>
+              </div>
+
+              <div className="border border-[#30363d] rounded-xl p-4 bg-[#0d1117]">
+                <div className="relative h-4 mb-1 pl-8">
+                  {monthLabels.map(({ idx, label }, i) => (
+                    <div 
+                      key={i} 
+                      className="absolute text-[10px] text-[#8b949e]"
+                      style={{ left: `${32 + (idx * 13)}px` }}
+                    >
+                      {label}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex gap-[3px] overflow-x-auto no-scrollbar pb-2">
+                  <div className="flex flex-col gap-[3px] pr-1 shrink-0">
+                    {['', 'Mon', '', 'Wed', '', 'Fri', ''].map((label, i) => (
+                      <div key={i} className="h-[10px] text-[9px] text-[#8b949e] flex items-center">{label}</div>
+                    ))}
+                  </div>
+                  
+                  {weeks.length > 0 ? (
+                    weeks.map((week, col) => (
+                      <div key={col} className="flex flex-col gap-[3px]">
+                        {week.map((day, row) => (
+                          <div
+                            key={row}
+                            className={`w-[10px] h-[10px] rounded-sm ${LEVEL_COLORS[day.level]} outline outline-1 outline-offset-[-1px] outline-white/5 cursor-pointer hover:outline-white/30 transition-all`}
+                            title={`${day.date}: ${day.count} contribution${day.count !== 1 ? 's' : ''}`}
+                          />
+                        ))}
+                      </div>
+                    ))
+                  ) : (
+                    Array.from({ length: 52 }).map((_, col) => (
+                      <div key={col} className="flex flex-col gap-[3px]">
+                        {Array.from({ length: 7 }).map((_, row) => (
+                          <div key={row} className="w-[10px] h-[10px] rounded-sm bg-[#161b22] outline outline-1 outline-offset-[-1px] outline-white/5" />
+                        ))}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+          </div>
+
         </div>
+
       </div>
     </div>
   );

@@ -85,8 +85,12 @@ export default function ProfilePage() {
 
   const fetchRepos = async () => {
     try {
-      if (!user?.id) return;
-      const res = await fetch(`${API_URL}/api/repositories?user_id=${user.id}`, { cache: 'no-store' });
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+      if (!effectiveUserId) return;
+      
+      const headers = storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {};
+      const res = await fetch(`${API_URL}/api/repositories?user_id=${encodeURIComponent(effectiveUserId)}`, { headers, cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         // Auto-recover special repo if it exists in DB but not in localStorage
@@ -153,8 +157,10 @@ export default function ProfilePage() {
 
   const handleSave = async () => {
     // Check username uniqueness if it changed
-    if (formData.username !== user.username) {
-      const isAvailable = await checkUsername(formData.username);
+    const currentUname = (user?.username || '').toLowerCase();
+    const newUname = (formData.username || '').trim().toLowerCase();
+    if (newUname && newUname !== currentUname) {
+      const isAvailable = await checkUsername(newUname);
       if (!isAvailable) return;
     }
     const result = await updateProfile(formData);
@@ -164,7 +170,9 @@ export default function ProfilePage() {
     }
     setIsEditing(false);
     setUsernameError('');
+    await fetchRepos();
   };
+
 
   const handleCancel = () => {
     setFormData({
@@ -237,9 +245,20 @@ export default function ProfilePage() {
   const confirmCreateSpecialRepo = async () => {
     setIsCreatingSpecial(true);
     try {
-      const res = await fetch(`${API_URL}/api/repositories?user_id=${user.id}`, {
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+      
+      const queryParams = new URLSearchParams();
+      if (effectiveUserId) queryParams.append('user_id', effectiveUserId);
+      if (storedToken) queryParams.append('token', storedToken);
+
+      const headers = { "Content-Type": "application/json" };
+      if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+      if (effectiveUserId) headers['X-User-Id'] = effectiveUserId;
+
+      const res = await fetch(`${API_URL}/api/repositories?${queryParams.toString()}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           name: user.username,
           description: "My public profile README",

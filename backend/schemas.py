@@ -36,6 +36,10 @@ class UserUpdate(BaseModel):
 class UserResponse(UserBase):
     id: str
     created_at: datetime
+    followers_count: Optional[int] = 0
+    following_count: Optional[int] = 0
+    repos_count: Optional[int] = 0
+    is_following: Optional[bool] = False
 
     class Config:
         from_attributes = True
@@ -85,9 +89,13 @@ class RepositoryResponse(RepositoryBase):
     versions_count: int = 0
     latest_version: Optional[str] = None
     latest_prompt: Optional[str] = None
+    stars_count: Optional[int] = 0
+    forks_count: Optional[int] = 0
+    is_starred: Optional[bool] = False
 
     class Config:
         from_attributes = True
+
 
 class RepositoryDetailResponse(RepositoryResponse):
     versions: List[PromptVersionResponse] = []

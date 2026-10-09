@@ -39,10 +39,11 @@ export default function Navbar() {
       if (searchQuery.trim().length > 0) {
         setIsSearching(true);
         try {
-          const res = await fetch(`${API_URL}/api/auth/users/search?q=${encodeURIComponent(searchQuery.trim())}`);
+          const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+          const res = await fetch(`${API_URL}/api/auth/users/search?q=${encodeURIComponent(searchQuery.trim())}${storedToken ? `&token=${encodeURIComponent(storedToken)}` : ''}`);
           if (res.ok) {
             const data = await res.json();
-            setSearchResults(data);
+            setSearchResults(Array.isArray(data) ? data : []);
           }
         } catch (e) {
           console.error(e);
@@ -112,48 +113,60 @@ export default function Navbar() {
             <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-[#8b949e]" />
             <input 
               type="text" 
-              placeholder="Type / to search" 
+              placeholder="Search prompts or @users..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={handleSearchSubmit}
               className="w-full bg-[#0d1117] border border-[#30363d] rounded-md pl-8 pr-7 py-1 text-xs focus:outline-none focus:border-[#58a6ff] focus:ring-1 focus:ring-[#58a6ff] transition-colors placeholder:text-[#8b949e] text-[#c9d1d9]"
             />
             {searchQuery.trim().length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-[#161b22] border border-[#30363d] rounded-md shadow-xl py-1.5 z-50 overflow-hidden">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-[#161b22] border border-[#30363d] rounded-xl shadow-2xl py-1.5 z-50 overflow-hidden">
+                <div className="px-3 py-1.5 text-[10px] uppercase font-bold tracking-wider text-[#8b949e] border-b border-[#21262d]">
+                  Creators & People
+                </div>
                 {isSearching ? (
-                  <div className="px-3 py-2 text-xs text-[#8b949e]">Searching...</div>
+                  <div className="px-3 py-3 text-xs text-[#8b949e] flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#58a6ff] animate-ping"></span>
+                    Searching creators...
+                  </div>
                 ) : searchResults.length > 0 ? (
-                  searchResults.map(u => (
-                    <Link
-                      key={u.id}
-                      href={`/u/${u.username}`}
-                      onClick={() => { setSearchQuery(''); setSearchResults([]); }}
-                      className="flex items-center gap-3 px-3 py-2 hover:bg-[#1f6feb] hover:text-white transition group"
-                    >
-                      <img 
-                        src={u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`} 
-                        alt={u.username}
-                        className="w-6 h-6 rounded-full border border-[#30363d] object-cover group-hover:border-white/20"
-                      />
-                      <div className="flex flex-col">
-                        <span className="text-xs font-semibold text-[#c9d1d9] group-hover:text-white">{u.name}</span>
-                        <span className="text-[10px] text-[#8b949e] group-hover:text-white/80">@{u.username} • ID: {u.id}</span>
-                      </div>
-                    </Link>
-                  ))
+                  <div className="max-h-64 overflow-y-auto divide-y divide-[#21262d]">
+                    {searchResults.map(u => (
+                      <Link
+                        key={u.id}
+                        href={`/u/${u.username}`}
+                        onClick={() => { setSearchQuery(''); setSearchResults([]); }}
+                        className="flex items-center gap-3 px-3 py-2.5 hover:bg-[#1f6feb]/20 hover:border-[#1f6feb]/40 transition group"
+                      >
+                        <img 
+                          src={u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`} 
+                          alt={u.username}
+                          className="w-8 h-8 rounded-full border border-[#30363d] object-cover shrink-0"
+                        />
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-xs font-semibold text-[#f0f6fc] group-hover:text-[#58a6ff] truncate">{u.name}</span>
+                          <span className="text-[11px] text-[#8b949e] truncate">@{u.username}</span>
+                          <span className="text-[10px] text-[#484f58]">
+                            {u.repos_count || 0} prompts · {u.followers_count || 0} followers
+                          </span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
                 ) : (
-                  <div className="px-3 py-2 text-xs text-[#8b949e]">No users found for "{searchQuery}"</div>
+                  <div className="px-3 py-3 text-xs text-[#8b949e]">No users found for &quot;{searchQuery}&quot;</div>
                 )}
-                <div className="border-t border-[#30363d] my-1"></div>
+                <div className="border-t border-[#30363d]"></div>
                 <Link
                   href={`/explore?search=${encodeURIComponent(searchQuery.trim())}`}
                   onClick={() => { setSearchQuery(''); setSearchResults([]); }}
-                  className="block px-3 py-2 text-xs text-[#58a6ff] hover:bg-[#1f6feb] hover:text-white transition"
+                  className="block px-3 py-2 text-xs font-semibold text-[#58a6ff] hover:bg-[#161b22] transition text-center"
                 >
-                  See all results
+                  Search all prompts for &quot;{searchQuery}&quot; →
                 </Link>
               </div>
             )}
+
             <div className="absolute right-2 top-1.5 flex items-center">
               <span className="border border-[#30363d] rounded px-1 text-[10px] text-[#8b949e] font-mono leading-tight">/</span>
             </div>

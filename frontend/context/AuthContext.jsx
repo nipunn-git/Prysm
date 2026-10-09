@@ -77,12 +77,23 @@ export function AuthProvider({ children }) {
       
       // Validate token with backend in background, update user data if needed
       try {
-        const res = await fetch(`${API_URL}/api/auth/me?token=${encodeURIComponent(storedToken)}`);
+        const cachedUser = storedUser ? JSON.parse(storedUser) : null;
+        const candidateId = cachedUser?.id;
+        const queryParams = new URLSearchParams();
+        if (storedToken) queryParams.set('token', storedToken);
+        if (candidateId) queryParams.set('user_id', candidateId);
+        
+        const headers = {};
+        if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+        if (candidateId) headers['X-User-Id'] = candidateId;
+
+        const res = await fetch(`${API_URL}/api/auth/me?${queryParams.toString()}`, { headers });
         if (res.ok) {
           const userData = await res.json();
+          const effectiveToken = storedToken || `token_${userData.id}`;
           setUser(userData);
-          setToken(storedToken);
-          persistUser(userData, storedToken);
+          setToken(effectiveToken);
+          persistUser(userData, effectiveToken);
         } else {
           // Token invalid - but keep cached data so user stays logged in
           console.warn("Token validation failed, keeping cached user data");
@@ -99,12 +110,25 @@ export function AuthProvider({ children }) {
 
   const fetchUser = async (authToken) => {
     try {
-      const res = await fetch(`${API_URL}/api/auth/me?token=${encodeURIComponent(authToken)}`);
+      const storedUser = typeof window !== 'undefined' ? localStorage.getItem('prompthub_user') : null;
+      const cachedUser = storedUser ? JSON.parse(storedUser) : null;
+      const candidateId = cachedUser?.id;
+      
+      const queryParams = new URLSearchParams();
+      if (authToken) queryParams.set('token', authToken);
+      if (candidateId) queryParams.set('user_id', candidateId);
+      
+      const headers = {};
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      if (candidateId) headers['X-User-Id'] = candidateId;
+
+      const res = await fetch(`${API_URL}/api/auth/me?${queryParams.toString()}`, { headers });
       if (res.ok) {
         const userData = await res.json();
+        const effectiveToken = authToken || `token_${userData.id}`;
         setUser(userData);
-        setToken(authToken);
-        persistUser(userData, authToken);
+        setToken(effectiveToken);
+        persistUser(userData, effectiveToken);
         return true;
       }
       return false;
@@ -162,27 +186,90 @@ export function AuthProvider({ children }) {
   };
 
   const updateProfile = async (updates) => {
-    if (!token) return;
+    const currentToken = token || (typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null);
+    const currentUser = user || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prompthub_user') || 'null') : null);
+    const currentUserId = currentUser?.id;
+    
+    if (!currentToken && !currentUserId) return { success: false, error: 'Not logged in' };
+    
+    const queryParams = new URLSearchParams();
+    if (currentToken) queryParams.set('token', currentToken);
+    if (currentUserId) queryParams.set('user_id', currentUserId);
+    
+    const headers = { 
+      'Content-Type': 'application/json'
+    };
+    if (currentToken) headers['Authorization'] = `Bearer ${currentToken}`;
+    if (currentUserId) headers['X-User-Id'] = currentUserId;
+
     try {
-      const res = await fetch(`${API_URL}/api/auth/profile?token=${token}`, {
+      const res = await fetch(`${API_URL}/api/auth/profile?${queryParams.toString()}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(updates)
       });
+      
       if (res.ok) {
         const updatedUser = await res.json();
+        const newToken = `token_${updatedUser.id}`;
         setUser(updatedUser);
-        persistUser(updatedUser, token);
+        setToken(newToken);
+        persistUser(updatedUser, newToken);
         return { success: true, user: updatedUser };
-      } else {
-        const errorData = await res.json().catch(() => ({}));
-        return { success: false, error: errorData.detail || 'Update failed' };
       }
+      
+      // If token expired or invalid, check if we can refresh via Firebase
+      if (res.status === 401 && auth?.currentUser) {
+        try {
+          const freshIdToken = await auth.currentUser.getIdToken(true);
+          const refreshRes = await fetch(`${API_URL}/api/auth/firebase-login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              token: freshIdToken,
+              email: auth.currentUser.email,
+              name: auth.currentUser.displayName,
+              avatar: auth.currentUser.photoURL
+            })
+          });
+          if (refreshRes.ok) {
+            const freshData = await refreshRes.json();
+            setToken(freshData.access_token);
+            setUser(freshData.user);
+            persistUser(freshData.user, freshData.access_token);
+            
+            // Retry the update with the new token
+            const retryRes = await fetch(`${API_URL}/api/auth/profile?token=${encodeURIComponent(freshData.access_token)}&user_id=${encodeURIComponent(freshData.user.id)}`, {
+              method: 'PUT',
+              headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${freshData.access_token}`,
+                'X-User-Id': freshData.user.id
+              },
+              body: JSON.stringify(updates)
+            });
+            if (retryRes.ok) {
+              const retriedUser = await retryRes.json();
+              const newToken = `token_${retriedUser.id}`;
+              setUser(retriedUser);
+              setToken(newToken);
+              persistUser(retriedUser, newToken);
+              return { success: true, user: retriedUser };
+            }
+          }
+        } catch (refreshErr) {
+          console.error("Auto token refresh error:", refreshErr);
+        }
+      }
+
+      const errorData = await res.json().catch(() => ({}));
+      return { success: false, error: errorData.detail || 'Update failed' };
     } catch (e) {
       console.error(e);
       return { success: false, error: e.message };
     }
   };
+
 
   const logout = () => {
     setUser(null);
