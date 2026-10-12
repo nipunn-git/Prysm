@@ -8,9 +8,20 @@ from sqlalchemy.orm import sessionmaker
 logger = logging.getLogger("prompthub.database")
 
 # Persistent local SQLite DB file
-DB_FILE = Path(__file__).resolve().parent / "prompthub.db"
+REPO_DB_FILE = Path(__file__).resolve().parent / "prompthub.db"
+DB_FILE = REPO_DB_FILE
+
 if os.environ.get("VERCEL"):
-    DB_FILE = Path("/tmp/prompthub.db")
+    import shutil
+    TMP_DB_FILE = Path("/tmp/prompthub.db")
+    # If /tmp/prompthub.db doesn't exist yet, copy the repo's bundled SQLite DB into /tmp
+    if not TMP_DB_FILE.exists() and REPO_DB_FILE.exists():
+        try:
+            shutil.copy2(REPO_DB_FILE, TMP_DB_FILE)
+            logger.info("Copied initial bundled prompthub.db to /tmp/prompthub.db")
+        except Exception as copy_err:
+            logger.warning(f"Failed to copy initial DB to /tmp: {copy_err}")
+    DB_FILE = TMP_DB_FILE
 
 def init_engine():
     db_url = os.getenv("DATABASE_URL", "").strip()

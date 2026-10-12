@@ -19,12 +19,6 @@ from api import repositories, prompts, optimizer, auth, chat
 # Initialize DB tables
 Base.metadata.create_all(bind=engine)
 
-# Run seed data
-try:
-    seed_data()
-except Exception as e:
-    print(f"Seed info: {e}")
-
 app = FastAPI(
     title="PromptHub API",
     description="Backend API for PromptHub - GitHub for AI Prompts",
