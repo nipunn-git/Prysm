@@ -59,6 +59,8 @@ export default function Navbar() {
 
   const profileRef = useRef(null);
   const createRef = useRef(null);
+  const searchRef = useRef(null);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -68,6 +70,9 @@ export default function Navbar() {
       }
       if (createRef.current && !createRef.current.contains(event.target)) {
         setIsCreateOpen(false);
+      }
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setSearchResults([]);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -80,15 +85,17 @@ export default function Navbar() {
 
   const handleSearchSubmit = (e) => {
     if (e.key === 'Enter' && searchQuery.trim()) {
+      setSearchResults([]);
+      setIsMobileSearchOpen(false);
       router.push(`/explore?search=${encodeURIComponent(searchQuery.trim())}`);
     }
   };
 
   return (
     <>
-      <header className="bg-[#010409] border-b border-[#21262d] text-[#c9d1d9] h-14 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-40 select-none">
+      <header className="bg-[#010409] border-b border-[#21262d] text-[#c9d1d9] h-14 px-3 sm:px-6 flex items-center justify-between sticky top-0 z-40 select-none">
         {/* Left Side: Hamburger + Octocat + Dashboard title */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3">
           <button 
             onClick={() => setIsDrawerOpen(true)}
             aria-label="Open navigation menu"
@@ -102,27 +109,43 @@ export default function Navbar() {
             <svg height="32" aria-hidden="true" viewBox="0 0 16 16" version="1.1" width="32" className="fill-white shrink-0">
               <path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"></path>
             </svg>
-            <span className="font-semibold text-sm text-[#f0f6fc] tracking-tight">Dashboard</span>
+            <span className="font-semibold text-sm text-[#f0f6fc] tracking-tight hidden xs:inline">Dashboard</span>
           </Link>
         </div>
 
         {/* Right Side: Search bar, Copilot icon, +, Issues, Pull Requests, Inbox, Avatar */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3">
+          {/* Mobile search toggle button */}
+          <button
+            onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
+            className="md:hidden p-1.5 text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] rounded-md transition"
+            title="Search"
+          >
+            <Search className="w-4 h-4" />
+          </button>
+
           {/* GitHub style search input */}
-          <div className="relative hidden md:flex items-center w-60 lg:w-72">
-            <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-[#8b949e]" />
+          <div ref={searchRef} className={`relative items-center transition-all ${isMobileSearchOpen ? 'flex absolute inset-x-2 top-2 z-50 bg-[#161b22] p-1 rounded-lg border border-[#30363d]' : 'hidden md:flex w-52 lg:w-72'}`}>
+            <Search className="absolute left-2.5 top-2.5 md:top-2 w-3.5 h-3.5 text-[#8b949e]" />
             <input 
               type="text" 
               placeholder="Search prompts or @users..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={handleSearchSubmit}
-              className="w-full bg-[#0d1117] border border-[#30363d] rounded-md pl-8 pr-7 py-1 text-xs focus:outline-none focus:border-[#58a6ff] focus:ring-1 focus:ring-[#58a6ff] transition-colors placeholder:text-[#8b949e] text-[#c9d1d9]"
+              autoFocus={isMobileSearchOpen}
+              className="w-full bg-[#0d1117] border border-[#30363d] rounded-md pl-8 pr-7 py-1.5 md:py-1 text-xs focus:outline-none focus:border-[#58a6ff] focus:ring-1 focus:ring-[#58a6ff] transition-colors placeholder:text-[#8b949e] text-[#c9d1d9]"
             />
+            {isMobileSearchOpen && (
+              <button onClick={() => { setIsMobileSearchOpen(false); setSearchResults([]); }} className="p-1 ml-1 text-[#8b949e] hover:text-[#f0f6fc]">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
             {searchQuery.trim().length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-[#161b22] border border-[#30363d] rounded-xl shadow-2xl py-1.5 z-50 overflow-hidden">
-                <div className="px-3 py-1.5 text-[10px] uppercase font-bold tracking-wider text-[#8b949e] border-b border-[#21262d]">
-                  Creators & People
+                <div className="px-3 py-1.5 text-[10px] uppercase font-bold tracking-wider text-[#8b949e] border-b border-[#21262d] flex items-center justify-between">
+                  <span>Creators & Users</span>
+                  <span className="text-[9px] text-[#58a6ff]">Live Search</span>
                 </div>
                 {isSearching ? (
                   <div className="px-3 py-3 text-xs text-[#8b949e] flex items-center gap-2">
@@ -135,7 +158,7 @@ export default function Navbar() {
                       <Link
                         key={u.id}
                         href={`/u/${u.username}`}
-                        onClick={() => { setSearchQuery(''); setSearchResults([]); }}
+                        onClick={() => { setSearchQuery(''); setSearchResults([]); setIsMobileSearchOpen(false); }}
                         className="flex items-center gap-3 px-3 py-2.5 hover:bg-[#1f6feb]/20 hover:border-[#1f6feb]/40 transition group"
                       >
                         <img 
@@ -159,7 +182,7 @@ export default function Navbar() {
                 <div className="border-t border-[#30363d]"></div>
                 <Link
                   href={`/explore?search=${encodeURIComponent(searchQuery.trim())}`}
-                  onClick={() => { setSearchQuery(''); setSearchResults([]); }}
+                  onClick={() => { setSearchQuery(''); setSearchResults([]); setIsMobileSearchOpen(false); }}
                   className="block px-3 py-2 text-xs font-semibold text-[#58a6ff] hover:bg-[#161b22] transition text-center"
                 >
                   Search all prompts for &quot;{searchQuery}&quot; →
@@ -167,9 +190,11 @@ export default function Navbar() {
               </div>
             )}
 
-            <div className="absolute right-2 top-1.5 flex items-center">
-              <span className="border border-[#30363d] rounded px-1 text-[10px] text-[#8b949e] font-mono leading-tight">/</span>
-            </div>
+            {!isMobileSearchOpen && (
+              <div className="absolute right-2 top-1.5 flex items-center">
+                <span className="border border-[#30363d] rounded px-1 text-[10px] text-[#8b949e] font-mono leading-tight">/</span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2">
@@ -355,6 +380,49 @@ export default function Navbar() {
               >
                 <X className="w-5 h-5" />
               </button>
+            </div>
+
+            {/* Mobile Drawer Search Bar */}
+            <div className="mb-4">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-[#8b949e]" />
+                <input 
+                  type="text" 
+                  placeholder="Search prompts or @users..." 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && searchQuery.trim()) {
+                      setIsDrawerOpen(false);
+                      setSearchResults([]);
+                      router.push(`/explore?search=${encodeURIComponent(searchQuery.trim())}`);
+                    }
+                  }}
+                  className="w-full bg-[#0d1117] border border-[#30363d] rounded-md pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:border-[#58a6ff] text-[#c9d1d9] placeholder:text-[#8b949e]"
+                />
+              </div>
+              {searchQuery.trim().length > 0 && searchResults.length > 0 && (
+                <div className="mt-2 bg-[#0d1117] border border-[#30363d] rounded-lg max-h-48 overflow-y-auto divide-y divide-[#21262d]">
+                  {searchResults.map(u => (
+                    <Link
+                      key={u.id}
+                      href={`/u/${u.username}`}
+                      onClick={() => { setIsDrawerOpen(false); setSearchQuery(''); setSearchResults([]); }}
+                      className="flex items-center gap-2.5 p-2 hover:bg-[#21262d] transition"
+                    >
+                      <img 
+                        src={u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`} 
+                        alt={u.username}
+                        className="w-6 h-6 rounded-full border border-[#30363d] object-cover shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-semibold text-[#f0f6fc] truncate">{u.name}</div>
+                        <div className="text-[10px] text-[#8b949e] truncate">@{u.username}</div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
 
             <nav className="space-y-1 text-sm font-medium text-[#c9d1d9] flex-1">

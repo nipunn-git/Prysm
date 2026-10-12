@@ -15,7 +15,7 @@ export default function CreateRepositoryPage() {
     name: "",
     description: "",
     category: "Coding",
-    visibility: "Private",
+    visibility: "Public",
     initial_prompt: ""
   });
   const [loading, setLoading] = useState(false);

@@ -119,5 +119,5 @@ class AICreateRepoRequest(BaseModel):
     query: str
     action_type: Optional[str] = "custom"
     user_id: Optional[str] = None
-    visibility: Optional[str] = "Private"
+    visibility: Optional[str] = "Public"
 

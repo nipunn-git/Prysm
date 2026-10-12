@@ -118,10 +118,11 @@ def list_user_repositories(
     user_id: Optional[str] = Query(None),
     token: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
     search: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    current_user_id = resolve_user_id_from_token(token or authorization, db)
+    current_user_id = resolve_user_id_from_token(token or authorization, db) or x_user_id
     target_user_id = user_id or current_user_id
     
     query = db.query(models.Repository)
@@ -152,21 +153,27 @@ def explore_public_repositories(
     user_id: Optional[str] = None,
     token: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
     db: Session = Depends(get_db)
 ):
-    current_user_id = resolve_user_id_from_token(token or authorization, db) or user_id
-    query = db.query(models.Repository).filter(models.Repository.visibility.ilike("Public"))
-    if current_user_id:
+    current_user_id = resolve_user_id_from_token(token or authorization, db) or user_id or x_user_id
+    query = db.query(models.Repository).join(models.User, models.Repository.owner_id == models.User.id).filter(
+        models.Repository.visibility.ilike("Public")
+    )
+    if current_user_id and not search:
         query = query.filter(models.Repository.owner_id != current_user_id)
     if category and category.lower() != "all":
-        query = query.filter(models.Repository.category == category)
+        query = query.filter(models.Repository.category.ilike(category))
     if search:
-        search_pattern = f"%{search}%"
+        clean_s = search.strip().lstrip('@').strip()
+        search_pattern = f"%{clean_s}%"
         query = query.filter(
             or_(
                 models.Repository.name.ilike(search_pattern),
                 models.Repository.description.ilike(search_pattern),
-                models.Repository.category.ilike(search_pattern)
+                models.Repository.category.ilike(search_pattern),
+                models.User.username.ilike(search_pattern),
+                models.User.name.ilike(search_pattern)
             )
         )
     repos = query.order_by(desc(models.Repository.updated_at)).all()
@@ -177,6 +184,7 @@ def list_public_repositories_for_user(
     username: str,
     token: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
     db: Session = Depends(get_db)
 ):
     clean_uname = username.lstrip('@').strip()
@@ -190,8 +198,8 @@ def list_public_repositories_for_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
         
-    current_user_id = resolve_user_id_from_token(token or authorization, db)
-    is_owner = (current_user_id == user.id)
+    current_user_id = resolve_user_id_from_token(token or authorization, db) or x_user_id
+    is_owner = bool(current_user_id and current_user_id == user.id)
     
     if is_owner:
         repos = db.query(models.Repository).filter(
@@ -225,8 +233,8 @@ def get_recent_activity(db: Session = Depends(get_db)):
             "id": v.id,
             "repo_id": repo.id,
             "repo_name": repo.name,
-            "owner_name": repo.owner.name if repo.owner else "Nipun",
-            "owner_username": repo.owner.username if repo.owner else "nipundhiman",
+            "owner_name": repo.owner.name if repo.owner else "Creator",
+            "owner_username": repo.owner.username if repo.owner else "user",
             "owner_avatar": repo.owner.avatar if repo.owner else None,
             "version": v.version,
             "category": repo.category,
@@ -241,9 +249,10 @@ def create_repository(
     user_id: Optional[str] = Query(None),
     token: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
     db: Session = Depends(get_db)
 ):
-    actual_user_id = user_id
+    actual_user_id = user_id or x_user_id
     if not actual_user_id:
         actual_user_id = resolve_user_id_from_token(token or authorization, db)
     
@@ -254,13 +263,22 @@ def create_repository(
             or_(models.User.id == actual_user_id, models.User.username.ilike(actual_user_id))
         ).first()
     
+    if not owner and (token or authorization):
+        res_id = resolve_user_id_from_token(token or authorization, db)
+        if res_id:
+            owner = db.query(models.User).filter(models.User.id == res_id).first()
+
     if not owner:
+        # Fallback to demo user only if completely anonymous development mode
         owner = db.query(models.User).filter(models.User.id == DEFAULT_USER_ID).first()
     if not owner:
         owner = db.query(models.User).first()
         
-    actual_user_id = owner.id if owner else DEFAULT_USER_ID
-    owner_username = owner.username if owner else ""
+    if not owner:
+        raise HTTPException(status_code=401, detail="Authentication required to create repository")
+
+    actual_user_id = owner.id
+    owner_username = owner.username
 
     # Check if repo with same name exists for this user
     clean_name = repo_in.name.strip().lower().replace(" ", "-")
@@ -272,15 +290,13 @@ def create_repository(
     if existing:
         raise HTTPException(status_code=400, detail=f"Repository '{repo_in.name}' already exists.")
 
-    visibility = repo_in.visibility
-    if clean_name == owner_username.lower():
-        visibility = "Private"
+    visibility = repo_in.visibility or "Public"
 
     new_repo = models.Repository(
         owner_id=actual_user_id,
         name=clean_name,
         description=repo_in.description,
-        category=repo_in.category,
+        category=repo_in.category or "Coding",
         visibility=visibility
     )
     db.add(new_repo)

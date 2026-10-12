@@ -268,6 +268,49 @@ function ExploreContent() {
               ))}
             </div>
           </div>
+
+          {/* Top Creators Sidebar Section */}
+          {suggestedUsers.length > 0 && (
+            <div className="pt-4 border-t border-[#30363d]">
+              <h2 className="text-xs font-semibold text-[#8b949e] uppercase tracking-widest mb-3 flex items-center justify-between">
+                <span>Top Creators</span>
+                <Users className="w-3.5 h-3.5 text-[#58a6ff]" />
+              </h2>
+              <div className="space-y-2.5">
+                {suggestedUsers.slice(0, 6).map(u => (
+                  <div key={u.id} className="flex items-center justify-between gap-2 p-1.5 rounded-lg hover:bg-[#161b22] transition group">
+                    <Link href={`/u/${u.username}`} className="flex items-center gap-2 min-w-0 flex-1">
+                      <img 
+                        src={u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`} 
+                        alt={u.username}
+                        className="w-7 h-7 rounded-full border border-[#30363d] object-cover shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold text-[#f0f6fc] group-hover:text-[#58a6ff] truncate transition">
+                          {u.name}
+                        </div>
+                        <div className="text-[10px] text-[#8b949e] truncate">
+                          @{u.username} · {u.repos_count || 0} prompts
+                        </div>
+                      </div>
+                    </Link>
+                    {user?.id !== u.id && (
+                      <button
+                        onClick={(e) => handleToggleFollow(e, u.id)}
+                        className={`text-[10px] font-semibold px-2 py-1 rounded transition shrink-0 ${
+                          followingMap[u.id]
+                            ? "bg-[#21262d] text-[#8b949e] border border-[#30363d]"
+                            : "bg-[#238636] hover:bg-[#2ea043] text-white"
+                        }`}
+                      >
+                        {followingMap[u.id] ? "Following" : "Follow"}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </aside>
 
         {/* Main Feed Area */}

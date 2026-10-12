@@ -67,13 +67,13 @@ export default function DashboardPage() {
   const [saveRepoName, setSaveRepoName] = useState("");
   const [saveRepoDesc, setSaveRepoDesc] = useState("");
   const [saveCategory, setSaveCategory] = useState("Productivity");
-  const [saveVisibility, setSaveVisibility] = useState("Private"); // By default Private!
+  const [saveVisibility, setSaveVisibility] = useState("Public"); // Public by default
   const [isCreatingRepo, setIsCreatingRepo] = useState(false);
 
   // Fork Modal State (for community prompts)
   const [forkModalRepo, setForkModalRepo] = useState(null);
   const [forkRepoName, setForkRepoName] = useState("");
-  const [forkVisibility, setForkVisibility] = useState("Private");
+  const [forkVisibility, setForkVisibility] = useState("Public");
   const [isForking, setIsForking] = useState(false);
 
   // Copy state
@@ -221,7 +221,7 @@ export default function DashboardPage() {
     setSaveRepoName(smartName);
     setSaveRepoDesc(`AI prompt for: ${userQuery || smartName.replace(/-/g, ' ')}`);
     setSaveCategory(cat);
-    setSaveVisibility("Private"); // Private by default!
+    setSaveVisibility("Public"); // Public by default
     setSaveModalOpen(true);
   };
 
@@ -261,6 +261,10 @@ export default function DashboardPage() {
       const createdRepo = await res.json();
       addCreatedRepoId(createdRepo.id);
 
+      // Immediately sync state so new repository appears in the sidebar right away!
+      setRepos(prev => [createdRepo, ...prev.filter(r => r.id !== createdRepo.id)]);
+      fetchRepos();
+
       setSaveModalOpen(false);
 
       // Append success message to chat with direct link
@@ -268,7 +272,7 @@ export default function DashboardPage() {
         ...prev,
         {
           role: "assistant",
-          content: `✅ Successfully created private repository **${createdRepo.name}** with your prompt!`,
+          content: `✅ Successfully created repository **${createdRepo.name}** with your prompt!`,
           repo_created: {
             id: createdRepo.id,
             name: createdRepo.name,
@@ -292,15 +296,25 @@ export default function DashboardPage() {
     if (!forkModalRepo) return;
     setIsForking(true);
     try {
-      const userQuery = user?.id ? `?user_id=${user.id}` : "";
-      const res = await fetch(`${API_URL}/api/repositories${userQuery}`, {
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+      
+      const queryParams = new URLSearchParams();
+      if (effectiveUserId) queryParams.append('user_id', effectiveUserId);
+      if (storedToken) queryParams.append('token', storedToken);
+
+      const headers = { "Content-Type": "application/json" };
+      if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+      if (effectiveUserId) headers['X-User-Id'] = effectiveUserId;
+
+      const res = await fetch(`${API_URL}/api/repositories?${queryParams.toString()}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           name: forkRepoName.trim() || forkModalRepo.name,
           description: `Forked from ${forkModalRepo.owner_name || 'community'}/${forkModalRepo.name}. ${forkModalRepo.description || ''}`,
           category: forkModalRepo.category || "Other",
-          visibility: forkVisibility, // Default Private
+          visibility: forkVisibility || "Public",
           initial_prompt: forkModalRepo.latest_prompt || "Forked prompt instructions."
         })
       });
@@ -314,6 +328,7 @@ export default function DashboardPage() {
       addCreatedRepoId(newRepo.id);
       saveForkInfo(newRepo.id, forkModalRepo);
       setForkModalRepo(null);
+      setRepos(prev => [newRepo, ...prev.filter(r => r.id !== newRepo.id)]);
       await fetchRepos();
       router.push(`/repo/${newRepo.id}`);
     } catch (e) {

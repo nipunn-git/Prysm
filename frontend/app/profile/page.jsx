@@ -470,9 +470,9 @@ export default function ProfilePage() {
 
             <div className="flex items-center gap-1 text-sm mb-4 text-[#8b949e]">
               <Users className="w-4 h-4" />
-              <span className="font-semibold text-[#c9d1d9] hover:text-[#58a6ff] cursor-pointer">0</span> followers
+              <span className="font-semibold text-[#c9d1d9] hover:text-[#58a6ff] cursor-pointer">{user.followers_count ?? 0}</span> followers
               <span className="mx-1">·</span>
-              <span className="font-semibold text-[#c9d1d9] hover:text-[#58a6ff] cursor-pointer">0</span> following
+              <span className="font-semibold text-[#c9d1d9] hover:text-[#58a6ff] cursor-pointer">{user.following_count ?? 0}</span> following
             </div>
 
             <ul className="text-sm space-y-2 text-[#c9d1d9]">
@@ -532,7 +532,7 @@ export default function ProfilePage() {
               className={`flex items-center gap-2 py-3 px-2 border-b-2 font-semibold transition ${activeTab === 'stars' ? 'border-[#f78166] text-[#f0f6fc]' : 'border-transparent text-[#8b949e] hover:text-[#f0f6fc]'}`}
             >
               <span className="flex items-center gap-1.5"><Star className="w-4 h-4" /> Stars</span>
-              <span className="bg-[#161b22] border border-[#30363d] text-xs font-semibold px-2 py-0.5 rounded-full">0</span>
+              <span className="bg-[#161b22] border border-[#30363d] text-xs font-semibold px-2 py-0.5 rounded-full">{repos.reduce((acc, r) => acc + (r.stars_count || 0), 0)}</span>
             </button>
           </nav>
         </div>

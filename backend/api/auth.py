@@ -179,7 +179,7 @@ def login(credentials: schemas.UserLogin, db: Session = Depends(get_db)):
     return {
         "access_token": token,
         "token_type": "bearer",
-        "user": schemas.UserResponse.model_validate(user),
+        "user": build_user_response(user, db, user.id),
     }
 
 @router.post("/demo-login")
@@ -195,7 +195,7 @@ def demo_login(db: Session = Depends(get_db)):
     return {
         "access_token": token,
         "token_type": "bearer",
-        "user": schemas.UserResponse.model_validate(user),
+        "user": build_user_response(user, db, user.id),
     }
 
 @router.post("/firebase-login")
@@ -255,7 +255,7 @@ def firebase_login(payload: FirebaseLogin, db: Session = Depends(get_db)):
         return {
             "access_token": token,
             "token_type": "bearer",
-            "user": schemas.UserResponse.model_validate(user),
+            "user": build_user_response(user, db, user.id),
         }
         
     except HTTPException:
@@ -365,44 +365,63 @@ def search_users(
     q: str, 
     token: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
     db: Session = Depends(get_db)
 ):
     clean_q = (q or "").strip()
     if not clean_q:
         return []
         
-    current_user_id = resolve_user_id_from_token(token or authorization, db)
+    current_user_id = resolve_user_id_from_token(token or authorization, db) or x_user_id
     
-    stripped_q = clean_q.lstrip('@').strip()
-    search_pattern = f"%{clean_q}%"
-    stripped_pattern = f"%{stripped_q}%" if stripped_q else search_pattern
+    stripped_q = clean_q.lstrip('@').strip().lower()
+    words = [w for w in stripped_q.replace('-', ' ').replace('_', ' ').split() if len(w) > 0]
+    
+    search_filters = [
+        models.User.username.ilike(f"%{stripped_q}%"),
+        models.User.name.ilike(f"%{stripped_q}%"),
+        models.User.email.ilike(f"%{stripped_q}%"),
+        models.User.id.ilike(f"%{stripped_q}%"),
+    ]
+    for word in words:
+        search_filters.append(models.User.username.ilike(f"%{word}%"))
+        search_filters.append(models.User.name.ilike(f"%{word}%"))
 
-    users = db.query(models.User).filter(
-        or_(
-            models.User.username.ilike(search_pattern),
-            models.User.username.ilike(stripped_pattern),
-            models.User.name.ilike(search_pattern),
-            models.User.name.ilike(stripped_pattern),
-            models.User.id.ilike(search_pattern),
-            models.User.email.ilike(search_pattern)
-        )
-    ).limit(30).all()
+    users = db.query(models.User).filter(or_(*search_filters)).limit(40).all()
+    
+    # Sort results to prioritize exact username or name match
+    def score_match(u):
+        uname = (u.username or "").lower()
+        name = (u.name or "").lower()
+        if uname == stripped_q:
+            return 0
+        if uname.startswith(stripped_q):
+            return 1
+        if name.startswith(stripped_q):
+            return 2
+        return 3
 
-    return [build_user_response(u, db, current_user_id) for u in users]
+    sorted_users = sorted(users, key=score_match)
+    return [build_user_response(u, db, current_user_id) for u in sorted_users]
 
 @router.get("/users/suggested", response_model=List[schemas.UserResponse])
 def get_suggested_creators(
     token: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
     db: Session = Depends(get_db)
 ):
-    current_user_id = resolve_user_id_from_token(token or authorization, db)
+    current_user_id = resolve_user_id_from_token(token or authorization, db) or x_user_id
     query = db.query(models.User)
     if current_user_id:
         query = query.filter(models.User.id != current_user_id)
     
-    users = query.limit(8).all()
-    return [build_user_response(u, db, current_user_id) for u in users]
+    users = query.all()
+    
+    # Sort suggested creators by repository count descending
+    user_responses = [build_user_response(u, db, current_user_id) for u in users]
+    user_responses.sort(key=lambda ur: (ur.repos_count, ur.followers_count), reverse=True)
+    return user_responses[:12]
 
 @router.get("/users/{username}", response_model=schemas.UserResponse)
 def get_user_profile(

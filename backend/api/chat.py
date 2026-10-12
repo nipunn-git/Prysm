@@ -33,7 +33,7 @@ class ChatRequest(BaseModel):
     messages: List[ChatMessage]
     user_id: Optional[str] = None
     create_repo: Optional[bool] = False  # If True, also create a repo from the last AI prompt
-    visibility: Optional[str] = "Private"
+    visibility: Optional[str] = "Public"
 
 class ChatResponse(BaseModel):
     reply: str
@@ -391,7 +391,7 @@ def quick_generate(
         final_name = f"{repo_name}-{count}"
         count += 1
     
-    visibility = payload.visibility or "Private"
+    visibility = payload.visibility or "Public"
     owner = db.query(models.User).filter(models.User.id == user_id).first()
     if owner and final_name.lower() == owner.username.lower():
         visibility = "Private"
