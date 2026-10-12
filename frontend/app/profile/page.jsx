@@ -227,15 +227,21 @@ export default function ProfilePage() {
 
   // Month labels for the heatmap
   const monthLabels = [];
-  if (weeks.length > 0) {
+  if (Array.isArray(weeks) && weeks.length > 0) {
     let lastMonth = -1;
     weeks.forEach((week, idx) => {
-      if (week.length > 0) {
-        const d = new Date(week[0].date);
-        const month = d.getMonth();
-        if (month !== lastMonth) {
-          monthLabels.push({ idx, label: d.toLocaleString('default', { month: 'short' }) });
-          lastMonth = month;
+      if (Array.isArray(week) && week.length > 0 && week[0]?.date) {
+        try {
+          const d = new Date(week[0].date);
+          if (!isNaN(d.getTime())) {
+            const month = d.getMonth();
+            if (month !== lastMonth) {
+              monthLabels.push({ idx, label: d.toLocaleString('default', { month: 'short' }) });
+              lastMonth = month;
+            }
+          }
+        } catch (e) {
+          console.error("Heatmap date parsing error:", e);
         }
       }
     });
@@ -582,7 +588,7 @@ export default function ProfilePage() {
             {specialRepo ? (
               <div className="mb-8 border border-[#30363d] rounded-md bg-[#0d1117] overflow-hidden">
                 <div className="bg-[#161b22] px-4 py-2 border-b border-[#30363d] text-xs font-medium text-[#c9d1d9] flex items-center gap-2">
-                  <span className="text-[10px] bg-[#21262d] px-1.5 py-0.5 rounded border border-[#30363d] font-semibold">{user.username}</span>
+                  <span className="text-[10px] bg-[#21262d] px-1.5 py-0.5 rounded border border-[#30363d] font-semibold">{user?.username || 'user'}</span>
                   / README.md
                 </div>
                 <div className="p-6 text-sm text-[#c9d1d9] prose prose-invert prose-sm max-w-none prose-a:text-[#58a6ff] prose-a:no-underline hover:prose-a:underline prose-headings:border-b prose-headings:border-[#30363d] prose-headings:pb-2 prose-pre:bg-[#161b22] prose-pre:border prose-pre:border-[#30363d]">
@@ -602,7 +608,7 @@ export default function ProfilePage() {
               <div className="mb-8 border border-[#30363d] rounded-md p-4 bg-[#161b22] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                   <h3 className="text-sm font-semibold text-[#f0f6fc] mb-1">
-                    {user.username} / {user.username} is a special repository
+                    {user?.username || 'user'} / {user?.username || 'user'} is a special repository
                   </h3>
                   <p className="text-xs text-[#8b949e]">
                     Its `README.md` will appear on your public profile!
@@ -785,7 +791,12 @@ export default function ProfilePage() {
                           )}
                         </p>
                         <p className="text-[11px] text-[#8b949e] mt-0.5">
-                          {new Date(activity.date).toLocaleString()}
+                          {activity.date ? (() => {
+                            try {
+                              const d = new Date(activity.date);
+                              return isNaN(d.getTime()) ? '' : d.toLocaleString();
+                            } catch { return ''; }
+                          })() : ''}
                         </p>
                       </div>
                     </div>
@@ -837,7 +848,12 @@ export default function ProfilePage() {
                         }`}></span>
                         <span>{repo.category || 'Other'}</span>
                       </div>
-                      <span>Updated {new Date(repo.updated_at).toLocaleDateString()}</span>
+                      <span>Updated {repo.updated_at ? (() => {
+                        try {
+                          const d = new Date(repo.updated_at);
+                          return isNaN(d.getTime()) ? '' : d.toLocaleDateString();
+                        } catch { return ''; }
+                      })() : ''}</span>
                     </div>
                   </div>
                   <button className="bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-xs font-semibold text-[#c9d1d9] px-3 py-1 rounded-md flex items-center gap-1.5 transition">
