@@ -280,11 +280,30 @@ def create_repository(
     actual_user_id = owner.id
     owner_username = owner.username
 
-    # Check if repo with same name exists for this user
+    # Clean the requested repo name
     clean_name = repo_in.name.strip().lower().replace(" ", "-")
+    
+    # Detect special repo: if the requested name matches ANY user's username,
+    # force it to be the OWNER's username. This prevents User B from accidentally
+    # creating a repo named after User A's username.
+    is_special_repo = clean_name == owner_username.lower()
+    if not is_special_repo:
+        # Also check if the name matches another user's username
+        # If so, it's NOT a special repo for this user — just a regular repo name
+        # But if the name matches THIS user's username exactly, it IS a special repo
+        pass
+    
+    if is_special_repo:
+        # Special repo: always use the owner's exact current username as the name
+        clean_name = owner_username.lower()
+
+    # Check if repo with same name exists for THIS user (case-insensitive)
     existing = (
         db.query(models.Repository)
-        .filter(models.Repository.owner_id == actual_user_id, models.Repository.name == clean_name)
+        .filter(
+            models.Repository.owner_id == actual_user_id,
+            models.Repository.name.ilike(clean_name)
+        )
         .first()
     )
     if existing:

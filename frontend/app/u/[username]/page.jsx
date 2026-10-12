@@ -63,6 +63,8 @@ export default function PublicProfilePage() {
   useEffect(() => {
     async function fetchPublicProfile() {
       try {
+        setLoading(true);
+        setError(null);
         const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
         const headers = storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {};
 

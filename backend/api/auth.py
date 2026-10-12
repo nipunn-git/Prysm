@@ -334,10 +334,13 @@ def update_profile(
         user.username = new_username
         
         # Also auto-rename special readme repository if user had one named after the old username
-        db.query(models.Repository).filter(
+        # Use explicit fetch + update to avoid SQLAlchemy synchronize_session issues
+        special_repo = db.query(models.Repository).filter(
             models.Repository.owner_id == user.id,
             models.Repository.name.ilike(old_username)
-        ).update({"name": new_username})
+        ).first()
+        if special_repo:
+            special_repo.name = new_username
         
         # Update active sessions with both new and canonical formats
         active_sessions[f"token_{user.id}"] = user.id

@@ -1,6 +1,6 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Book, Star, GitMerge, Users, MapPin, Link as LinkIcon, Twitter, Building, Lock, Eye, Sparkles, AlertCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -22,6 +22,7 @@ const LEVEL_COLORS = [
 export default function ProfilePage() {
   const { user, updateProfile, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   
   const [isEditing, setIsEditing] = useState(false);
   const [usernameError, setUsernameError] = useState('');
@@ -81,20 +82,46 @@ export default function ProfilePage() {
     });
     fetchRepos();
     fetchContributions();
-  }, [user, router, isLoading]);
+  }, [user, router, isLoading, fetchRepos]);
 
-  const fetchRepos = async () => {
+  // Re-fetch repos whenever the page regains focus (e.g., switching tabs, navigating back)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && user) {
+        fetchRepos();
+      }
+    };
+    const handleFocus = () => {
+      if (user) fetchRepos();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [user, fetchRepos]);
+
+  // Re-fetch repos on pathname change (Next.js client-side navigation)
+  useEffect(() => {
+    if (pathname === '/profile' && user) {
+      fetchRepos();
+    }
+  }, [pathname, user, fetchRepos]);
+
+  const fetchRepos = useCallback(async () => {
     try {
       const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
       const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
       if (!effectiveUserId) return;
       
       const headers = storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {};
-      const res = await fetch(`${API_URL}/api/repositories?user_id=${encodeURIComponent(effectiveUserId)}`, { headers, cache: 'no-store' });
+      const res = await fetch(`${API_URL}/api/repositories?user_id=${encodeURIComponent(effectiveUserId)}&_t=${Date.now()}`, { headers, cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         // Auto-recover special repo if it exists in DB but not in localStorage
-        const special = data.find(r => r.name.toLowerCase() === (user?.username || '').toLowerCase());
+        const currentUsername = (user?.username || '').toLowerCase();
+        const special = data.find(r => r.name.toLowerCase() === currentUsername);
         if (special) addCreatedRepoId(special.id);
         
         // All repos from DB for this user - no localStorage filtering
@@ -103,7 +130,7 @@ export default function ProfilePage() {
     } catch (e) {
       console.error(e);
     }
-  };
+  }, [user?.id, user?.username]);
 
   const fetchContributions = async () => {
     try {
@@ -256,11 +283,15 @@ export default function ProfilePage() {
       if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
       if (effectiveUserId) headers['X-User-Id'] = effectiveUserId;
 
+      // Always use the freshest username for the special repo name
+      const freshUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prompthub_user') || '{}') : {};
+      const specialRepoName = user?.username || freshUser?.username || 'profile';
+      
       const res = await fetch(`${API_URL}/api/repositories?${queryParams.toString()}`, {
         method: "POST",
         headers,
         body: JSON.stringify({
-          name: user.username,
+          name: specialRepoName,
           description: "My public profile README",
           category: "Other",
           visibility: "Private",

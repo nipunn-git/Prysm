@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
@@ -33,29 +33,71 @@ export default function Navbar() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
 
-  useEffect(() => {
-    const delayDebounceFn = setTimeout(async () => {
-      if (searchQuery.trim().length > 0) {
-        setIsSearching(true);
-        try {
-          const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-          const res = await fetch(`${API_URL}/api/auth/users/search?q=${encodeURIComponent(searchQuery.trim())}${storedToken ? `&token=${encodeURIComponent(storedToken)}` : ''}`);
-          if (res.ok) {
-            const data = await res.json();
-            setSearchResults(Array.isArray(data) ? data : []);
-          }
-        } catch (e) {
-          console.error(e);
-        } finally {
-          setIsSearching(false);
+  // Use a ref to track the latest query for the debounced fetch,
+  // preventing stale closure issues when React batches state updates
+  const searchQueryRef = useRef(searchQuery);
+  const searchAbortRef = useRef(null);
+  searchQueryRef.current = searchQuery;
+
+  // The actual search function — always makes a fresh API call
+  const performSearch = useCallback(async (query) => {
+    const trimmed = (query || '').trim();
+    if (trimmed.length === 0) {
+      setSearchResults([]);
+      setShowSearchDropdown(false);
+      return;
+    }
+    
+    // Cancel any in-flight request
+    if (searchAbortRef.current) {
+      searchAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
+    
+    setIsSearching(true);
+    setShowSearchDropdown(true);
+    try {
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const res = await fetch(
+        `${API_URL}/api/auth/users/search?q=${encodeURIComponent(trimmed)}&_t=${Date.now()}${storedToken ? `&token=${encodeURIComponent(storedToken)}` : ''}`,
+        { signal: controller.signal }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        // Only update if this is still the current query (not stale)
+        if (searchQueryRef.current.trim() === trimmed) {
+          setSearchResults(Array.isArray(data) ? data : []);
+          setShowSearchDropdown(true);
         }
-      } else {
-        setSearchResults([]);
       }
+    } catch (e) {
+      if (e.name !== 'AbortError') {
+        console.error(e);
+      }
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  // Debounced search: fires on every keystroke with 300ms delay
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (trimmed.length === 0) {
+      setSearchResults([]);
+      setShowSearchDropdown(false);
+      return;
+    }
+    
+    setShowSearchDropdown(true); // Show dropdown immediately with loading state
+    
+    const timer = setTimeout(() => {
+      performSearch(trimmed);
     }, 300);
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery]);
+    return () => clearTimeout(timer);
+  }, [searchQuery, performSearch]);
 
   const profileRef = useRef(null);
   const createRef = useRef(null);
@@ -72,7 +114,7 @@ export default function Navbar() {
         setIsCreateOpen(false);
       }
       if (searchRef.current && !searchRef.current.contains(event.target)) {
-        setSearchResults([]);
+        setShowSearchDropdown(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -85,9 +127,21 @@ export default function Navbar() {
 
   const handleSearchSubmit = (e) => {
     if (e.key === 'Enter' && searchQuery.trim()) {
+      setShowSearchDropdown(false);
       setSearchResults([]);
       setIsMobileSearchOpen(false);
       router.push(`/explore?search=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
+
+  // When input receives focus, re-show dropdown if there's a query
+  const handleSearchFocus = () => {
+    if (searchQuery.trim().length > 0) {
+      setShowSearchDropdown(true);
+      // If we have no cached results, re-fetch
+      if (searchResults.length === 0) {
+        performSearch(searchQuery.trim());
+      }
     }
   };
 
@@ -133,15 +187,16 @@ export default function Navbar() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={handleSearchSubmit}
+              onFocus={handleSearchFocus}
               autoFocus={isMobileSearchOpen}
               className="w-full bg-[#0d1117] border border-[#30363d] rounded-md pl-8 pr-7 py-1.5 md:py-1 text-xs focus:outline-none focus:border-[#58a6ff] focus:ring-1 focus:ring-[#58a6ff] transition-colors placeholder:text-[#8b949e] text-[#c9d1d9]"
             />
             {isMobileSearchOpen && (
-              <button onClick={() => { setIsMobileSearchOpen(false); setSearchResults([]); }} className="p-1 ml-1 text-[#8b949e] hover:text-[#f0f6fc]">
+              <button onClick={() => { setIsMobileSearchOpen(false); setShowSearchDropdown(false); setSearchResults([]); }} className="p-1 ml-1 text-[#8b949e] hover:text-[#f0f6fc]">
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
-            {searchQuery.trim().length > 0 && (
+            {showSearchDropdown && searchQuery.trim().length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-[#161b22] border border-[#30363d] rounded-xl shadow-2xl py-1.5 z-50 overflow-hidden">
                 <div className="px-3 py-1.5 text-[10px] uppercase font-bold tracking-wider text-[#8b949e] border-b border-[#21262d] flex items-center justify-between">
                   <span>Creators & Users</span>
@@ -158,7 +213,7 @@ export default function Navbar() {
                       <Link
                         key={u.id}
                         href={`/u/${u.username}`}
-                        onClick={() => { setSearchQuery(''); setSearchResults([]); setIsMobileSearchOpen(false); }}
+                        onClick={() => { setSearchQuery(''); setSearchResults([]); setShowSearchDropdown(false); setIsMobileSearchOpen(false); }}
                         className="flex items-center gap-3 px-3 py-2.5 hover:bg-[#1f6feb]/20 hover:border-[#1f6feb]/40 transition group"
                       >
                         <img 
@@ -182,7 +237,7 @@ export default function Navbar() {
                 <div className="border-t border-[#30363d]"></div>
                 <Link
                   href={`/explore?search=${encodeURIComponent(searchQuery.trim())}`}
-                  onClick={() => { setSearchQuery(''); setSearchResults([]); setIsMobileSearchOpen(false); }}
+                  onClick={() => { setSearchQuery(''); setSearchResults([]); setShowSearchDropdown(false); setIsMobileSearchOpen(false); }}
                   className="block px-3 py-2 text-xs font-semibold text-[#58a6ff] hover:bg-[#161b22] transition text-center"
                 >
                   Search all prompts for &quot;{searchQuery}&quot; →
@@ -395,6 +450,7 @@ export default function Navbar() {
                     if (e.key === 'Enter' && searchQuery.trim()) {
                       setIsDrawerOpen(false);
                       setSearchResults([]);
+                      setShowSearchDropdown(false);
                       router.push(`/explore?search=${encodeURIComponent(searchQuery.trim())}`);
                     }
                   }}
@@ -407,7 +463,7 @@ export default function Navbar() {
                     <Link
                       key={u.id}
                       href={`/u/${u.username}`}
-                      onClick={() => { setIsDrawerOpen(false); setSearchQuery(''); setSearchResults([]); }}
+                      onClick={() => { setIsDrawerOpen(false); setSearchQuery(''); setSearchResults([]); setShowSearchDropdown(false); }}
                       className="flex items-center gap-2.5 p-2 hover:bg-[#21262d] transition"
                     >
                       <img 
