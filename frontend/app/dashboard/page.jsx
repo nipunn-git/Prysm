@@ -419,6 +419,14 @@ export default function DashboardPage() {
     });
   };
 
+  if (authLoading || (!user && (typeof window !== 'undefined' && !localStorage.getItem('prompthub_token')))) {
+    return (
+      <div className="min-h-[calc(100vh-56px)] bg-[#010409] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-[#58a6ff]" />
+      </div>
+    );
+  }
+
   return (
     <div className="w-full max-w-[1540px] mx-auto px-4 sm:px-6 py-6 min-h-[calc(100vh-56px)] bg-[#010409]">
       <div className="flex gap-6 lg:gap-8 items-start relative">

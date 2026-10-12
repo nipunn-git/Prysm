@@ -145,7 +145,13 @@ export default function ProfilePage() {
     }
   };
 
-  if (isLoading || !user) return null;
+  if (isLoading || !user) {
+    return (
+      <div className="min-h-[calc(100vh-56px)] bg-[#010409] flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-[#58a6ff] border-t-transparent animate-spin" />
+      </div>
+    );
+  }
 
   // Check username uniqueness
   const checkUsername = async (username) => {
@@ -235,7 +241,8 @@ export default function ProfilePage() {
     });
   }
 
-  const specialRepo = repos.find(r => r.name.toLowerCase() === user.username.toLowerCase());
+  const currentUsername = (user?.username || '').toLowerCase();
+  const specialRepo = Array.isArray(repos) ? repos.find(r => r?.name && r.name.toLowerCase() === currentUsername) : null;
 
   const fetchGithubReadme = async () => {
     if (!githubUsername.trim()) return;
