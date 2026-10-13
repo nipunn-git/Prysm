@@ -57,7 +57,10 @@ export default function PublicProfilePage() {
   const isOwnProfile = Boolean(
     currentUser && 
     profileUser && 
-    (currentUser.id === profileUser.id || currentUser.username.toLowerCase() === profileUser.username.toLowerCase())
+    (
+      currentUser.id === profileUser.id || 
+      (currentUser.username && profileUser.username && currentUser.username.toLowerCase() === profileUser.username.toLowerCase())
+    )
   );
 
   useEffect(() => {
@@ -186,23 +189,30 @@ export default function PublicProfilePage() {
     );
   }
 
-  const specialRepo = repos.find(r => r.name.toLowerCase() === profileUser.username.toLowerCase());
-  const publicRepos = repos.filter(r => r.name.toLowerCase() !== profileUser.username.toLowerCase());
+  const targetUsername = (profileUser?.username || '').toLowerCase();
+  const specialRepo = (Array.isArray(repos) ? repos : []).find(r => r?.name && r.name.toLowerCase() === targetUsername);
+  const publicRepos = (Array.isArray(repos) ? repos : []).filter(r => r?.name && r.name.toLowerCase() !== targetUsername);
 
   const totalContributions = contributions?.total_contributions || 0;
   const recentActivities = contributions?.recent_activities || [];
   const weeks = contributions?.weeks || [];
   
   const monthLabels = [];
-  if (weeks.length > 0) {
+  if (Array.isArray(weeks) && weeks.length > 0) {
     let lastMonth = -1;
     weeks.forEach((week, idx) => {
-      if (week.length > 0) {
-        const d = new Date(week[0].date);
-        const month = d.getMonth();
-        if (month !== lastMonth) {
-          monthLabels.push({ idx, label: d.toLocaleString('default', { month: 'short' }) });
-          lastMonth = month;
+      if (Array.isArray(week) && week.length > 0 && week[0]?.date) {
+        try {
+          const d = new Date(week[0].date);
+          if (!isNaN(d.getTime())) {
+            const month = d.getMonth();
+            if (month !== lastMonth) {
+              monthLabels.push({ idx, label: d.toLocaleString('default', { month: 'short' }) });
+              lastMonth = month;
+            }
+          }
+        } catch (e) {
+          console.error("Heatmap date parsing error:", e);
         }
       }
     });

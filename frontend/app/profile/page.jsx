@@ -63,6 +63,44 @@ export default function ProfilePage() {
     }
   };
 
+  const fetchRepos = useCallback(async () => {
+    try {
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+      if (!effectiveUserId) return;
+      
+      const headers = storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {};
+      const res = await fetch(`${API_URL}/api/repositories?user_id=${encodeURIComponent(effectiveUserId)}&_t=${Date.now()}`, { headers, cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          // Auto-recover special repo if it exists in DB but not in localStorage
+          const currentUsername = (user?.username || '').toLowerCase();
+          const special = data.find(r => r?.name && r.name.toLowerCase() === currentUsername);
+          if (special) addCreatedRepoId(special.id);
+          
+          // All repos from DB for this user - no localStorage filtering
+          setRepos(data);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, [user?.id, user?.username]);
+
+  const fetchContributions = useCallback(async () => {
+    try {
+      const userId = user?.id || user?.username || 'default';
+      const res = await fetch(`${API_URL}/api/auth/users/${encodeURIComponent(userId)}/contributions`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        setContributions(data);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, [user?.id, user?.username]);
+
   useEffect(() => {
     if (isLoading) return;
     if (!user) {
@@ -82,7 +120,7 @@ export default function ProfilePage() {
     });
     fetchRepos();
     fetchContributions();
-  }, [user, router, isLoading, fetchRepos]);
+  }, [user, router, isLoading, fetchRepos, fetchContributions]);
 
   // Re-fetch repos whenever the page regains focus (e.g., switching tabs, navigating back)
   useEffect(() => {
@@ -108,42 +146,6 @@ export default function ProfilePage() {
       fetchRepos();
     }
   }, [pathname, user, fetchRepos]);
-
-  const fetchRepos = useCallback(async () => {
-    try {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
-      if (!effectiveUserId) return;
-      
-      const headers = storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {};
-      const res = await fetch(`${API_URL}/api/repositories?user_id=${encodeURIComponent(effectiveUserId)}&_t=${Date.now()}`, { headers, cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        // Auto-recover special repo if it exists in DB but not in localStorage
-        const currentUsername = (user?.username || '').toLowerCase();
-        const special = data.find(r => r.name.toLowerCase() === currentUsername);
-        if (special) addCreatedRepoId(special.id);
-        
-        // All repos from DB for this user - no localStorage filtering
-        setRepos(data);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }, [user?.id, user?.username]);
-
-  const fetchContributions = async () => {
-    try {
-      const userId = user?.id || user?.username || 'default';
-      const res = await fetch(`${API_URL}/api/auth/users/${userId}/contributions`, { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        setContributions(data);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
 
   if (isLoading || !user) {
     return (

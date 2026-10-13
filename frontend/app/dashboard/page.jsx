@@ -109,38 +109,8 @@ export default function DashboardPage() {
   }, [user?.id]);
 
 
-  useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-      if (!storedToken) {
-        router.replace('/login');
-        return;
-      }
-    }
-    fetchRepos();
-  }, [authLoading, user, router, fetchRepos]);
-
-  // Auto-scroll chat to bottom
-  useEffect(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [chatMessages, isAiThinking]);
-
-  // Handle incoming prompt optimization from other repositories
-  useEffect(() => {
-    const promptToOptimize = sessionStorage.getItem('optimize_prompt');
-    if (promptToOptimize) {
-      sessionStorage.removeItem('optimize_prompt');
-      setTimeout(() => {
-        sendMessage(`Please optimize this prompt to be more token efficient while maintaining its functionality:\n\n\`\`\`prompt\n${promptToOptimize}\n\`\`\``);
-      }, 500); // slight delay to ensure UI is ready
-    }
-  }, []);
-
   // Send a chat message to AI (AI answers in chat WITHOUT auto-creating repo)
-  const sendMessage = async (overrideText) => {
+  const sendMessage = useCallback(async (overrideText) => {
     const msgText = overrideText || chatInput.trim();
     if (!msgText || isAiThinking) return;
 
@@ -190,7 +160,37 @@ export default function DashboardPage() {
     } finally {
       setIsAiThinking(false);
     }
-  };
+  }, [chatInput, isAiThinking, chatMessages, user?.id]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      if (!storedToken) {
+        router.replace('/login');
+        return;
+      }
+    }
+    fetchRepos();
+  }, [authLoading, user, router, fetchRepos]);
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [chatMessages, isAiThinking]);
+
+  // Handle incoming prompt optimization from other repositories
+  useEffect(() => {
+    const promptToOptimize = sessionStorage.getItem('optimize_prompt');
+    if (promptToOptimize) {
+      sessionStorage.removeItem('optimize_prompt');
+      setTimeout(() => {
+        sendMessage(`Please optimize this prompt to be more token efficient while maintaining its functionality:\n\n\`\`\`prompt\n${promptToOptimize}\n\`\`\``);
+      }, 500); // slight delay to ensure UI is ready
+    }
+  }, [sendMessage]);
 
   // Open Save as Repository modal with smart repo name according to the prompt
   const openSaveAsRepoModal = (promptContent, userQuery) => {
@@ -349,9 +349,9 @@ export default function DashboardPage() {
   };
 
   // Filter user repositories based on search
-  const filteredRepos = repos.filter(repo => 
-    repo.name.toLowerCase().includes(repoSearch.toLowerCase()) ||
-    (repo.description && repo.description.toLowerCase().includes(repoSearch.toLowerCase()))
+  const filteredRepos = (Array.isArray(repos) ? repos : []).filter(repo => 
+    (repo?.name && repo.name.toLowerCase().includes((repoSearch || '').toLowerCase())) ||
+    (repo?.description && repo.description.toLowerCase().includes((repoSearch || '').toLowerCase()))
   );
 
   // Quick action pills
@@ -818,10 +818,10 @@ export default function DashboardPage() {
                 <Book className="w-4 h-4 text-[#8b949e]" />
                 Recent Repositories
               </span>
-              <span className="text-[11px] font-mono text-[#8b949e]">{repos.length}</span>
+              <span className="text-[11px] font-mono text-[#8b949e]">{(Array.isArray(repos) ? repos : []).length}</span>
             </h2>
 
-            {repos.length === 0 ? (
+            {(!Array.isArray(repos) || repos.length === 0) ? (
               <div className="text-center py-4 text-xs text-[#8b949e]">
                 <p>No repositories created yet.</p>
                 <Link href="/new" className="text-[#58a6ff] hover:underline mt-1 block font-medium">
@@ -830,7 +830,7 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {repos.slice(0, 5).map((repo) => (
+                {(Array.isArray(repos) ? repos : []).slice(0, 5).map((repo) => (
                   <Link 
                     key={repo.id} 
                     href={`/repo/${repo.id}`}
@@ -877,7 +877,7 @@ export default function DashboardPage() {
             </p>
 
             <div className="space-y-3">
-              {communityRepos.slice(0, 4).map((cRepo) => (
+              {(Array.isArray(communityRepos) ? communityRepos : []).slice(0, 4).map((cRepo) => (
                 <div key={cRepo.id} className="border border-[#21262d] rounded-lg p-2.5 bg-[#161b22]/50 hover:border-[#30363d] transition">
                   <div className="flex items-start justify-between gap-1 mb-1">
                     <Link 

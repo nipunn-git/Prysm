@@ -124,18 +124,7 @@ export default function RepositoryPage() {
   const [compareB, setCompareB] = useState("");
   const [compareResult, setCompareResult] = useState(null);
 
-  useEffect(() => {
-    fetchRepo();
-  }, [id]);
-
-  useEffect(() => {
-    if (repo?.id) {
-      setIsStarred(isRepoStarred(repo.id));
-      setForkInfo(getForkInfo(repo.id));
-    }
-  }, [repo?.id]);
-
-  const fetchRepo = async () => {
+  const fetchRepo = useCallback(async () => {
     try {
       const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
       const headers = storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {};
@@ -155,7 +144,18 @@ export default function RepositoryPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    fetchRepo();
+  }, [id, fetchRepo]);
+
+  useEffect(() => {
+    if (repo?.id) {
+      setIsStarred(isRepoStarred(repo.id));
+      setForkInfo(getForkInfo(repo.id));
+    }
+  }, [repo?.id]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(currentPrompt);
