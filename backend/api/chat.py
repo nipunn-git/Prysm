@@ -42,7 +42,7 @@ class ChatResponse(BaseModel):
 
 
 # ─── System Prompt for the Chatbot ──────────────────────────────────────
-CHATBOT_SYSTEM_PROMPT = """You are **PromptHub AI**, the world's most capable Prompt Engineering Assistant.
+CHATBOT_SYSTEM_PROMPT = """You are **Prysm**, the world's most capable Prompt Engineering Assistant on PromptHub.
 
 Your capabilities:
 1. **Prompt Crafting** – Generate production-grade system prompts for any use case (chatbots, agents, code generation, writing, research, etc.)
@@ -169,7 +169,7 @@ To optimize your prompt, I recommend:
 Share your prompt and I'll optimize it for you!"""
     
     elif any(k in last_msg for k in ["hello", "hi", "hey", "sup", "what can you do"]):
-        return """## 👋 Welcome to PromptHub AI!
+        return """## 👋 Welcome to Prysm!
 
 I'm your AI-powered prompt engineering assistant. Here's what I can do:
 

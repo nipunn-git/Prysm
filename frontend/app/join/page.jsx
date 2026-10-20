@@ -54,8 +54,17 @@ export default function JoinPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
       <div className="w-full max-w-[308px] flex flex-col items-center">
-        <div className="mb-6">
-          <Terminal className="w-12 h-12 text-foreground" />
+        <div className="mb-6 relative flex items-center justify-center">
+          <div 
+            className="logo-flashlight-glow absolute inset-0 -inset-x-4 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.7)_0%,rgba(255,255,255,0.2)_45%,transparent_80%)] blur-[10px] pointer-events-none rounded-full" 
+            aria-hidden="true"
+          />
+          <img 
+            src="/logo.png" 
+            alt="PromptHub" 
+            className="logo-drop-shadow w-24 h-auto object-contain relative z-10" 
+            style={{ filter: "drop-shadow(0 0 12px rgba(255, 255, 255, 0.75)) drop-shadow(0 0 24px rgba(255, 255, 255, 0.35))" }}
+          />
         </div>
         <h1 className="text-2xl font-light text-foreground mb-4 tracking-tight">
           Join PromptHub

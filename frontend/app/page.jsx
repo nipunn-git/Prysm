@@ -32,7 +32,18 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-[#010409] text-[#c9d1d9]">
       <div className="flex flex-col items-center gap-4">
-        <Terminal className="w-10 h-10 text-[#58a6ff] animate-pulse" />
+        <div className="relative flex items-center justify-center">
+          <div 
+            className="logo-flashlight-glow absolute inset-0 -inset-x-4 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.7)_0%,rgba(255,255,255,0.2)_45%,transparent_80%)] blur-xl pointer-events-none rounded-full animate-pulse" 
+            aria-hidden="true"
+          />
+          <img 
+            src="/logo.png" 
+            alt="PromptHub" 
+            className="logo-drop-shadow w-28 h-auto object-contain animate-pulse relative z-10" 
+            style={{ filter: "drop-shadow(0 0 16px rgba(255, 255, 255, 0.8)) drop-shadow(0 0 32px rgba(255, 255, 255, 0.4))" }}
+          />
+        </div>
         <div className="flex items-center gap-2 text-sm text-[#8b949e]">
           <Loader2 className="w-4 h-4 animate-spin text-[#58a6ff]" />
           <span>Loading PromptHub...</span>

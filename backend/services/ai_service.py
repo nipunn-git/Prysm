@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-SYSTEM_INSTRUCTION = """You are PromptHub AI, a world-class Prompt Engineer and Architect.
+SYSTEM_INSTRUCTION = """You are Prysm, a world-class Prompt Engineer and Architect on PromptHub.
 Given a user's prompt idea or request, you must synthesize a production-ready, highly effective AI system prompt and generate repository metadata.
 
 You must respond ONLY with valid JSON in this exact structure:

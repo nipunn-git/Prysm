@@ -30,7 +30,13 @@ import {
   GitFork,
   ArrowRight,
   User as UserIcon,
-  X
+  X,
+  MessageSquare,
+  Trash2,
+  Pencil,
+  Check,
+  ChevronUp,
+  Eye
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { 
@@ -108,6 +114,124 @@ export default function DashboardPage() {
     }
   }, [user?.id]);
 
+  // ChatGPT-style Chat Sessions state (Saved, Renamable, Deletable, Collapsible)
+  const [chatSessions, setChatSessions] = useState([]);
+  const [activeSessionId, setActiveSessionId] = useState(null);
+  const [isHistoryHidden, setIsHistoryHidden] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState(null);
+  const [editTitleInput, setEditTitleInput] = useState("");
+
+  const getStorageKey = useCallback(() => {
+    const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+    return effectiveUserId ? `prompthub_chat_sessions_${effectiveUserId}` : 'prompthub_chat_sessions_guest';
+  }, [user?.id]);
+
+  // Load chat sessions on mount or when user changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const key = getStorageKey();
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setChatSessions(parsed);
+          setActiveSessionId(parsed[0].id);
+          setChatMessages(parsed[0].messages || []);
+        }
+      }
+      const hiddenPref = localStorage.getItem('prompthub_chat_history_hidden');
+      if (hiddenPref !== null) {
+        setIsHistoryHidden(hiddenPref === 'true');
+      }
+    } catch (e) {
+      console.error("Failed to load chat history:", e);
+    }
+  }, [getStorageKey]);
+
+  // Helper to persist sessions
+  const persistSessions = useCallback((updatedList) => {
+    setChatSessions(updatedList);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(getStorageKey(), JSON.stringify(updatedList));
+      } catch (e) {
+        console.error("Failed to save chat sessions:", e);
+      }
+    }
+  }, [getStorageKey]);
+
+  // Start a new chat
+  const handleNewChat = useCallback(() => {
+    setActiveSessionId(null);
+    setChatMessages([]);
+    setChatInput("");
+    setChatError(null);
+    if (chatInputRef.current) {
+      chatInputRef.current.focus();
+    }
+  }, []);
+
+  // Select an existing chat
+  const handleSelectSession = useCallback((sessionId) => {
+    const found = chatSessions.find(s => s.id === sessionId);
+    if (found) {
+      setActiveSessionId(found.id);
+      setChatMessages(found.messages || []);
+      setChatError(null);
+    }
+  }, [chatSessions]);
+
+  // Delete a chat session
+  const handleDeleteSession = useCallback((e, sessionId) => {
+    e.stopPropagation();
+    const updated = chatSessions.filter(s => s.id !== sessionId);
+    persistSessions(updated);
+    if (activeSessionId === sessionId) {
+      if (updated.length > 0) {
+        setActiveSessionId(updated[0].id);
+        setChatMessages(updated[0].messages || []);
+      } else {
+        setActiveSessionId(null);
+        setChatMessages([]);
+      }
+    }
+  }, [chatSessions, activeSessionId, persistSessions]);
+
+  // Rename a chat session
+  const handleStartRename = useCallback((e, session) => {
+    e.stopPropagation();
+    setEditingSessionId(session.id);
+    setEditTitleInput(session.title);
+  }, []);
+
+  const handleSaveRename = useCallback((e, sessionId) => {
+    if (e) e.stopPropagation();
+    const cleanTitle = editTitleInput.trim();
+    if (cleanTitle) {
+      const updated = chatSessions.map(s => s.id === sessionId ? { ...s, title: cleanTitle } : s);
+      persistSessions(updated);
+    }
+    setEditingSessionId(null);
+    setEditTitleInput("");
+  }, [editTitleInput, chatSessions, persistSessions]);
+
+  const handleCancelRename = useCallback((e) => {
+    if (e) e.stopPropagation();
+    setEditingSessionId(null);
+    setEditTitleInput("");
+  }, []);
+
+  // Toggle hide chat history
+  const toggleHistoryHidden = useCallback(() => {
+    setIsHistoryHidden(prev => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('prompthub_chat_history_hidden', String(next));
+      }
+      return next;
+    });
+  }, []);
 
   // Send a chat message to AI (AI answers in chat WITHOUT auto-creating repo)
   const sendMessage = useCallback(async (overrideText) => {
@@ -120,6 +244,31 @@ export default function DashboardPage() {
     setChatInput("");
     setIsAiThinking(true);
     setChatError(null);
+
+    // Track or create session
+    let currentId = activeSessionId;
+    let nextSessions = [...chatSessions];
+    if (!currentId) {
+      currentId = `chat_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      setActiveSessionId(currentId);
+      const generatedTitle = msgText.replace(/[\r\n]+/g, ' ').trim().slice(0, 36) || "New Chat";
+      const createdSession = {
+        id: currentId,
+        title: generatedTitle,
+        messages: newMessages,
+        updatedAt: Date.now()
+      };
+      nextSessions = [createdSession, ...nextSessions];
+      persistSessions(nextSessions);
+    } else {
+      const idx = nextSessions.findIndex(s => s.id === currentId);
+      if (idx !== -1) {
+        const item = { ...nextSessions[idx], messages: newMessages, updatedAt: Date.now() };
+        nextSessions.splice(idx, 1);
+        nextSessions.unshift(item);
+        persistSessions(nextSessions);
+      }
+    }
 
     try {
       const res = await fetch(`${API_URL}/api/chat`, {
@@ -147,20 +296,46 @@ export default function DashboardPage() {
         suggested_actions: ["save_as_repo", "copy_prompt"]
       };
       
-      setChatMessages([...newMessages, assistantMsg]);
+      const finalMessages = [...newMessages, assistantMsg];
+      setChatMessages(finalMessages);
+
+      // Save into sessions
+      setChatSessions(prev => {
+        const updated = prev.map(s => s.id === currentId ? { ...s, messages: finalMessages, updatedAt: Date.now() } : s);
+        if (typeof window !== 'undefined') {
+          try {
+            const key = getStorageKey();
+            localStorage.setItem(key, JSON.stringify(updated));
+          } catch (e) {}
+        }
+        return updated;
+      });
 
     } catch (err) {
       console.error("Chat error:", err);
       setChatError(err.message || "Failed to get AI response");
-      setChatMessages([...newMessages, {
+      const errAssistantMsg = {
         role: "assistant",
         content: `Sorry, I encountered an error: ${err.message}. Please try again.`,
         isError: true
-      }]);
+      };
+      const finalMessages = [...newMessages, errAssistantMsg];
+      setChatMessages(finalMessages);
+
+      setChatSessions(prev => {
+        const updated = prev.map(s => s.id === currentId ? { ...s, messages: finalMessages, updatedAt: Date.now() } : s);
+        if (typeof window !== 'undefined') {
+          try {
+            const key = getStorageKey();
+            localStorage.setItem(key, JSON.stringify(updated));
+          } catch (e) {}
+        }
+        return updated;
+      });
     } finally {
       setIsAiThinking(false);
     }
-  }, [chatInput, isAiThinking, chatMessages, user?.id]);
+  }, [chatInput, isAiThinking, chatMessages, user?.id, activeSessionId, chatSessions, persistSessions, getStorageKey]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -546,13 +721,24 @@ export default function DashboardPage() {
         <main className="flex-1 min-w-0 max-w-[840px]">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
-            <h1 className="text-xl font-semibold text-[#f0f6fc] flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-[#58a6ff]" />
-              PromptHub AI
+            <h1 className="text-xl font-semibold text-[#f0f6fc] flex items-center gap-2.5">
+              <div className="relative flex items-center justify-center">
+                <div 
+                  className="logo-flashlight-glow absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.75)_0%,rgba(255,255,255,0.2)_50%,transparent_80%)] blur-[5px] pointer-events-none" 
+                  aria-hidden="true"
+                />
+                <img 
+                  src="/prysm.png" 
+                  alt="Prysm" 
+                  className="logo-drop-shadow w-5 h-5 object-contain relative z-10" 
+                  style={{ filter: "drop-shadow(0 0 6px rgba(255, 255, 255, 0.85))" }}
+                />
+              </div>
+              Prysm
             </h1>
             {chatMessages.length > 0 && (
               <button 
-                onClick={() => setChatMessages([])}
+                onClick={handleNewChat}
                 className="text-xs text-[#8b949e] hover:text-[#f0f6fc] flex items-center gap-1 transition"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -571,10 +757,20 @@ export default function DashboardPage() {
               {chatMessages.length === 0 ? (
                 /* Welcome / Starter View */
                 <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-4">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#1f6feb] to-[#8b5cf6] flex items-center justify-center mb-5 shadow-lg shadow-[#1f6feb]/20">
-                    <Sparkles className="w-8 h-8 text-white" />
+                  {/* Prysm Emblem with white flashlight glow - no surrounding box */}
+                  <div className="relative flex items-center justify-center mb-5">
+                    <div 
+                      className="logo-flashlight-glow absolute w-24 h-24 rounded-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.85)_0%,rgba(255,255,255,0.35)_35%,transparent_70%)] blur-xl pointer-events-none" 
+                      aria-hidden="true"
+                    />
+                    <img 
+                      src="/prysm.png" 
+                      alt="Prysm" 
+                      className="logo-drop-shadow w-12 h-12 sm:w-14 sm:h-14 object-contain relative z-10" 
+                      style={{ filter: "drop-shadow(0 0 12px rgba(255, 255, 255, 0.9)) drop-shadow(0 0 24px rgba(255, 255, 255, 0.45))" }}
+                    />
                   </div>
-                  <h2 className="text-lg font-bold text-[#f0f6fc] mb-2">PromptHub AI</h2>
+                  <h2 className="text-xl font-bold text-[#f0f6fc] mb-2 tracking-tight">Prysm</h2>
                   <p className="text-xs text-[#8b949e] mb-6 max-w-md leading-relaxed">
                     Your AI prompt engineering assistant. Create production-ready prompts, 
                     iterate via chat, and save them directly as private repositories.
@@ -621,8 +817,19 @@ export default function DashboardPage() {
                 chatMessages.map((msg, idx) => (
                   <div key={idx} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                     {msg.role === "assistant" && (
-                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#1f6feb] to-[#8b5cf6] flex items-center justify-center shrink-0 shadow-sm mt-0.5">
-                        <Sparkles className="w-3.5 h-3.5 text-white" />
+                      <div className="relative flex items-center justify-center shrink-0 mt-0.5">
+                        <div 
+                          className="logo-flashlight-glow absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.75)_0%,transparent_70%)] blur-[4px] pointer-events-none rounded-full" 
+                          aria-hidden="true"
+                        />
+                        <div className="w-7 h-7 rounded-full bg-[#161b22] border border-[#30363d] flex items-center justify-center p-1 overflow-hidden relative z-10 shadow-sm">
+                          <img 
+                            src="/prysm.png" 
+                            alt="Prysm" 
+                            className="logo-drop-shadow w-full h-full object-contain" 
+                            style={{ filter: "drop-shadow(0 0 4px rgba(255, 255, 255, 0.9))" }}
+                          />
+                        </div>
                       </div>
                     )}
                     
@@ -719,8 +926,19 @@ export default function DashboardPage() {
               {/* AI Thinking Indicator */}
               {isAiThinking && (
                 <div className="flex gap-3 items-start">
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#1f6feb] to-[#8b5cf6] flex items-center justify-center shrink-0 shadow-sm">
-                    <Sparkles className="w-3.5 h-3.5 text-white" />
+                  <div className="relative flex items-center justify-center shrink-0">
+                    <div 
+                      className="logo-flashlight-glow absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.8)_0%,transparent_70%)] blur-[5px] pointer-events-none rounded-full animate-pulse" 
+                      aria-hidden="true"
+                    />
+                    <div className="w-7 h-7 rounded-full bg-[#161b22] border border-[#30363d] flex items-center justify-center p-1 overflow-hidden relative z-10 shadow-sm">
+                      <img 
+                        src="/prysm.png" 
+                        alt="Prysm" 
+                        className="logo-drop-shadow w-full h-full object-contain animate-pulse" 
+                        style={{ filter: "drop-shadow(0 0 5px rgba(255, 255, 255, 0.95))" }}
+                      />
+                    </div>
                   </div>
                   <div className="bg-[#161b22] border border-[#30363d] rounded-xl px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -729,7 +947,7 @@ export default function DashboardPage() {
                         <div className="w-1.5 h-1.5 rounded-full bg-[#58a6ff] animate-bounce" style={{ animationDelay: "150ms" }}></div>
                         <div className="w-1.5 h-1.5 rounded-full bg-[#58a6ff] animate-bounce" style={{ animationDelay: "300ms" }}></div>
                       </div>
-                      <span className="text-xs text-[#8b949e] animate-pulse">PromptHub AI is crafting your prompt...</span>
+                      <span className="text-xs text-[#8b949e] animate-pulse">Prysm is crafting your prompt...</span>
                     </div>
                   </div>
                 </div>
@@ -759,7 +977,7 @@ export default function DashboardPage() {
                         sendMessage();
                       }
                     }}
-                    placeholder="Ask PromptHub AI to create, optimize, or explain prompts..."
+                    placeholder="Ask Prysm to create, optimize, or explain prompts..."
                     rows={1}
                     className="w-full bg-[#161b22] border border-[#30363d] rounded-lg px-4 py-2.5 text-sm text-[#f0f6fc] placeholder:text-[#8b949e] focus:outline-none focus:border-[#58a6ff] transition resize-none"
                     style={{ minHeight: "40px", maxHeight: "120px" }}
@@ -811,51 +1029,152 @@ export default function DashboardPage() {
            ======================================================== */}
         <aside className="w-[300px] shrink-0 hidden xl:block sticky top-20 space-y-4">
           
-          {/* Recent Repositories (User data only) */}
-          <div className="border border-[#30363d] bg-[#0d1117] rounded-xl p-4 shadow-sm">
-            <h2 className="text-sm font-semibold text-[#f0f6fc] mb-3 flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <Book className="w-4 h-4 text-[#8b949e]" />
-                Recent Repositories
-              </span>
-              <span className="text-[11px] font-mono text-[#8b949e]">{(Array.isArray(repos) ? repos : []).length}</span>
-            </h2>
+          {/* AI Chat History (ChatGPT-style: Saved, Rename, Delete, Collapsible/Toggleable) */}
+          <div className="border border-[#30363d] bg-[#0d1117] rounded-xl overflow-hidden shadow-sm transition-all">
+            {/* Header */}
+            <div className="p-3 bg-[#161b22]/50 border-b border-[#21262d] flex items-center justify-between">
+              <div 
+                onClick={toggleHistoryHidden}
+                className="flex items-center gap-2 cursor-pointer select-none group"
+                title={isHistoryHidden ? "Show chat history" : "Hide chat history"}
+              >
+                <MessageSquare className="w-4 h-4 text-[#58a6ff]" />
+                <span className="text-xs font-semibold text-[#f0f6fc] group-hover:text-[#58a6ff] transition">
+                  Chat History
+                </span>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#21262d] text-[#8b949e]">
+                  {chatSessions.length}
+                </span>
+              </div>
 
-            {(!Array.isArray(repos) || repos.length === 0) ? (
-              <div className="text-center py-4 text-xs text-[#8b949e]">
-                <p>No repositories created yet.</p>
-                <Link href="/new" className="text-[#58a6ff] hover:underline mt-1 block font-medium">
-                  + Create your first repo
-                </Link>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handleNewChat}
+                  title="New Chat"
+                  className="p-1 text-[#8b949e] hover:text-[#58a6ff] hover:bg-[#21262d] rounded transition flex items-center gap-1 text-[11px]"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">New</span>
+                </button>
+                <button
+                  onClick={toggleHistoryHidden}
+                  title={isHistoryHidden ? "Show chat history" : "Hide chat history"}
+                  className="p-1 text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] rounded transition"
+                >
+                  {isHistoryHidden ? (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Body */}
+            {!isHistoryHidden ? (
+              <div className="p-2">
+                {chatSessions.length === 0 ? (
+                  <div className="text-center py-6 px-3">
+                    <Bot className="w-6 h-6 text-[#8b949e] mx-auto mb-2 opacity-50" />
+                    <p className="text-xs text-[#8b949e]">No chat history yet.</p>
+                    <p className="text-[11px] text-[#484f58] mt-0.5">Start chatting with Prysm!</p>
+                    <button
+                      onClick={handleNewChat}
+                      className="mt-3 text-xs text-[#58a6ff] hover:underline flex items-center justify-center gap-1 mx-auto"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Start new chat
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-1 max-h-[340px] overflow-y-auto pr-0.5">
+                    {chatSessions.map((session) => {
+                      const isActive = session.id === activeSessionId;
+                      const isEditing = editingSessionId === session.id;
+
+                      if (isEditing) {
+                        return (
+                          <div 
+                            key={session.id}
+                            className="p-1.5 bg-[#161b22] border border-[#58a6ff]/50 rounded-lg flex items-center gap-1.5"
+                          >
+                            <input
+                              type="text"
+                              value={editTitleInput}
+                              onChange={(e) => setEditTitleInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveRename(e, session.id);
+                                if (e.key === 'Escape') handleCancelRename(e);
+                              }}
+                              autoFocus
+                              className="w-full bg-[#0d1117] border border-[#30363d] rounded px-2 py-0.5 text-xs text-[#f0f6fc] focus:outline-none focus:border-[#58a6ff]"
+                            />
+                            <button
+                              onClick={(e) => handleSaveRename(e, session.id)}
+                              title="Save title"
+                              className="p-1 text-[#3fb950] hover:bg-[#21262d] rounded"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={handleCancelRename}
+                              title="Cancel"
+                              className="p-1 text-[#8b949e] hover:text-[#f85149] hover:bg-[#21262d] rounded"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div
+                          key={session.id}
+                          onClick={() => handleSelectSession(session.id)}
+                          className={`group flex items-center justify-between px-2.5 py-2 rounded-lg text-xs cursor-pointer transition border ${
+                            isActive
+                              ? "bg-[#1f6feb]/15 border-[#1f6feb]/40 text-[#58a6ff]"
+                              : "border-transparent text-[#c9d1d9] hover:bg-[#161b22] hover:text-[#f0f6fc]"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0 flex-1 mr-1">
+                            <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-[#58a6ff]" : "text-[#8b949e]"}`} />
+                            <span className="truncate font-medium text-xs">
+                              {session.title || "Untitled Chat"}
+                            </span>
+                          </div>
+
+                          {/* Action buttons (Rename & Delete) */}
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                            <button
+                              onClick={(e) => handleStartRename(e, session)}
+                              title="Rename chat"
+                              className="p-1 text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] rounded transition"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={(e) => handleDeleteSession(e, session.id)}
+                              title="Delete chat"
+                              className="p-1 text-[#8b949e] hover:text-[#f85149] hover:bg-[#21262d] rounded transition"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ) : (
-              <div className="space-y-3">
-                {(Array.isArray(repos) ? repos : []).slice(0, 5).map((repo) => (
-                  <Link 
-                    key={repo.id} 
-                    href={`/repo/${repo.id}`}
-                    className="block group"
-                  >
-                    <div className="flex items-start gap-2">
-                      <Book className="w-3.5 h-3.5 text-[#8b949e] mt-0.5 shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-xs font-semibold text-[#58a6ff] group-hover:underline truncate flex items-center gap-1">
-                          {repo.name}
-                          {repo.visibility?.toLowerCase() === 'private' ? (
-                            <Lock className="w-2.5 h-2.5 text-[#8b949e]" />
-                          ) : (
-                            <Globe className="w-2.5 h-2.5 text-[#3fb950]" />
-                          )}
-                        </div>
-                        <div className="text-[11px] text-[#8b949e] truncate">{repo.description || "Prompt repository"}</div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[10px] text-[#8b949e]">{repo.category}</span>
-                          <span className="text-[10px] text-[#8b949e] font-mono">{repo.latest_version || "v1.0"}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
+              <div 
+                onClick={toggleHistoryHidden}
+                className="py-2.5 px-3 text-center text-xs text-[#8b949e] hover:text-[#58a6ff] cursor-pointer hover:bg-[#161b22]/50 transition flex items-center justify-center gap-1.5"
+                title="Click to expand chat history"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Show Chat History</span>
               </div>
             )}
           </div>
