@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
 import models
 from seed import seed_data
-from api import repositories, prompts, optimizer, auth, chat
+from api import repositories, prompts, optimizer, auth, chat, notifications
 
 # Initialize DB tables
 Base.metadata.create_all(bind=engine)
@@ -40,6 +40,7 @@ app.include_router(repositories.router)
 app.include_router(prompts.router)
 app.include_router(optimizer.router)
 app.include_router(chat.router)
+app.include_router(notifications.router)
 
 @app.get("/")
 def root():

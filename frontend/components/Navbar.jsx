@@ -18,7 +18,12 @@ import {
   Check,
   Sun,
   Moon,
-  Palette
+  Palette,
+  UserPlus,
+  Star as StarIcon,
+  Trash2,
+  CheckCheck,
+  Bell
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -38,6 +43,13 @@ export default function Navbar() {
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+
+  // Notifications State
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+  const notificationsRef = useRef(null);
 
   // Use a ref to track the latest query for the debounced fetch,
   // preventing stale closure issues when React batches state updates
@@ -121,6 +133,9 @@ export default function Navbar() {
       if (themeRef.current && !themeRef.current.contains(event.target)) {
         setIsThemeOpen(false);
       }
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
+        setIsNotificationsOpen(false);
+      }
       if (searchRef.current && !searchRef.current.contains(event.target)) {
         setShowSearchDropdown(false);
       }
@@ -128,6 +143,172 @@ export default function Navbar() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Fetch Notifications
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const storedUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prompthub_user') || 'null') : null;
+      const candidateId = user?.id || storedUser?.id;
+      if (!storedToken && !candidateId) return;
+
+      const queryParams = new URLSearchParams();
+      if (storedToken) queryParams.set('token', storedToken);
+      if (candidateId) queryParams.set('x_user_id', candidateId);
+
+      const headers = {};
+      if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+      if (candidateId) headers['X-User-Id'] = candidateId;
+
+      setIsLoadingNotifications(true);
+      const res = await fetch(`${API_URL}/api/notifications?${queryParams.toString()}`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
+        setUnreadCount(typeof data.unread_count === 'number' ? data.unread_count : 0);
+      }
+    } catch (e) {
+      // Silently catch network errors
+    } finally {
+      setIsLoadingNotifications(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchNotifications();
+      const interval = setInterval(fetchNotifications, 20000);
+      return () => clearInterval(interval);
+    }
+  }, [user?.id, fetchNotifications]);
+
+  const handleMarkAllRead = async () => {
+    try {
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const storedUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prompthub_user') || 'null') : null;
+      const candidateId = user?.id || storedUser?.id;
+
+      const queryParams = new URLSearchParams();
+      if (storedToken) queryParams.set('token', storedToken);
+      if (candidateId) queryParams.set('x_user_id', candidateId);
+
+      const headers = {};
+      if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+      if (candidateId) headers['X-User-Id'] = candidateId;
+
+      setUnreadCount(0);
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+
+      await fetch(`${API_URL}/api/notifications/read-all?${queryParams.toString()}`, {
+        method: 'POST',
+        headers
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleNotificationClick = async (notif) => {
+    try {
+      if (!notif.is_read) {
+        const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+        const storedUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prompthub_user') || 'null') : null;
+        const candidateId = user?.id || storedUser?.id;
+
+        const queryParams = new URLSearchParams();
+        if (storedToken) queryParams.set('token', storedToken);
+        if (candidateId) queryParams.set('x_user_id', candidateId);
+
+        const headers = {};
+        if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+        if (candidateId) headers['X-User-Id'] = candidateId;
+
+        fetch(`${API_URL}/api/notifications/${notif.id}/read?${queryParams.toString()}`, {
+          method: 'POST',
+          headers
+        });
+
+        setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n));
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsNotificationsOpen(false);
+      if (notif.link) {
+        router.push(notif.link);
+      }
+    }
+  };
+
+  const handleDeleteNotification = async (e, id) => {
+    e.stopPropagation();
+    try {
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const storedUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prompthub_user') || 'null') : null;
+      const candidateId = user?.id || storedUser?.id;
+
+      const queryParams = new URLSearchParams();
+      if (storedToken) queryParams.set('token', storedToken);
+      if (candidateId) queryParams.set('x_user_id', candidateId);
+
+      const headers = {};
+      if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+      if (candidateId) headers['X-User-Id'] = candidateId;
+
+      const target = notifications.find(n => n.id === id);
+      if (target && !target.is_read) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+      setNotifications(prev => prev.filter(n => n.id !== id));
+
+      await fetch(`${API_URL}/api/notifications/${id}?${queryParams.toString()}`, {
+        method: 'DELETE',
+        headers
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleClearAllNotifications = async () => {
+    try {
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const storedUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prompthub_user') || 'null') : null;
+      const candidateId = user?.id || storedUser?.id;
+
+      const queryParams = new URLSearchParams();
+      if (storedToken) queryParams.set('token', storedToken);
+      if (candidateId) queryParams.set('x_user_id', candidateId);
+
+      const headers = {};
+      if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+      if (candidateId) headers['X-User-Id'] = candidateId;
+
+      setNotifications([]);
+      setUnreadCount(0);
+
+      await fetch(`${API_URL}/api/notifications?${queryParams.toString()}`, {
+        method: 'DELETE',
+        headers
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const formatNotifTime = (dateStr) => {
+    if (!dateStr) return "recently";
+    const parseStr = dateStr.endsWith('Z') ? dateStr : `${dateStr}Z`;
+    const date = new Date(parseStr);
+    const now = new Date();
+    const diff = Math.floor((now - date) / 1000);
+    if (diff < 60) return "just now";
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
 
   if (pathname === '/login' || pathname === '/join' || pathname === '/') {
     return null; // Don't show navbar on auth/landing pages
@@ -331,14 +512,141 @@ export default function Navbar() {
               )}
             </div>
 
-            {/* Notifications Inbox icon */}
-            <button 
-              title="Notifications"
-              className="p-1.5 text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] rounded-md transition relative flex items-center justify-center"
-            >
-              <Inbox className="w-4 h-4" />
-              <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-[#1f6feb] rounded-full ring-2 ring-[#010409]"></span>
-            </button>
+            {/* Notifications Inbox icon & Interactive Dropdown */}
+            <div className="relative" ref={notificationsRef}>
+              <button 
+                onClick={() => {
+                  const nextState = !isNotificationsOpen;
+                  setIsNotificationsOpen(nextState);
+                  if (nextState) fetchNotifications();
+                }}
+                title="Notifications"
+                aria-label="Notifications"
+                className={`p-1.5 rounded-md transition relative flex items-center justify-center ${
+                  isNotificationsOpen 
+                    ? 'text-[#f0f6fc] bg-[#21262d]' 
+                    : 'text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d]'
+                }`}
+              >
+                <Inbox className="w-4 h-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[17px] h-4 px-1 bg-[#1f6feb] text-white text-[10px] font-bold rounded-full ring-2 ring-[#010409] flex items-center justify-center leading-none">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {isNotificationsOpen && (
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-[#161b22] border border-[#30363d] rounded-xl shadow-2xl overflow-hidden z-50 text-xs text-[#c9d1d9] animate-scaleUp">
+                  {/* Dropdown Header */}
+                  <div className="px-4 py-3 border-b border-[#30363d] bg-[#0d1117] flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm text-[#f0f6fc]">Notifications</span>
+                      {unreadCount > 0 && (
+                        <span className="bg-[#1f6feb]/20 text-[#58a6ff] text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#1f6feb]/30">
+                          {unreadCount} new
+                        </span>
+                      )}
+                    </div>
+                    {notifications.length > 0 && (
+                      <button
+                        onClick={handleMarkAllRead}
+                        className="text-[11px] text-[#58a6ff] hover:underline flex items-center gap-1 font-medium"
+                        title="Mark all as read"
+                      >
+                        <CheckCheck className="w-3.5 h-3.5" />
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Notifications List */}
+                  <div className="max-h-96 overflow-y-auto divide-y divide-[#21262d]">
+                    {isLoadingNotifications && notifications.length === 0 ? (
+                      <div className="py-10 text-center text-[#8b949e] flex items-center justify-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-[#58a6ff] animate-ping" />
+                        Loading notifications...
+                      </div>
+                    ) : notifications.length === 0 ? (
+                      <div className="py-12 px-4 text-center text-[#8b949e] flex flex-col items-center justify-center">
+                        <Inbox className="w-8 h-8 text-[#484f58] mb-2 stroke-[1.5]" />
+                        <p className="text-xs font-semibold text-[#c9d1d9] mb-0.5">All caught up!</p>
+                        <p className="text-[11px] text-[#8b949e] max-w-[220px]">
+                          When someone follows you or stars your prompts, updates will appear here.
+                        </p>
+                      </div>
+                    ) : (
+                      notifications.map((n) => (
+                        <div
+                          key={n.id}
+                          onClick={() => handleNotificationClick(n)}
+                          className={`p-3.5 flex items-start gap-3 hover:bg-[#1f6feb]/10 transition cursor-pointer group relative ${
+                            !n.is_read ? 'bg-[#1f6feb]/5' : ''
+                          }`}
+                        >
+                          {/* Avatar with type badge */}
+                          <div className="relative shrink-0 mt-0.5">
+                            <img
+                              src={n.sender_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${n.sender_username || 'user'}`}
+                              alt={n.sender_name || 'User'}
+                              className="w-8 h-8 rounded-full border border-[#30363d] object-cover"
+                            />
+                            <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center border border-[#161b22] ${
+                              n.type === 'star' ? 'bg-[#d29922] text-black' : 'bg-[#238636] text-white'
+                            }`}>
+                              {n.type === 'star' ? (
+                                <StarIcon className="w-2.5 h-2.5 fill-current" />
+                              ) : (
+                                <UserPlus className="w-2.5 h-2.5" />
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Message and time */}
+                          <div className="flex-1 min-w-0 pr-6">
+                            <p className="text-xs text-[#c9d1d9] leading-snug group-hover:text-[#f0f6fc]">
+                              {n.message}
+                            </p>
+                            <span className="text-[10px] text-[#8b949e] mt-1 block">
+                              {formatNotifTime(n.created_at)}
+                            </span>
+                          </div>
+
+                          {/* Unread dot & Delete button */}
+                          <div className="absolute right-3 top-3.5 flex items-center gap-1.5">
+                            {!n.is_read && (
+                              <span className="w-2 h-2 rounded-full bg-[#1f6feb] shrink-0" title="Unread" />
+                            )}
+                            <button
+                              onClick={(e) => handleDeleteNotification(e, n.id)}
+                              className="opacity-0 group-hover:opacity-100 p-1 text-[#8b949e] hover:text-red-400 hover:bg-[#21262d] rounded transition"
+                              title="Delete notification"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Dropdown Footer */}
+                  {notifications.length > 0 && (
+                    <div className="p-2 border-t border-[#30363d] bg-[#0d1117] flex items-center justify-between text-[11px]">
+                      <span className="text-[#8b949e]">
+                        {notifications.length} notification{notifications.length > 1 ? 's' : ''}
+                      </span>
+                      <button
+                        onClick={handleClearAllNotifications}
+                        className="text-[#8b949e] hover:text-red-400 transition"
+                      >
+                        Clear all
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* Color Theme Switcher Dropdown */}
             <div className="relative" ref={themeRef}>
@@ -664,6 +972,24 @@ export default function Navbar() {
                 <UserIcon className="w-4 h-4 text-[#8b949e]" />
                 Profile
               </Link>
+              <button
+                onClick={() => {
+                  setIsDrawerOpen(false);
+                  setIsNotificationsOpen(true);
+                }}
+                className="w-full flex items-center justify-between px-3 py-2 rounded-md hover:bg-[#21262d] hover:text-white transition text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <Inbox className="w-4 h-4 text-[#8b949e]" />
+                  <span>Notifications</span>
+                </div>
+                {unreadCount > 0 && (
+                  <span className="bg-[#1f6feb] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
 
               {/* Theme section inside drawer */}
               <div className="pt-3 mt-3 border-t border-[#30363d]">

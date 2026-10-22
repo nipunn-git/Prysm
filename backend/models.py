@@ -69,3 +69,20 @@ class RepositoryStar(Base):
     repository_id = Column(String, ForeignKey("repositories.id"), nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    recipient_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    sender_id = Column(String, ForeignKey("users.id"), nullable=True, index=True)
+    type = Column(String, default="follow", index=True)  # follow, star, system
+    title = Column(String, nullable=False)
+    message = Column(Text, nullable=False)
+    link = Column(String, nullable=True)
+    is_read = Column(Integer, default=0, index=True)  # 0 = unread, 1 = read
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    recipient = relationship("User", foreign_keys=[recipient_id])
+    sender = relationship("User", foreign_keys=[sender_id])
+
+

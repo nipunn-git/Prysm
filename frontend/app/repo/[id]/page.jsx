@@ -440,11 +440,14 @@ export default function RepositoryPage() {
             <div>
               <div className="flex items-center gap-2 flex-wrap text-lg">
                 <Book className="w-5 h-5 text-[#8b949e]" />
-                <span className="text-[#58a6ff] font-normal hover:underline cursor-pointer">
+                <Link 
+                  href={`/u/${repo.owner_username || 'user'}`}
+                  className="text-[#58a6ff] font-normal hover:underline cursor-pointer"
+                >
                   {repo.owner_username || 'user'}
-                </span>
+                </Link>
                 <span className="text-[#8b949e]">/</span>
-                <span className="font-bold text-[#58a6ff] hover:underline cursor-pointer">
+                <span className="font-bold text-[#58a6ff]">
                   {repo.name}
                 </span>
 
@@ -473,8 +476,12 @@ export default function RepositoryPage() {
               {forkInfo && (
                 <div className="text-xs text-[#8b949e] mt-1 flex items-center gap-1">
                   <span>forked from</span>
+                  <Link href={`/u/${forkInfo.owner_username || 'user'}`} className="text-[#58a6ff] hover:underline font-mono">
+                    {forkInfo.owner_username || forkInfo.owner_name}
+                  </Link>
+                  <span className="text-[#8b949e]">/</span>
                   <Link href={`/repo/${forkInfo.id}`} className="text-[#58a6ff] hover:underline font-mono">
-                    {forkInfo.owner_username || forkInfo.owner_name}/{forkInfo.name}
+                    {forkInfo.name}
                   </Link>
                 </div>
               )}
@@ -724,9 +731,12 @@ export default function RepositoryPage() {
                 <div className="w-5 h-5 rounded-full bg-[#21262d] border border-[#30363d] overflow-hidden shrink-0 flex items-center justify-center">
                   <UserIcon className="w-3 h-3 text-[#8b949e]" />
                 </div>
-                <span className="font-semibold text-[#f0f6fc] hover:underline cursor-pointer truncate">
+                <Link 
+                  href={`/u/${repo.owner_username || 'user'}`}
+                  className="font-semibold text-[#f0f6fc] hover:text-[#58a6ff] hover:underline cursor-pointer truncate"
+                >
                   {repo.owner_username || repo.owner_name || 'Author'}
-                </span>
+                </Link>
                 <span className="text-[#c9d1d9] truncate font-medium">
                   {latestVersion?.change_description || "Initial prompt commit"}
                 </span>
@@ -976,7 +986,12 @@ export default function RepositoryPage() {
                                 {ver.change_description || `Updated prompt to ${ver.version}`}
                               </p>
                               <div className="flex items-center gap-2 text-[11px] text-[#8b949e] mt-1 flex-wrap">
-                                <span className="font-medium text-[#c9d1d9]">{repo.owner_username || repo.owner_name || "Author"}</span>
+                                <Link 
+                                  href={`/u/${repo.owner_username || 'user'}`}
+                                  className="font-medium text-[#c9d1d9] hover:text-[#58a6ff] hover:underline cursor-pointer"
+                                >
+                                  {repo.owner_username || repo.owner_name || "Author"}
+                                </Link>
                                 <span>committed {formatRelativeTime(ver.created_at)}</span>
                                 <span className="bg-[#161b22] border border-[#30363d] text-[10px] font-mono px-1.5 py-0.2 rounded text-[#58a6ff]">
                                   {ver.version}

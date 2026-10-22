@@ -88,7 +88,7 @@ def build_repo_response(r: models.Repository, db: Session, current_user_id: Opti
     latest = r.versions[0] if r.versions else None
     stars_count = db.query(models.RepositoryStar).filter(models.RepositoryStar.repository_id == r.id).count()
     is_starred = False
-    if current_user_id:
+    if current_user_id and isinstance(current_user_id, str):
         is_starred = bool(db.query(models.RepositoryStar).filter(
             models.RepositoryStar.user_id == current_user_id,
             models.RepositoryStar.repository_id == r.id
@@ -112,6 +112,7 @@ def build_repo_response(r: models.Repository, db: Session, current_user_id: Opti
         forks_count=0,
         is_starred=is_starred
     )
+
 
 @router.get("", response_model=List[schemas.RepositoryResponse])
 def list_user_repositories(
@@ -369,6 +370,23 @@ def toggle_star_repository(
             repository_id=repo.id
         )
         db.add(new_star)
+
+        # Notify repo owner if starred by someone else
+        if repo.owner_id and repo.owner_id != current_user_id:
+            sender = db.query(models.User).filter(models.User.id == current_user_id).first()
+            sender_name = sender.name if sender else "Someone"
+            sender_uname = sender.username if sender else "user"
+            notif = models.Notification(
+                recipient_id=repo.owner_id,
+                sender_id=current_user_id,
+                type="star",
+                title="Repository Starred",
+                message=f"{sender_name} (@{sender_uname}) starred your repository '{repo.name}'",
+                link=f"/repo/{repo.id}",
+                is_read=0
+            )
+            db.add(notif)
+
         db.commit()
         starred = True
         
@@ -378,6 +396,7 @@ def toggle_star_repository(
         "stars_count": stars_count,
         "repo_id": repo.id
     }
+
 
 
 @router.get("/{repo_id}", response_model=schemas.RepositoryDetailResponse)

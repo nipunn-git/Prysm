@@ -43,7 +43,7 @@ def build_user_response(user: models.User, db: Session, current_user_id: Optiona
     following_cnt = db.query(models.UserFollow).filter(models.UserFollow.follower_id == user.id).count()
     repos_cnt = db.query(models.Repository).filter(models.Repository.owner_id == user.id).count()
     is_following = False
-    if current_user_id and current_user_id != user.id:
+    if current_user_id and isinstance(current_user_id, str) and current_user_id != user.id:
         is_following = bool(db.query(models.UserFollow).filter(
             models.UserFollow.follower_id == current_user_id,
             models.UserFollow.following_id == user.id
@@ -128,16 +128,26 @@ def resolve_user_id_from_token(token: Optional[str], db: Session) -> Optional[st
 
 @router.post("/register", response_model=schemas.UserResponse)
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    db_user = db.query(models.User).filter((models.User.username == user.username) | (models.User.email == user.email)).first()
+    clean_username = user.username.strip().lower().replace(" ", "-")
+    clean_email = user.email.strip().lower()
+    clean_name = (user.name or clean_username).strip()
+
+    if len(clean_username) < 2:
+        raise HTTPException(status_code=400, detail="Username must be at least 2 characters")
+
+    db_user = db.query(models.User).filter(
+        (models.User.username.ilike(clean_username)) | 
+        (models.User.email.ilike(clean_email))
+    ).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Username or email already registered")
     
     new_user = models.User(
-        username=user.username,
-        name=user.name,
-        email=user.email,
+        username=clean_username,
+        name=clean_name,
+        email=clean_email,
         password_hash=user.password, # simple plain text for demo
-        avatar=user.avatar or "https://avatars.githubusercontent.com/u/9919?s=40&v=4",
+        avatar=user.avatar or f"https://api.dicebear.com/7.x/avataaars/svg?seed={clean_username}",
         bio=user.bio,
         company=user.company,
         location=user.location,
@@ -147,7 +157,14 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    return new_user
+
+    token = f"token_{new_user.id}"
+    active_sessions[token] = new_user.id
+    active_sessions[new_user.id] = new_user.id
+    active_sessions[clean_username] = new_user.id
+
+    return build_user_response(new_user, db, new_user.id)
+
 
 @router.post("/login")
 def login(credentials: schemas.UserLogin, db: Session = Depends(get_db)):
@@ -375,7 +392,15 @@ def search_users(
     if not clean_q:
         return []
         
-    current_user_id = resolve_user_id_from_token(token or authorization, db) or x_user_id
+    current_user_id = resolve_user_id_from_token(token or authorization, db)
+    if not current_user_id and isinstance(x_user_id, str) and x_user_id.strip():
+        candidate = db.query(models.User).filter(
+            or_(models.User.id == x_user_id.strip(), models.User.username.ilike(x_user_id.strip()))
+        ).first()
+        if candidate:
+            current_user_id = candidate.id
+    if not isinstance(current_user_id, str):
+        current_user_id = None
     
     stripped_q = clean_q.lstrip('@').strip().lower()
     words = [w for w in stripped_q.replace('-', ' ').replace('_', ' ').split() if len(w) > 0]
@@ -414,7 +439,12 @@ def get_suggested_creators(
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
     db: Session = Depends(get_db)
 ):
-    current_user_id = resolve_user_id_from_token(token or authorization, db) or x_user_id
+    current_user_id = resolve_user_id_from_token(token or authorization, db)
+    if not current_user_id and isinstance(x_user_id, str) and x_user_id.strip():
+        current_user_id = x_user_id.strip()
+    if not isinstance(current_user_id, str):
+        current_user_id = None
+
     query = db.query(models.User)
     if current_user_id:
         query = query.filter(models.User.id != current_user_id)
@@ -425,6 +455,7 @@ def get_suggested_creators(
     user_responses = [build_user_response(u, db, current_user_id) for u in users]
     user_responses.sort(key=lambda ur: (ur.repos_count, ur.followers_count), reverse=True)
     return user_responses[:12]
+
 
 @router.get("/users/{username}", response_model=schemas.UserResponse)
 def get_user_profile(
@@ -452,9 +483,20 @@ def toggle_follow_user(
     target_id: str,
     token: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    user_id: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     current_user_id = resolve_user_id_from_token(token or authorization, db)
+    if not current_user_id:
+        fallback = user_id or x_user_id
+        if fallback and isinstance(fallback, str) and fallback.strip():
+            candidate = db.query(models.User).filter(
+                (models.User.id == fallback.strip()) | (models.User.username.ilike(fallback.strip()))
+            ).first()
+            if candidate:
+                current_user_id = candidate.id
+
     if not current_user_id:
         raise HTTPException(status_code=401, detail="Authentication required to follow users")
     
@@ -486,6 +528,22 @@ def toggle_follow_user(
             following_id=target_user.id
         )
         db.add(new_follow)
+
+        # Create Follow Notification for target_user
+        sender_user = db.query(models.User).filter(models.User.id == current_user_id).first()
+        sender_name = sender_user.name if sender_user else "Someone"
+        sender_uname = sender_user.username if sender_user else "user"
+
+        notif = models.Notification(
+            recipient_id=target_user.id,
+            sender_id=current_user_id,
+            type="follow",
+            title="New Follower",
+            message=f"{sender_name} (@{sender_uname}) started following you",
+            link=f"/u/{sender_uname}",
+            is_read=0
+        )
+        db.add(notif)
         db.commit()
         following = True
         
@@ -495,6 +553,112 @@ def toggle_follow_user(
         "target_id": target_user.id,
         "followers_count": followers_count
     }
+
+@router.get("/users/{user_id}/followers", response_model=List[schemas.UserResponse])
+def get_user_followers(
+    user_id: str,
+    token: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    db: Session = Depends(get_db)
+):
+    clean_target = user_id.lstrip('@').strip()
+    target_user = db.query(models.User).filter(
+        or_(models.User.id == clean_target, models.User.username.ilike(clean_target))
+    ).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    current_user_id = resolve_user_id_from_token(token or authorization, db)
+    if not current_user_id and isinstance(x_user_id, str):
+        current_user_id = x_user_id.strip()
+    if not isinstance(current_user_id, str):
+        current_user_id = None
+        
+    follows = db.query(models.UserFollow).filter(models.UserFollow.following_id == target_user.id).all()
+    follower_ids = [f.follower_id for f in follows]
+    if not follower_ids:
+        return []
+    users = db.query(models.User).filter(models.User.id.in_(follower_ids)).all()
+    return [build_user_response(u, db, current_user_id) for u in users]
+
+@router.get("/users/{user_id}/following", response_model=List[schemas.UserResponse])
+def get_user_following(
+    user_id: str,
+    token: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    db: Session = Depends(get_db)
+):
+    clean_target = user_id.lstrip('@').strip()
+    target_user = db.query(models.User).filter(
+        or_(models.User.id == clean_target, models.User.username.ilike(clean_target))
+    ).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    current_user_id = resolve_user_id_from_token(token or authorization, db)
+    if not current_user_id and isinstance(x_user_id, str):
+        current_user_id = x_user_id.strip()
+    if not isinstance(current_user_id, str):
+        current_user_id = None
+        
+    follows = db.query(models.UserFollow).filter(models.UserFollow.follower_id == target_user.id).all()
+    following_ids = [f.following_id for f in follows]
+    if not following_ids:
+        return []
+    users = db.query(models.User).filter(models.User.id.in_(following_ids)).all()
+    return [build_user_response(u, db, current_user_id) for u in users]
+
+class SyncUserPayload(BaseModel):
+    id: Optional[str] = None
+    username: Optional[str] = None
+    name: Optional[str] = None
+    email: Optional[str] = None
+    avatar: Optional[str] = None
+
+@router.post("/sync", response_model=schemas.UserResponse)
+def sync_user(payload: SyncUserPayload, db: Session = Depends(get_db)):
+    if not payload.email and not payload.username and not payload.id:
+        raise HTTPException(status_code=400, detail="Missing user identifier")
+    
+    # Try finding existing user
+    user = None
+    if payload.id:
+        user = db.query(models.User).filter(models.User.id == payload.id).first()
+    if not user and payload.email:
+        user = db.query(models.User).filter(models.User.email.ilike(payload.email.strip())).first()
+    if not user and payload.username:
+        user = db.query(models.User).filter(models.User.username.ilike(payload.username.strip())).first()
+        
+    if not user:
+        # Create user immediately so they exist permanently
+        base_username = (payload.username or (payload.email.split('@')[0] if payload.email else "user")).strip().lower().replace(" ", "-")
+        uname = base_username
+        c = 1
+        while db.query(models.User).filter(models.User.username.ilike(uname)).first():
+            uname = f"{base_username}{c}"
+            c += 1
+            
+        import uuid
+        user = models.User(
+            id=payload.id or str(uuid.uuid4()),
+            username=uname,
+            name=payload.name or uname,
+            email=payload.email or f"{uname}@prompthub.dev",
+            avatar=payload.avatar or f"https://api.dicebear.com/7.x/avataaars/svg?seed={uname}",
+            password_hash="oauth_managed"
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        
+    token = f"token_{user.id}"
+    active_sessions[token] = user.id
+    active_sessions[user.id] = user.id
+    active_sessions[user.username] = user.id
+    return build_user_response(user, db, user.id)
+
 
 
 

@@ -8,8 +8,8 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { useAuth } from '../../context/AuthContext';
 import { addCreatedRepoId } from '../../lib/repoStore';
-
 import { API_URL } from '../../lib/api';
+import UserListModal from '../../components/UserListModal';
 
 const LEVEL_COLORS = [
   "bg-[#161b22]",   // level 0 - no contributions
@@ -39,6 +39,8 @@ export default function ProfilePage() {
   const [contributions, setContributions] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [isCreatingSpecial, setIsCreatingSpecial] = useState(false);
+  const [userListModalOpen, setUserListModalOpen] = useState(false);
+  const [modalTab, setModalTab] = useState('followers');
   
   // GitHub Fetch Modal State
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
@@ -516,9 +518,25 @@ export default function ProfilePage() {
 
             <div className="flex items-center gap-1 text-sm mb-4 text-[#8b949e]">
               <Users className="w-4 h-4" />
-              <span className="font-semibold text-[#c9d1d9] hover:text-[#58a6ff] cursor-pointer">{user.followers_count ?? 0}</span> followers
+              <button 
+                type="button"
+                onClick={() => { setModalTab('followers'); setUserListModalOpen(true); }}
+                className="hover:text-[#58a6ff] flex items-center gap-1 transition cursor-pointer"
+                title="View followers"
+              >
+                <span className="font-semibold text-[#c9d1d9] hover:text-[#58a6ff]">{user.followers_count ?? 0}</span>
+                <span className="hover:underline">followers</span>
+              </button>
               <span className="mx-1">·</span>
-              <span className="font-semibold text-[#c9d1d9] hover:text-[#58a6ff] cursor-pointer">{user.following_count ?? 0}</span> following
+              <button 
+                type="button"
+                onClick={() => { setModalTab('following'); setUserListModalOpen(true); }}
+                className="hover:text-[#58a6ff] flex items-center gap-1 transition cursor-pointer"
+                title="View following"
+              >
+                <span className="font-semibold text-[#c9d1d9] hover:text-[#58a6ff]">{user.following_count ?? 0}</span>
+                <span className="hover:underline">following</span>
+              </button>
             </div>
 
             <ul className="text-sm space-y-2 text-[#c9d1d9]">
@@ -922,6 +940,17 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Followers & Following Modal */}
+      {user && (
+        <UserListModal
+          isOpen={userListModalOpen}
+          onClose={() => setUserListModalOpen(false)}
+          targetUser={user}
+          initialTab={modalTab}
+          currentUser={user}
+        />
       )}
     </div>
   );

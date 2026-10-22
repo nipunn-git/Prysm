@@ -156,18 +156,29 @@ function ExploreContent() {
     }
     try {
       const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-      const res = await fetch(`${API_URL}/api/auth/users/${targetUserId}/follow${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`, {
+      const headers = {
+        ...(storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {}),
+        ...(user?.id ? { 'X-User-Id': user.id } : {})
+      };
+      const queryParams = new URLSearchParams();
+      if (storedToken) queryParams.set('token', storedToken);
+      if (user?.id) queryParams.set('user_id', user.id);
+
+      const res = await fetch(`${API_URL}/api/auth/users/${encodeURIComponent(targetUserId)}/follow?${queryParams.toString()}`, {
         method: 'POST',
-        headers: storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {}
+        headers
       });
       if (res.ok) {
         const data = await res.json();
         setFollowingMap(prev => ({ ...prev, [targetUserId]: data.following }));
+        setUsers(prev => prev.map(u => u.id === targetUserId ? { ...u, is_following: data.following, followers_count: data.followers_count } : u));
+        setSuggestedUsers(prev => prev.map(u => u.id === targetUserId ? { ...u, is_following: data.following, followers_count: data.followers_count } : u));
       }
     } catch (e) {
       console.error("Follow error:", e);
     }
   };
+
 
   const openForkModal = (e, repo) => {
     e.preventDefault();

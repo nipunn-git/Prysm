@@ -95,8 +95,31 @@ export function AuthProvider({ children }) {
           setToken(effectiveToken);
           persistUser(userData, effectiveToken);
         } else {
-          // Token invalid - but keep cached data so user stays logged in
-          console.warn("Token validation failed, keeping cached user data");
+          // Token invalid or user missing from DB - self heal with sync!
+          if (cachedUser && (cachedUser.id || cachedUser.username || cachedUser.email)) {
+            try {
+              const syncRes = await fetch(`${API_URL}/api/auth/sync`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  id: cachedUser.id,
+                  username: cachedUser.username,
+                  name: cachedUser.name,
+                  email: cachedUser.email,
+                  avatar: cachedUser.avatar
+                })
+              });
+              if (syncRes.ok) {
+                const syncedUser = await syncRes.json();
+                const syncedToken = `token_${syncedUser.id}`;
+                setUser(syncedUser);
+                setToken(syncedToken);
+                persistUser(syncedUser, syncedToken);
+              }
+            } catch (syncErr) {
+              console.warn("Self-healing sync failed:", syncErr);
+            }
+          }
         }
       } catch (e) {
         console.warn("Network error during token validation, using cached data");
@@ -172,18 +195,21 @@ export function AuthProvider({ children }) {
   };
 
   const register = async (username, email, password) => {
+    const cleanUname = (username || '').trim().toLowerCase().replace(/\s+/g, '-');
+    const cleanEmail = (email || '').trim().toLowerCase();
     const res = await fetch(`${API_URL}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, name: username, email, password })
+      body: JSON.stringify({ username: cleanUname, name: username.trim(), email: cleanEmail, password })
     });
     if (!res.ok) {
-      const errorData = await res.json();
+      const errorData = await res.json().catch(() => ({}));
       throw new Error(errorData.detail || 'Registration failed');
     }
     // Auto login after register
-    await login(username, password);
+    return await login(cleanUname, password);
   };
+
 
   const updateProfile = async (updates) => {
     const currentToken = token || (typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null);

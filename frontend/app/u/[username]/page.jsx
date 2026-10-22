@@ -28,6 +28,7 @@ import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import { useAuth } from "../../../context/AuthContext";
 import { API_URL } from "../../../lib/api";
+import UserListModal from "../../../components/UserListModal";
 
 const LEVEL_COLORS = [
   "bg-[#161b22]",   // level 0 - no contributions
@@ -53,6 +54,8 @@ export default function PublicProfilePage() {
   const [isFollowLoading, setIsFollowLoading] = useState(false);
   const [copiedShare, setCopiedShare] = useState(false);
   const [activeTab, setActiveTab] = useState("prompts"); // "prompts" | "activity"
+  const [userListModalOpen, setUserListModalOpen] = useState(false);
+  const [modalTab, setModalTab] = useState('followers');
 
   const isOwnProfile = Boolean(
     currentUser && 
@@ -115,15 +118,24 @@ export default function PublicProfilePage() {
     setIsFollowLoading(true);
     try {
       const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-      const res = await fetch(`${API_URL}/api/auth/users/${profileUser.id}/follow${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`, {
+      const headers = {
+        ...(storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {}),
+        ...(currentUser?.id ? { 'X-User-Id': currentUser.id } : {})
+      };
+      const queryParams = new URLSearchParams();
+      if (storedToken) queryParams.set('token', storedToken);
+      if (currentUser?.id) queryParams.set('user_id', currentUser.id);
+
+      const res = await fetch(`${API_URL}/api/auth/users/${encodeURIComponent(profileUser.id)}/follow?${queryParams.toString()}`, {
         method: 'POST',
-        headers: storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {}
+        headers
       });
       if (res.ok) {
         const data = await res.json();
         setIsFollowing(data.following);
         setFollowersCount(data.followers_count);
       }
+
     } catch (e) {
       console.error("Follow error:", e);
     } finally {
@@ -321,15 +333,23 @@ export default function PublicProfilePage() {
 
             {/* Follower Stats */}
             <div className="flex items-center gap-4 text-xs mb-5 text-[#8b949e] pb-5 border-b border-[#21262d]">
-              <div className="flex items-center gap-1.5 hover:text-[#58a6ff] cursor-pointer transition">
-                <Users className="w-3.5 h-3.5" />
-                <span className="font-bold text-[#f0f6fc]">{followersCount}</span>
-                <span>followers</span>
+              <div 
+                onClick={() => { setModalTab('followers'); setUserListModalOpen(true); }}
+                className="flex items-center gap-1.5 hover:text-[#58a6ff] cursor-pointer transition group/stat"
+                title="View followers"
+              >
+                <Users className="w-3.5 h-3.5 group-hover/stat:text-[#58a6ff]" />
+                <span className="font-bold text-[#f0f6fc] group-hover/stat:text-[#58a6ff]">{followersCount}</span>
+                <span className="group-hover/stat:underline">followers</span>
               </div>
               <span>·</span>
-              <div className="flex items-center gap-1.5 hover:text-[#58a6ff] cursor-pointer transition">
-                <span className="font-bold text-[#f0f6fc]">{followingCount}</span>
-                <span>following</span>
+              <div 
+                onClick={() => { setModalTab('following'); setUserListModalOpen(true); }}
+                className="flex items-center gap-1.5 hover:text-[#58a6ff] cursor-pointer transition group/stat"
+                title="View following"
+              >
+                <span className="font-bold text-[#f0f6fc] group-hover/stat:text-[#58a6ff]">{followingCount}</span>
+                <span className="group-hover/stat:underline">following</span>
               </div>
               <span>·</span>
               <div className="flex items-center gap-1.5 text-[#8b949e]">
@@ -618,6 +638,15 @@ export default function PublicProfilePage() {
         </div>
 
       </div>
+
+      {/* Followers & Following Modal */}
+      <UserListModal
+        isOpen={userListModalOpen}
+        onClose={() => setUserListModalOpen(false)}
+        targetUser={profileUser}
+        initialTab={modalTab}
+        currentUser={currentUser}
+      />
     </div>
   );
 }

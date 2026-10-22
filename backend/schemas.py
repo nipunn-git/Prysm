@@ -121,3 +121,26 @@ class AICreateRepoRequest(BaseModel):
     user_id: Optional[str] = None
     visibility: Optional[str] = "Public"
 
+# Notification Schemas
+class NotificationResponse(BaseModel):
+    id: str
+    recipient_id: str
+    sender_id: Optional[str] = None
+    sender_username: Optional[str] = None
+    sender_name: Optional[str] = None
+    sender_avatar: Optional[str] = None
+    type: str = "follow"
+    title: str
+    message: str
+    link: Optional[str] = None
+    is_read: bool = False
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class NotificationListResponse(BaseModel):
+    notifications: List[NotificationResponse]
+    unread_count: int
+
+
