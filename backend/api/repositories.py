@@ -161,8 +161,6 @@ def explore_public_repositories(
     query = db.query(models.Repository).join(models.User, models.Repository.owner_id == models.User.id).filter(
         models.Repository.visibility.ilike("Public")
     )
-    if current_user_id and not search:
-        query = query.filter(models.Repository.owner_id != current_user_id)
     if category and category.lower() != "all":
         query = query.filter(models.Repository.category.ilike(category))
     if search:

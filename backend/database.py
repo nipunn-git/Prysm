@@ -33,7 +33,7 @@ def init_engine():
         try:
             pg_engine = create_engine(
                 db_url,
-                connect_args={"connect_timeout": 3},
+                connect_args={"connect_timeout": 15},
                 pool_pre_ping=True,
                 pool_recycle=300
             )
