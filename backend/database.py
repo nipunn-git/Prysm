@@ -2,7 +2,7 @@ import os
 import re
 import logging
 from pathlib import Path
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -13,8 +13,6 @@ REPO_DB_FILE = Path(__file__).resolve().parent / "prompthub.db"
 DB_FILE = REPO_DB_FILE
 
 # Only fall back to /tmp SQLite on Vercel if there is NO DATABASE_URL set.
-# If DATABASE_URL is set (PostgreSQL), skip this entirely — /tmp is ephemeral
-# and gets wiped every ~10-15 minutes when the Vercel serverless container restarts.
 _db_url_env = os.environ.get("DATABASE_URL", "").strip()
 if os.environ.get("VERCEL") and not _db_url_env:
     import shutil
@@ -52,28 +50,38 @@ def init_engine():
         clean_url = _clean_pg_url(db_url)
         logger.info("Attempting PostgreSQL connection...")
 
-        # Try multiple SSL modes — Neon requires SSL but psycopg2 connect_args must be compatible
-        for attempt_args in [
-            {},                       # Use URL params as-is (sslmode=require already in URL)
-            {"sslmode": "require"},   # Force SSL explicitly
-            {"sslmode": "prefer"},    # Prefer SSL
-        ]:
-            try:
-                pg_engine = create_engine(
-                    clean_url,
-                    connect_args=attempt_args,
-                    pool_pre_ping=True,
-                    pool_recycle=300,
-                    pool_size=5,
-                    max_overflow=10,
-                )
-                with pg_engine.connect() as _conn:
-                    pass
-                logger.info(f"Connected to PostgreSQL successfully (connect_args={attempt_args}).")
-                return pg_engine
-            except Exception as e:
-                logger.warning(f"PostgreSQL attempt failed (connect_args={attempt_args}): {e}")
-                continue
+        # Try multiple connect_args — Neon requires SSL
+        # Use NullPool for serverless environments (Render free tier, Vercel)
+        # to avoid connection pool exhaustion
+        try:
+            from sqlalchemy.pool import NullPool
+            pg_engine = create_engine(
+                clean_url,
+                poolclass=NullPool,  # No connection pooling - safest for serverless
+            )
+            with pg_engine.connect() as _conn:
+                _conn.execute(text("SELECT 1"))
+            logger.info("Connected to PostgreSQL successfully (NullPool).")
+            return pg_engine
+        except Exception as e:
+            logger.warning(f"PostgreSQL NullPool attempt failed: {e}")
+
+        # Fallback: try with a small pool and sslmode=require
+        try:
+            pg_engine = create_engine(
+                clean_url,
+                connect_args={"sslmode": "require"},
+                pool_pre_ping=True,
+                pool_recycle=300,
+                pool_size=2,
+                max_overflow=3,
+            )
+            with pg_engine.connect() as _conn:
+                _conn.execute(text("SELECT 1"))
+            logger.info("Connected to PostgreSQL successfully (pooled, sslmode=require).")
+            return pg_engine
+        except Exception as e:
+            logger.warning(f"PostgreSQL pooled attempt failed: {e}")
 
         logger.error(
             "CRITICAL: All PostgreSQL connection attempts failed. "
