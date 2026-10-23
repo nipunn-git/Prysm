@@ -50,6 +50,20 @@ def root():
         "status": "healthy"
     }
 
+@app.get("/debug/db")
+def debug_db():
+    import os
+    db_url_raw = os.environ.get("DATABASE_URL", "")
+    driver = str(engine.url.drivername)
+    db_url_masked = (db_url_raw[:30] + "...") if db_url_raw else "NOT SET"
+    return {
+        "engine_driver": driver,
+        "database_url_set": bool(db_url_raw),
+        "database_url_preview": db_url_masked,
+        "using_postgresql": driver == "postgresql",
+        "using_sqlite": "sqlite" in driver,
+    }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
