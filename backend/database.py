@@ -1,4 +1,5 @@
 import os
+import re
 import logging
 from pathlib import Path
 from sqlalchemy import create_engine
@@ -7,14 +8,17 @@ from sqlalchemy.orm import sessionmaker
 
 logger = logging.getLogger("prompthub.database")
 
-# Persistent local SQLite DB file
+# Persistent local SQLite DB file (only used if no DATABASE_URL is configured)
 REPO_DB_FILE = Path(__file__).resolve().parent / "prompthub.db"
 DB_FILE = REPO_DB_FILE
 
-if os.environ.get("VERCEL"):
+# Only fall back to /tmp SQLite on Vercel if there is NO DATABASE_URL set.
+# If DATABASE_URL is set (PostgreSQL), skip this entirely — /tmp is ephemeral
+# and gets wiped every ~10-15 minutes when the Vercel serverless container restarts.
+_db_url_env = os.environ.get("DATABASE_URL", "").strip()
+if os.environ.get("VERCEL") and not _db_url_env:
     import shutil
     TMP_DB_FILE = Path("/tmp/prompthub.db")
-    # If /tmp/prompthub.db doesn't exist yet, copy the repo's bundled SQLite DB into /tmp
     if not TMP_DB_FILE.exists() and REPO_DB_FILE.exists():
         try:
             shutil.copy2(REPO_DB_FILE, TMP_DB_FILE)
@@ -23,39 +27,72 @@ if os.environ.get("VERCEL"):
             logger.warning(f"Failed to copy initial DB to /tmp: {copy_err}")
     DB_FILE = TMP_DB_FILE
 
+
+def _clean_pg_url(db_url: str) -> str:
+    """
+    Strip URL query parameters that psycopg2 doesn't support
+    (e.g. channel_binding=require from Neon connection strings).
+    Also normalize postgres:// -> postgresql://
+    """
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+    # Remove channel_binding param which psycopg2 cannot handle
+    db_url = re.sub(r'[&?]channel_binding=[^&]*', '', db_url)
+    # Clean up trailing ? or & left over
+    db_url = re.sub(r'\?$', '', db_url)
+    db_url = re.sub(r'&$', '', db_url)
+    return db_url
+
+
 def init_engine():
-    db_url = os.getenv("DATABASE_URL", "").strip()
-    
-    # If a remote PostgreSQL database URL is provided, test connection with a short timeout
+    db_url = os.environ.get("DATABASE_URL", "").strip()
+
+    # Use PostgreSQL / any remote DB if DATABASE_URL is provided
     if db_url and not db_url.startswith("sqlite"):
-        if db_url.startswith("postgres://"):
-            db_url = db_url.replace("postgres://", "postgresql://", 1)
-        try:
-            pg_engine = create_engine(
-                db_url,
-                connect_args={"connect_timeout": 15},
-                pool_pre_ping=True,
-                pool_recycle=300
-            )
-            # Verify that connection actually succeeds
-            with pg_engine.connect() as conn:
-                pass
-            logger.info("Connected to remote PostgreSQL database successfully.")
-            return pg_engine
-        except Exception as e:
-            logger.warning(f"Remote PostgreSQL connection failed ({e}). Falling back to SQLite.")
-            
-    # Default to persistent SQLite
+        clean_url = _clean_pg_url(db_url)
+        logger.info("Attempting PostgreSQL connection...")
+
+        # Try multiple SSL modes — Neon requires SSL but psycopg2 connect_args must be compatible
+        for attempt_args in [
+            {},                       # Use URL params as-is (sslmode=require already in URL)
+            {"sslmode": "require"},   # Force SSL explicitly
+            {"sslmode": "prefer"},    # Prefer SSL
+        ]:
+            try:
+                pg_engine = create_engine(
+                    clean_url,
+                    connect_args=attempt_args,
+                    pool_pre_ping=True,
+                    pool_recycle=300,
+                    pool_size=5,
+                    max_overflow=10,
+                )
+                with pg_engine.connect() as _conn:
+                    pass
+                logger.info(f"Connected to PostgreSQL successfully (connect_args={attempt_args}).")
+                return pg_engine
+            except Exception as e:
+                logger.warning(f"PostgreSQL attempt failed (connect_args={attempt_args}): {e}")
+                continue
+
+        logger.error(
+            "CRITICAL: All PostgreSQL connection attempts failed. "
+            "Falling back to local SQLite — data will NOT persist on Render/Vercel!"
+        )
+
+    # Local SQLite fallback (works for local dev; ephemeral on cloud servers)
     sqlite_url = f"sqlite:///{DB_FILE}"
     logger.info(f"Using SQLite database at {sqlite_url}")
     return create_engine(
         sqlite_url,
-        connect_args={"check_same_thread": False}
+        connect_args={"check_same_thread": False},
     )
+
 
 engine = init_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
 
 def get_db():
     db = SessionLocal()
@@ -63,4 +100,3 @@ def get_db():
         yield db
     finally:
         db.close()
-
