@@ -1,5 +1,9 @@
 # PromptHub 🚀
 
+[![Render Backend Status](https://github.com/nipunn-git/academic-PromptHub/actions/workflows/render-health.yml/badge.svg)](https://github.com/nipunn-git/academic-PromptHub/actions/workflows/render-health.yml)
+[![Live Frontend](https://img.shields.io/badge/Frontend-Vercel%20Live-brightgreen)](https://academic-prompthub.vercel.app)
+[![Live Backend](https://img.shields.io/badge/Backend-Render%20Live-46E3B7)](https://prompthub-backend-ifv8.onrender.com)
+
 PromptHub is the "GitHub for AI Prompts." It provides a unified platform where users can create, discover, optimize, and manage AI prompts effortlessly. 
 
 ## Features

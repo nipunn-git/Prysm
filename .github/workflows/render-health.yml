@@ -1,0 +1,35 @@
+name: Render Backend Deployment Health Check
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  check-render:
+    name: Verify Render Backend & Database
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Render Auto-Deploy & Verify Health
+        run: |
+          echo "Checking Render Backend status at https://prompthub-backend-ifv8.onrender.com/debug/db..."
+          MAX_ATTEMPTS=20
+          SLEEP_SECS=10
+          URL="https://prompthub-backend-ifv8.onrender.com/debug/db"
+          
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            echo "Attempt $i of $MAX_ATTEMPTS..."
+            RESPONSE=$(curl -s -m 15 "$URL" || true)
+            echo "Response: $RESPONSE"
+            
+            if echo "$RESPONSE" | grep -q '"using_postgresql":true'; then
+              echo "✅ Render Backend is LIVE and connected to Neon PostgreSQL!"
+              exit 0
+            fi
+            
+            echo "Render is still building or waking up. Waiting ${SLEEP_SECS}s..."
+            sleep $SLEEP_SECS
+          done
+          
+          echo "❌ Timed out waiting for Render backend to report healthy."
+          exit 1
