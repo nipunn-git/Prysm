@@ -1,10 +1,12 @@
 import os
 import re
+import time
 import logging
 from pathlib import Path
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 
 logger = logging.getLogger("prompthub.database")
 
@@ -27,16 +29,10 @@ if os.environ.get("VERCEL") and not _db_url_env:
 
 
 def _clean_pg_url(db_url: str) -> str:
-    """
-    Strip URL query parameters that psycopg2 doesn't support
-    (e.g. channel_binding=require from Neon connection strings).
-    Also normalize postgres:// -> postgresql://
-    """
+    """Strip params psycopg2 can't handle and normalize the scheme."""
     if db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
-    # Remove channel_binding param which psycopg2 cannot handle
     db_url = re.sub(r'[&?]channel_binding=[^&]*', '', db_url)
-    # Clean up trailing ? or & left over
     db_url = re.sub(r'\?$', '', db_url)
     db_url = re.sub(r'&$', '', db_url)
     return db_url
@@ -46,76 +42,69 @@ def _clean_pg_url(db_url: str) -> str:
 _last_pg_error: str = ""
 
 
+def _try_connect(url: str, connect_args: dict = None, retries: int = 3, delay: int = 6) -> object:
+    """
+    Try to connect with retries.
+    Neon free tier HIBERNATES and can take 5-10s to wake up.
+    We retry to give it time to come online.
+    """
+    last_err = None
+    for attempt in range(1, retries + 1):
+        try:
+            kwargs = {"poolclass": NullPool}
+            if connect_args:
+                kwargs["connect_args"] = connect_args
+            eng = create_engine(url, **kwargs)
+            with eng.connect() as c:
+                c.execute(text("SELECT 1"))
+            return eng
+        except Exception as e:
+            last_err = e
+            logger.warning(f"PG connect attempt {attempt}/{retries} failed: {type(e).__name__}: {str(e)[:200]}")
+            if attempt < retries:
+                logger.info(f"Waiting {delay}s before retry (Neon may be waking from hibernation)...")
+                time.sleep(delay)
+    raise last_err
+
+
 def init_engine():
     global _last_pg_error
     db_url = os.environ.get("DATABASE_URL", "").strip()
 
-    # Use PostgreSQL / any remote DB if DATABASE_URL is provided
     if db_url and not db_url.startswith("sqlite"):
         clean_url = _clean_pg_url(db_url)
-        logger.info("Attempting PostgreSQL connection...")
+        logger.info("Attempting PostgreSQL connection (with Neon wake-up retries)...")
 
-        # --- Attempt 1: psycopg2 with NullPool (no pooling, safest for serverless) ---
+        # Strategy 1: psycopg2 with NullPool (sslmode already in URL)
         try:
-            from sqlalchemy.pool import NullPool
-            pg_engine = create_engine(clean_url, poolclass=NullPool)
-            with pg_engine.connect() as _conn:
-                _conn.execute(text("SELECT 1"))
-            logger.info("Connected to PostgreSQL via psycopg2 NullPool.")
-            return pg_engine
+            eng = _try_connect(clean_url)
+            logger.info("Connected to PostgreSQL via psycopg2.")
+            return eng
         except Exception as e:
-            _last_pg_error = f"psycopg2-nullpool: {e}"
-            logger.warning(f"PostgreSQL psycopg2 NullPool failed: {e}")
+            _last_pg_error = f"psycopg2: {str(e)[:300]}"
+            logger.warning(f"psycopg2 failed after retries.")
 
-        # --- Attempt 2: psycopg2 with explicit sslmode=require ---
+        # Strategy 2: pg8000 pure-Python driver (no native SSL compilation needed)
         try:
-            from sqlalchemy.pool import NullPool
-            pg_engine = create_engine(
-                clean_url,
-                connect_args={"sslmode": "require"},
-                poolclass=NullPool,
-            )
-            with pg_engine.connect() as _conn:
-                _conn.execute(text("SELECT 1"))
-            logger.info("Connected to PostgreSQL via psycopg2 + sslmode=require.")
-            return pg_engine
-        except Exception as e:
-            _last_pg_error = f"psycopg2-ssl: {e}"
-            logger.warning(f"PostgreSQL psycopg2 ssl attempt failed: {e}")
-
-        # --- Attempt 3: pg8000 (pure-Python driver, no native SSL deps) ---
-        try:
-            from sqlalchemy.pool import NullPool
-            # Build pg8000 URL: postgresql+pg8000://user:pass@host/db
             pg8000_url = re.sub(r'^postgresql://', 'postgresql+pg8000://', clean_url)
-            # pg8000 needs ssl=True in connect_args, not in URL
-            pg8000_url_clean = re.sub(r'[&?]sslmode=[^&]*', '', pg8000_url)
-            pg8000_url_clean = re.sub(r'\?$', '', pg8000_url_clean)
-            pg_engine = create_engine(
-                pg8000_url_clean,
-                connect_args={"ssl_context": True},
-                poolclass=NullPool,
-            )
-            with pg_engine.connect() as _conn:
-                _conn.execute(text("SELECT 1"))
+            pg8000_url = re.sub(r'[&?]sslmode=[^&]*', '', pg8000_url)
+            pg8000_url = re.sub(r'\?$', '', pg8000_url)
+            eng = _try_connect(pg8000_url, connect_args={"ssl_context": True})
             logger.info("Connected to PostgreSQL via pg8000.")
-            return pg_engine
+            return eng
         except Exception as e:
-            _last_pg_error = f"pg8000: {e}"
-            logger.warning(f"PostgreSQL pg8000 attempt failed: {e}")
+            _last_pg_error = f"pg8000: {str(e)[:300]}"
+            logger.warning(f"pg8000 failed after retries.")
 
         logger.error(
-            f"CRITICAL: All PostgreSQL connection attempts failed (last error: {_last_pg_error}). "
-            "Falling back to local SQLite — data will NOT persist on Render!"
+            f"CRITICAL: All PostgreSQL attempts failed. Last error: {_last_pg_error}. "
+            "Falling back to SQLite — accounts will reset on Render restart!"
         )
 
-    # Local SQLite fallback (works for local dev; ephemeral on cloud servers)
+    # SQLite fallback — fine for local dev, but ephemeral on Render/Vercel
     sqlite_url = f"sqlite:///{DB_FILE}"
-    logger.info(f"Using SQLite database at {sqlite_url}")
-    return create_engine(
-        sqlite_url,
-        connect_args={"check_same_thread": False},
-    )
+    logger.info(f"Using SQLite at {sqlite_url}")
+    return create_engine(sqlite_url, connect_args={"check_same_thread": False})
 
 
 engine = init_engine()
