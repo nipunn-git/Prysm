@@ -47,15 +47,20 @@ import {
 } from "../../lib/repoStore";
 
 import { API_URL } from "../../lib/api";
+import { getCachedData, setCachedData } from "../../lib/cache";
 
 export default function DashboardPage() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
   
-  // Repositories state
-  const [repos, setRepos] = useState([]);
-  const [communityRepos, setCommunityRepos] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+  const cachedRepos = getCachedData(`dashboard_repos_${effectiveUserId}`, []);
+  const cachedCommunity = getCachedData('dashboard_community_repos', []);
+
+  // Repositories state - instant display from cache, revalidates in background
+  const [repos, setRepos] = useState(cachedRepos);
+  const [communityRepos, setCommunityRepos] = useState(cachedCommunity);
+  const [loading, setLoading] = useState(cachedRepos.length === 0);
   const [repoSearch, setRepoSearch] = useState("");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
@@ -89,23 +94,30 @@ export default function DashboardPage() {
   const fetchRepos = useCallback(async () => {
     try {
       const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
-      if (!effectiveUserId) {
+      const targetUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+      if (!targetUserId) {
         setLoading(false);
         return;
       }
       const headers = storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {};
-      const res = await fetch(`${API_URL}/api/repositories?user_id=${encodeURIComponent(effectiveUserId)}`, { headers });
+      
+      // Parallel fetch for lightning speed
+      const [res, expRes] = await Promise.all([
+        fetch(`${API_URL}/api/repositories?user_id=${encodeURIComponent(targetUserId)}`, { headers }),
+        fetch(`${API_URL}/api/repositories/explore?user_id=${encodeURIComponent(targetUserId)}`, { headers })
+      ]);
+
       if (res.ok) {
         const data = await res.json();
         setRepos(data);
+        setCachedData(`dashboard_repos_${targetUserId}`, data);
       }
 
-      // Separately fetch public community prompts so user can explore & fork them (excluding their own)
-      const expRes = await fetch(`${API_URL}/api/repositories/explore?user_id=${encodeURIComponent(effectiveUserId)}`, { headers });
       if (expRes.ok) {
         const expData = await expRes.json();
-        setCommunityRepos(Array.isArray(expData) ? expData : []);
+        const list = Array.isArray(expData) ? expData : [];
+        setCommunityRepos(list);
+        setCachedData('dashboard_community_repos', list);
       }
     } catch (e) {
       console.error("Failed to fetch repositories:", e);

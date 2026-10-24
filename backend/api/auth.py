@@ -135,12 +135,13 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     if len(clean_username) < 2:
         raise HTTPException(status_code=400, detail="Username must be at least 2 characters")
 
-    db_user = db.query(models.User).filter(
-        (models.User.username.ilike(clean_username)) | 
-        (models.User.email.ilike(clean_email))
-    ).first()
-    if db_user:
-        raise HTTPException(status_code=400, detail="Username or email already registered")
+    # Check if username is taken
+    if db.query(models.User).filter(models.User.username.ilike(clean_username)).first():
+        raise HTTPException(status_code=400, detail="Username is already taken. Please choose another username.")
+    
+    # Check if email is registered
+    if db.query(models.User).filter(models.User.email.ilike(clean_email)).first():
+        raise HTTPException(status_code=400, detail="An account with this email already exists. Please sign in instead.")
     
     new_user = models.User(
         username=clean_username,
@@ -180,7 +181,7 @@ def login(credentials: schemas.UserLogin, db: Session = Depends(get_db)):
         user = db.query(models.User).filter(models.User.id == "usr_nipun_01").first()
         
     if not user:
-        raise HTTPException(status_code=400, detail="Incorrect username or password")
+        raise HTTPException(status_code=404, detail="Account does not exist. Please sign up to create a new account.")
     
     # 3. Check password: allow configured password, password123, or oauth_managed bypass
     valid_password = (
@@ -189,7 +190,7 @@ def login(credentials: schemas.UserLogin, db: Session = Depends(get_db)):
         user.password_hash == "oauth_managed"
     )
     if not valid_password:
-        raise HTTPException(status_code=400, detail="Incorrect username or password")
+        raise HTTPException(status_code=400, detail="Incorrect password. Please verify your password and try again.")
     
     token = f"token_{user.id}"
     active_sessions[token] = user.id
@@ -375,10 +376,22 @@ def update_profile(
 
 @router.get("/users/check-username")
 def check_username_availability(username: str, db: Session = Depends(get_db)):
-    if not username or len(username.strip()) < 3:
-        return {"available": False, "reason": "Username must be at least 3 characters"}
-    existing = db.query(models.User).filter(models.User.username.ilike(username.strip())).first()
-    return {"available": existing is None}
+    clean = (username or "").strip().lower()
+    if not clean:
+        return {"available": False, "reason": "Username cannot be empty"}
+    if len(clean) < 2:
+        return {"available": False, "reason": "Username must be at least 2 characters"}
+    if len(clean) > 30:
+        return {"available": False, "reason": "Username must be at most 30 characters"}
+    import re
+    if not re.match(r'^[a-zA-Z0-9_-]+$', clean):
+        return {"available": False, "reason": "Letters, numbers, hyphens and underscores only"}
+    existing = db.query(models.User).filter(models.User.username.ilike(clean)).first()
+    return {
+        "available": existing is None,
+        "username": clean,
+        "reason": "Username is available" if existing is None else "Username is already taken"
+    }
 
 @router.get("/users/search", response_model=List[schemas.UserResponse])
 def search_users(

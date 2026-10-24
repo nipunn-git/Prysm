@@ -29,16 +29,25 @@ export default function LoginPage() {
     }
   }, [user, authLoading, router]);
 
+  const [isAccountNotFound, setIsAccountNotFound] = useState(false);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setIsAccountNotFound(false);
     if (username.trim() && password) {
       setIsLoading(true);
       try {
         await login(username.trim(), password);
         router.push('/dashboard');
       } catch (err) {
-        setError(err.message || 'Login failed');
+        const msg = err.message || 'Login failed';
+        if (msg.toLowerCase().includes('does not exist') || msg.toLowerCase().includes('not found') || err.status === 404) {
+          setIsAccountNotFound(true);
+          setError('');
+        } else {
+          setError(msg);
+        }
         setIsLoading(false);
       }
     }
@@ -48,6 +57,7 @@ export default function LoginPage() {
   const handleProviderLogin = async (provider) => {
     if (isLoading) return;
     setError('');
+    setIsAccountNotFound(false);
     setIsLoading(true);
     setLoadingProvider(provider);
     try {
@@ -82,11 +92,27 @@ export default function LoginPage() {
 
         <div className="w-full bg-[#161b22] border border-border rounded-md p-5 shadow-sm mb-4">
           <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-            {error && (
+            {isAccountNotFound ? (
+              <div className="text-amber-300 bg-amber-950/40 border border-amber-800/60 rounded-md p-3 text-xs flex flex-col gap-1.5">
+                <div className="flex items-center gap-1.5 font-semibold text-amber-200">
+                  <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                  <span>Account does not exist</span>
+                </div>
+                <p className="text-[#8b949e] leading-relaxed">
+                  No PromptHub account found for &quot;{username}&quot;. Please create a new account to continue.
+                </p>
+                <Link
+                  href={`/join?username=${encodeURIComponent(username.trim())}`}
+                  className="mt-1 text-[#58a6ff] hover:underline font-semibold flex items-center gap-1"
+                >
+                  Sign up now to create this account →
+                </Link>
+              </div>
+            ) : error ? (
               <div className="text-red-400 bg-red-950/40 border border-red-800/60 rounded px-3 py-2 text-xs">
                 {error}
               </div>
-            )}
+            ) : null}
             <div>
               <label htmlFor="email" className="block text-xs font-medium text-foreground mb-1.5">
                 Username or email address
@@ -96,7 +122,10 @@ export default function LoginPage() {
                 name="email"
                 type="text"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                  setIsAccountNotFound(false);
+                }}
                 className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1.5 text-sm focus:outline-none focus:bg-[#0d1117] focus:border-accent focus:ring-1 focus:ring-accent transition-colors text-foreground"
                 autoComplete="username"
               />

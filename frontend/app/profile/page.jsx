@@ -9,6 +9,7 @@ import rehypeRaw from 'rehype-raw';
 import { useAuth } from '../../context/AuthContext';
 import { addCreatedRepoId } from '../../lib/repoStore';
 import { API_URL } from '../../lib/api';
+import { getCachedData, setCachedData } from '../../lib/cache';
 import UserListModal from '../../components/UserListModal';
 
 const LEVEL_COLORS = [
@@ -35,8 +36,12 @@ export default function ProfilePage() {
     website: '',
     twitter: ''
   });
-  const [repos, setRepos] = useState([]);
-  const [contributions, setContributions] = useState(null);
+
+  const cachedRepos = getCachedData('profile_my_repos', []);
+  const cachedContrib = getCachedData('profile_my_contributions', null);
+
+  const [repos, setRepos] = useState(cachedRepos);
+  const [contributions, setContributions] = useState(cachedContrib);
   const [activeTab, setActiveTab] = useState('overview');
   const [isCreatingSpecial, setIsCreatingSpecial] = useState(false);
   const [userListModalOpen, setUserListModalOpen] = useState(false);
@@ -83,6 +88,7 @@ export default function ProfilePage() {
           
           // All repos from DB for this user - no localStorage filtering
           setRepos(data);
+          setCachedData('profile_my_repos', data);
         }
       }
     } catch (e) {
@@ -97,6 +103,7 @@ export default function ProfilePage() {
       if (res.ok) {
         const data = await res.json();
         setContributions(data);
+        setCachedData('profile_my_contributions', data);
       }
     } catch (e) {
       console.error(e);

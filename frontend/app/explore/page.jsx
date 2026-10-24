@@ -26,6 +26,7 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { addCreatedRepoId, saveForkInfo } from "../../lib/repoStore";
 import { API_URL } from "../../lib/api";
+import { getCachedData, setCachedData } from "../../lib/cache";
 
 function ExploreContent() {
   const router = useRouter();
@@ -33,10 +34,13 @@ function ExploreContent() {
   const urlSearch = searchParams ? (searchParams.get("search") || "") : "";
   const { user } = useAuth();
 
-  const [repos, setRepos] = useState([]);
+  const cachedExploreRepos = getCachedData('explore_all_repos', []);
+  const cachedSuggested = getCachedData('explore_suggested_users', []);
+
+  const [repos, setRepos] = useState(cachedExploreRepos);
   const [users, setUsers] = useState([]);
-  const [suggestedUsers, setSuggestedUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [suggestedUsers, setSuggestedUsers] = useState(cachedSuggested);
+  const [loading, setLoading] = useState(cachedExploreRepos.length === 0);
   const [category, setCategory] = useState("All");
   const [search, setSearch] = useState(urlSearch);
   const [copiedId, setCopiedId] = useState(null);
@@ -60,9 +64,11 @@ function ExploreContent() {
         const res = await fetch(`${API_URL}/api/auth/users/suggested${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`);
         if (res.ok) {
           const data = await res.json();
-          setSuggestedUsers(Array.isArray(data) ? data : []);
+          const list = Array.isArray(data) ? data : [];
+          setSuggestedUsers(list);
+          setCachedData('explore_suggested_users', list);
           const fMap = {};
-          data.forEach(u => {
+          list.forEach(u => {
             fMap[u.id] = Boolean(u.is_following);
           });
           setFollowingMap(prev => ({ ...prev, ...fMap }));
@@ -76,7 +82,8 @@ function ExploreContent() {
 
   useEffect(() => {
     async function fetchData() {
-      setLoading(true);
+      // Don't show blocking loading state if we already have cached repos
+      if (repos.length === 0) setLoading(true);
       try {
         const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
         const queryParams = new URLSearchParams();
@@ -88,7 +95,11 @@ function ExploreContent() {
         const res = await fetch(`${API_URL}/api/repositories/explore?${queryParams.toString()}`);
         if (res.ok) {
           const data = await res.json();
-          setRepos(Array.isArray(data) ? data : []);
+          const list = Array.isArray(data) ? data : [];
+          setRepos(list);
+          if (category === "All" && !search.trim()) {
+            setCachedData('explore_all_repos', list);
+          }
         }
 
         if (search.trim()) {

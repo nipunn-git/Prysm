@@ -51,7 +51,12 @@ def _try_connect(url: str, connect_args: dict = None, retries: int = 3, delay: i
     last_err = None
     for attempt in range(1, retries + 1):
         try:
-            kwargs = {"poolclass": NullPool}
+            kwargs = {
+                "pool_pre_ping": True,
+                "pool_recycle": 300,
+                "pool_size": 10,
+                "max_overflow": 20
+            }
             if connect_args:
                 kwargs["connect_args"] = connect_args
             eng = create_engine(url, **kwargs)

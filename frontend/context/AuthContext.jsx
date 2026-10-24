@@ -194,13 +194,14 @@ export function AuthProvider({ children }) {
     return data.user;
   };
 
-  const register = async (username, email, password) => {
+  const register = async (username, email, password, name = '') => {
     const cleanUname = (username || '').trim().toLowerCase().replace(/\s+/g, '-');
     const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanName = (name || cleanUname).trim();
     const res = await fetch(`${API_URL}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: cleanUname, name: username.trim(), email: cleanEmail, password })
+      body: JSON.stringify({ username: cleanUname, name: cleanName, email: cleanEmail, password })
     });
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
