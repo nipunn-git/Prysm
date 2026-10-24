@@ -8,3 +8,4 @@ google-generativeai
 openai
 groq
 psycopg2-binary
+pg8000

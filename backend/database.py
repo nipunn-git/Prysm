@@ -42,7 +42,12 @@ def _clean_pg_url(db_url: str) -> str:
     return db_url
 
 
+# Store last connection error for diagnostics
+_last_pg_error: str = ""
+
+
 def init_engine():
+    global _last_pg_error
     db_url = os.environ.get("DATABASE_URL", "").strip()
 
     # Use PostgreSQL / any remote DB if DATABASE_URL is provided
@@ -50,42 +55,58 @@ def init_engine():
         clean_url = _clean_pg_url(db_url)
         logger.info("Attempting PostgreSQL connection...")
 
-        # Try multiple connect_args — Neon requires SSL
-        # Use NullPool for serverless environments (Render free tier, Vercel)
-        # to avoid connection pool exhaustion
+        # --- Attempt 1: psycopg2 with NullPool (no pooling, safest for serverless) ---
+        try:
+            from sqlalchemy.pool import NullPool
+            pg_engine = create_engine(clean_url, poolclass=NullPool)
+            with pg_engine.connect() as _conn:
+                _conn.execute(text("SELECT 1"))
+            logger.info("Connected to PostgreSQL via psycopg2 NullPool.")
+            return pg_engine
+        except Exception as e:
+            _last_pg_error = f"psycopg2-nullpool: {e}"
+            logger.warning(f"PostgreSQL psycopg2 NullPool failed: {e}")
+
+        # --- Attempt 2: psycopg2 with explicit sslmode=require ---
         try:
             from sqlalchemy.pool import NullPool
             pg_engine = create_engine(
                 clean_url,
-                poolclass=NullPool,  # No connection pooling - safest for serverless
-            )
-            with pg_engine.connect() as _conn:
-                _conn.execute(text("SELECT 1"))
-            logger.info("Connected to PostgreSQL successfully (NullPool).")
-            return pg_engine
-        except Exception as e:
-            logger.warning(f"PostgreSQL NullPool attempt failed: {e}")
-
-        # Fallback: try with a small pool and sslmode=require
-        try:
-            pg_engine = create_engine(
-                clean_url,
                 connect_args={"sslmode": "require"},
-                pool_pre_ping=True,
-                pool_recycle=300,
-                pool_size=2,
-                max_overflow=3,
+                poolclass=NullPool,
             )
             with pg_engine.connect() as _conn:
                 _conn.execute(text("SELECT 1"))
-            logger.info("Connected to PostgreSQL successfully (pooled, sslmode=require).")
+            logger.info("Connected to PostgreSQL via psycopg2 + sslmode=require.")
             return pg_engine
         except Exception as e:
-            logger.warning(f"PostgreSQL pooled attempt failed: {e}")
+            _last_pg_error = f"psycopg2-ssl: {e}"
+            logger.warning(f"PostgreSQL psycopg2 ssl attempt failed: {e}")
+
+        # --- Attempt 3: pg8000 (pure-Python driver, no native SSL deps) ---
+        try:
+            from sqlalchemy.pool import NullPool
+            # Build pg8000 URL: postgresql+pg8000://user:pass@host/db
+            pg8000_url = re.sub(r'^postgresql://', 'postgresql+pg8000://', clean_url)
+            # pg8000 needs ssl=True in connect_args, not in URL
+            pg8000_url_clean = re.sub(r'[&?]sslmode=[^&]*', '', pg8000_url)
+            pg8000_url_clean = re.sub(r'\?$', '', pg8000_url_clean)
+            pg_engine = create_engine(
+                pg8000_url_clean,
+                connect_args={"ssl_context": True},
+                poolclass=NullPool,
+            )
+            with pg_engine.connect() as _conn:
+                _conn.execute(text("SELECT 1"))
+            logger.info("Connected to PostgreSQL via pg8000.")
+            return pg_engine
+        except Exception as e:
+            _last_pg_error = f"pg8000: {e}"
+            logger.warning(f"PostgreSQL pg8000 attempt failed: {e}")
 
         logger.error(
-            "CRITICAL: All PostgreSQL connection attempts failed. "
-            "Falling back to local SQLite — data will NOT persist on Render/Vercel!"
+            f"CRITICAL: All PostgreSQL connection attempts failed (last error: {_last_pg_error}). "
+            "Falling back to local SQLite — data will NOT persist on Render!"
         )
 
     # Local SQLite fallback (works for local dev; ephemeral on cloud servers)

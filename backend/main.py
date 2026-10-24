@@ -53,15 +53,17 @@ def root():
 @app.get("/debug/db")
 def debug_db():
     import os
+    from database import _last_pg_error
     db_url_raw = os.environ.get("DATABASE_URL", "")
     driver = str(engine.url.drivername)
-    db_url_masked = (db_url_raw[:30] + "...") if db_url_raw else "NOT SET"
+    db_url_masked = (db_url_raw[:35] + "...") if db_url_raw else "NOT SET"
     return {
         "engine_driver": driver,
         "database_url_set": bool(db_url_raw),
         "database_url_preview": db_url_masked,
-        "using_postgresql": driver == "postgresql",
+        "using_postgresql": driver.startswith("postgresql"),
         "using_sqlite": "sqlite" in driver,
+        "last_pg_error": _last_pg_error or "none",
     }
 
 if __name__ == "__main__":
