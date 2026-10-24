@@ -30,6 +30,8 @@ import {
   Download,
   Terminal,
   User as UserIcon,
+  UserCheck,
+  UserPlus,
   Loader2
 } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
@@ -39,6 +41,7 @@ import {
   saveForkInfo, 
   getForkInfo, 
   isRepoStarred, 
+  getStarredRepoIds,
   toggleStarRepo,
   removeCreatedRepoId
 } from "../../../lib/repoStore";
@@ -98,7 +101,9 @@ export default function RepositoryPage() {
   const [optimizing, setOptimizing] = useState(false);
   const [aiResult, setAiResult] = useState(null);
   const [isStarred, setIsStarred] = useState(false);
-  const [starCount, setStarCount] = useState(1);
+  const [starCount, setStarCount] = useState(0);
+  const [isAuthorFollowing, setIsAuthorFollowing] = useState(false);
+  const [isAuthorFollowLoading, setIsAuthorFollowLoading] = useState(false);
 
   // Fork state
   const [forkModalOpen, setForkModalOpen] = useState(false);
@@ -127,24 +132,43 @@ export default function RepositoryPage() {
   const fetchRepo = useCallback(async () => {
     try {
       const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-      const headers = storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {};
-      const res = await fetch(`${API_URL}/api/repositories/${id}${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`, { headers });
+      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+      
+      const queryParams = new URLSearchParams();
+      if (storedToken) queryParams.set('token', storedToken);
+      if (effectiveUserId) queryParams.set('user_id', effectiveUserId);
+
+      const headers = {
+        ...(storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {}),
+        ...(effectiveUserId ? { 'X-User-Id': effectiveUserId } : {})
+      };
+
+      const res = await fetch(`${API_URL}/api/repositories/${id}?${queryParams.toString()}`, { headers });
       if (res.ok) {
         const data = await res.json();
         setRepo(data);
         setIsStarred(Boolean(data.is_starred));
         setStarCount(data.stars_count || 0);
+
+        // Keep local store in sync if starred
+        if (data.is_starred) {
+          const currentStarred = getStarredRepoIds();
+          if (!currentStarred.includes(data.id)) {
+            toggleStarRepo(data.id);
+          }
+        }
+
         if (data.versions && data.versions.length > 0) {
           setActiveVersion(data.versions[0]);
           setCurrentPrompt(data.versions[0].content);
         }
       }
     } catch (e) {
-      console.error(e);
+      console.error("fetchRepo error:", e);
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, user?.id]);
 
   useEffect(() => {
     fetchRepo();
@@ -152,10 +176,65 @@ export default function RepositoryPage() {
 
   useEffect(() => {
     if (repo?.id) {
-      setIsStarred(isRepoStarred(repo.id));
+      // Prioritize backend state, fallback to local store if not set
+      if (repo.is_starred !== undefined) {
+        setIsStarred(Boolean(repo.is_starred));
+      } else {
+        setIsStarred(isRepoStarred(repo.id));
+      }
       setForkInfo(getForkInfo(repo.id));
     }
-  }, [repo?.id]);
+  }, [repo?.id, repo?.is_starred]);
+
+  // Check if current user is following the repository author
+  useEffect(() => {
+    async function checkAuthorFollow() {
+      if (!repo?.owner_username || !user?.id || user.id === repo.owner_id) return;
+      try {
+        const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+        const res = await fetch(`${API_URL}/api/auth/users/${encodeURIComponent(repo.owner_username)}${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`);
+        if (res.ok) {
+          const uData = await res.json();
+          setIsAuthorFollowing(Boolean(uData.is_following));
+        }
+      } catch (e) {
+        console.error("Check author follow error:", e);
+      }
+    }
+    checkAuthorFollow();
+  }, [repo?.owner_username, repo?.owner_id, user?.id]);
+
+  const handleToggleAuthorFollow = async () => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+    if (!repo?.owner_id || isAuthorFollowLoading) return;
+    setIsAuthorFollowLoading(true);
+    try {
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+      const queryParams = new URLSearchParams();
+      if (storedToken) queryParams.set('token', storedToken);
+      if (effectiveUserId) queryParams.set('user_id', effectiveUserId);
+      const headers = {
+        ...(storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {}),
+        ...(effectiveUserId ? { 'X-User-Id': effectiveUserId } : {})
+      };
+      const res = await fetch(`${API_URL}/api/auth/users/${encodeURIComponent(repo.owner_id)}/follow?${queryParams.toString()}`, {
+        method: 'POST',
+        headers
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIsAuthorFollowing(data.following);
+      }
+    } catch (e) {
+      console.error("Author follow toggle error:", e);
+    } finally {
+      setIsAuthorFollowLoading(false);
+    }
+  };
 
   const handleCopy = () => {
     navigator.clipboard.writeText(currentPrompt);
@@ -172,25 +251,49 @@ export default function RepositoryPage() {
   const handleToggleStar = async () => {
     if (!repo) return;
     const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+    const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+
+    if (!user && !effectiveUserId && !storedToken) {
+      router.push('/login');
+      return;
+    }
+
+    // Optimistic UI update
     const nextStarred = !isStarred;
     setIsStarred(nextStarred);
     setStarCount(prev => nextStarred ? prev + 1 : Math.max(0, prev - 1));
     toggleStarRepo(repo.id);
 
     try {
-      if (storedToken) {
-        const res = await fetch(`${API_URL}/api/repositories/${repo.id}/star?token=${encodeURIComponent(storedToken)}`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${storedToken}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setIsStarred(data.starred);
-          setStarCount(data.stars_count);
-        }
+      const queryParams = new URLSearchParams();
+      if (storedToken) queryParams.set('token', storedToken);
+      if (effectiveUserId) queryParams.set('user_id', effectiveUserId);
+
+      const headers = {
+        ...(storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {}),
+        ...(effectiveUserId ? { 'X-User-Id': effectiveUserId } : {})
+      };
+
+      const res = await fetch(`${API_URL}/api/repositories/${repo.id}/star?${queryParams.toString()}`, {
+        method: 'POST',
+        headers
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIsStarred(Boolean(data.starred));
+        setStarCount(data.stars_count);
+      } else {
+        // Revert on API failure
+        setIsStarred(!nextStarred);
+        setStarCount(prev => !nextStarred ? prev + 1 : Math.max(0, prev - 1));
+        toggleStarRepo(repo.id);
       }
     } catch (e) {
       console.error("Star toggle error:", e);
+      // Revert on network failure
+      setIsStarred(!nextStarred);
+      setStarCount(prev => !nextStarred ? prev + 1 : Math.max(0, prev - 1));
+      toggleStarRepo(repo.id);
     }
   };
 
@@ -442,9 +545,14 @@ export default function RepositoryPage() {
                 <Book className="w-5 h-5 text-[#8b949e]" />
                 <Link 
                   href={`/u/${repo.owner_username || 'user'}`}
-                  className="text-[#58a6ff] font-normal hover:underline cursor-pointer"
+                  className="inline-flex items-center gap-2 text-[#58a6ff] font-normal hover:underline cursor-pointer group"
                 >
-                  {repo.owner_username || 'user'}
+                  <img 
+                    src={repo.owner_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${repo.owner_username || repo.owner_name || 'author'}`}
+                    alt={repo.owner_name || repo.owner_username || 'Author'}
+                    className="w-5 h-5 rounded-full border border-[#30363d] group-hover:border-[#58a6ff] object-cover shrink-0 transition"
+                  />
+                  <span>{repo.owner_username || 'user'}</span>
                 </Link>
                 <span className="text-[#8b949e]">/</span>
                 <span className="font-bold text-[#58a6ff]">
@@ -513,23 +621,95 @@ export default function RepositoryPage() {
                 </span>
               </button>
 
-              {/* Star */}
+              {/* Star Button */}
               <button 
                 onClick={handleToggleStar}
-                className="bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-[#c9d1d9] text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5 transition"
+                className={`border text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5 transition shadow-sm ${
+                  isStarred 
+                    ? "bg-[#e3b341]/10 border-[#e3b341]/60 text-[#e3b341] hover:bg-[#e3b341]/20" 
+                    : "bg-[#21262d] hover:bg-[#30363d] border-[#363b42] text-[#c9d1d9] hover:text-[#f0f6fc]"
+                }`}
+                title={isStarred ? "Starred by you (click to unstar)" : "Star this repository"}
               >
                 <Star className={`w-3.5 h-3.5 ${isStarred ? "text-[#e3b341] fill-[#e3b341]" : "text-[#8b949e]"}`} />
-                {isStarred ? "Starred" : "Star"}
-                <span className="bg-[#30363d] px-1.5 py-0.2 rounded-full text-[10px] text-[#f0f6fc]">
+                <span>{isStarred ? "Starred" : "Star"}</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono transition ${
+                  isStarred ? "bg-[#e3b341]/25 text-[#e3b341] font-bold" : "bg-[#30363d] text-[#f0f6fc]"
+                }`}>
                   {starCount}
                 </span>
               </button>
             </div>
           </div>
 
-          <p className="text-xs text-[#8b949e] mb-4 max-w-3xl leading-relaxed">
+          <p className="text-xs text-[#8b949e] mb-3 max-w-3xl leading-relaxed">
             {repo.description || "Prompt engineering repository for production LLM workflows."}
           </p>
+
+          {/* Author Details & Quick Profile Card */}
+          <div className="flex flex-wrap items-center justify-between gap-3 py-2.5 px-3.5 mb-4 bg-[#161b22]/70 border border-[#30363d] rounded-xl text-xs backdrop-blur-sm shadow-sm">
+            <div className="flex items-center gap-3 min-w-0">
+              <Link 
+                href={`/u/${repo.owner_username || 'user'}`}
+                className="flex items-center gap-2.5 group hover:opacity-90 transition"
+              >
+                <div className="relative">
+                  <img 
+                    src={repo.owner_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${repo.owner_username || repo.owner_name || 'author'}`}
+                    alt={repo.owner_name || repo.owner_username || "Author"}
+                    className="w-8 h-8 rounded-full border border-[#30363d] group-hover:border-[#58a6ff] object-cover shrink-0 transition"
+                  />
+                  <span className="absolute -bottom-0.5 -right-0.5 bg-[#238636] border border-[#0d1117] w-2.5 h-2.5 rounded-full" title="Active author"></span>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-semibold text-[#f0f6fc] group-hover:text-[#58a6ff] group-hover:underline transition truncate">
+                      {repo.owner_name || repo.owner_username || "Author"}
+                    </span>
+                    <span className="bg-[#21262d] border border-[#30363d] text-[10px] text-[#58a6ff] px-1.5 py-0.2 rounded font-medium">
+                      Author
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-[#8b949e] truncate">
+                    @{repo.owner_username || 'user'} · Created {formatRelativeTime(repo.created_at)}
+                  </div>
+                </div>
+              </Link>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/u/${repo.owner_username || 'user'}`}
+                className="bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-[#c9d1d9] hover:text-[#f0f6fc] text-xs font-semibold px-3 py-1.5 rounded-md transition flex items-center gap-1.5"
+              >
+                <UserIcon className="w-3.5 h-3.5 text-[#8b949e]" />
+                <span>View Author Profile</span>
+              </Link>
+              {user && repo.owner_id && user.id !== repo.owner_id && (
+                <button
+                  onClick={handleToggleAuthorFollow}
+                  disabled={isAuthorFollowLoading}
+                  className={`text-xs font-semibold px-3 py-1.5 rounded-md transition flex items-center gap-1.5 shrink-0 ${
+                    isAuthorFollowing
+                      ? "bg-[#21262d] text-[#8b949e] border border-[#30363d] hover:bg-[#da3633]/20 hover:text-[#f85149]"
+                      : "bg-[#238636] hover:bg-[#2ea043] text-white shadow-sm"
+                  }`}
+                >
+                  {isAuthorFollowing ? (
+                    <>
+                      <UserCheck className="w-3.5 h-3.5" />
+                      <span>Following</span>
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>Follow Author</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
 
           {/* Sub-nav Tabs (GitHub Tabs: Code, Commits, Compare, Settings) */}
           <div className="flex gap-4 border-b border-transparent text-xs font-semibold overflow-x-auto no-scrollbar">
@@ -728,9 +908,13 @@ export default function RepositoryPage() {
             {/* GitHub Latest Commit Banner Bar */}
             <div className="border border-[#30363d] bg-[#161b22] rounded-t-lg px-4 py-3 flex items-center justify-between text-xs text-[#8b949e]">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-5 h-5 rounded-full bg-[#21262d] border border-[#30363d] overflow-hidden shrink-0 flex items-center justify-center">
-                  <UserIcon className="w-3 h-3 text-[#8b949e]" />
-                </div>
+                <Link href={`/u/${repo.owner_username || 'user'}`} className="shrink-0">
+                  <img 
+                    src={repo.owner_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${repo.owner_username || repo.owner_name || 'author'}`}
+                    alt={repo.owner_name || repo.owner_username || 'Author'}
+                    className="w-5 h-5 rounded-full border border-[#30363d] object-cover hover:border-[#58a6ff] transition"
+                  />
+                </Link>
                 <Link 
                   href={`/u/${repo.owner_username || 'user'}`}
                   className="font-semibold text-[#f0f6fc] hover:text-[#58a6ff] hover:underline cursor-pointer truncate"
@@ -977,9 +1161,13 @@ export default function RepositoryPage() {
                         >
                           {/* Commit Message & Author */}
                           <div className="flex items-start gap-3 min-w-0">
-                            <div className="w-6 h-6 rounded-full bg-[#161b22] border border-[#30363d] flex items-center justify-center shrink-0 mt-0.5 text-[#8b949e]">
-                              <UserIcon className="w-3.5 h-3.5" />
-                            </div>
+                            <Link href={`/u/${repo.owner_username || 'user'}`} className="shrink-0 mt-0.5">
+                              <img 
+                                src={repo.owner_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${repo.owner_username || repo.owner_name || 'author'}`}
+                                alt={repo.owner_name || repo.owner_username || 'Author'}
+                                className="w-6 h-6 rounded-full border border-[#30363d] object-cover hover:border-[#58a6ff] transition"
+                              />
+                            </Link>
 
                             <div className="min-w-0">
                               <p className="text-xs font-semibold text-[#f0f6fc] group-hover:text-[#58a6ff] transition truncate">

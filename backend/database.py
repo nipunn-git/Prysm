@@ -73,37 +73,46 @@ def init_engine():
 
     if db_url and not db_url.startswith("sqlite"):
         clean_url = _clean_pg_url(db_url)
-        logger.info("Attempting PostgreSQL connection (with Neon wake-up retries)...")
+        logger.info("Connecting to PostgreSQL (with Neon wake-up retry support)...")
 
-        # Strategy 1: psycopg2 with NullPool (sslmode already in URL)
-        try:
-            eng = _try_connect(clean_url)
-            logger.info("Connected to PostgreSQL via psycopg2.")
-            return eng
-        except Exception as e:
-            _last_pg_error = f"psycopg2: {str(e)[:300]}"
-            logger.warning(f"psycopg2 failed after retries.")
-
-        # Strategy 2: pg8000 pure-Python driver (no native SSL compilation needed)
+        # Strategy 1: pg8000 pure-Python driver (100% reliable on Linux/Render, no missing libpq)
         try:
             pg8000_url = re.sub(r'^postgresql://', 'postgresql+pg8000://', clean_url)
             pg8000_url = re.sub(r'[&?]sslmode=[^&]*', '', pg8000_url)
             pg8000_url = re.sub(r'\?$', '', pg8000_url)
-            eng = _try_connect(pg8000_url, connect_args={"ssl_context": True})
-            logger.info("Connected to PostgreSQL via pg8000.")
+            eng = _try_connect(pg8000_url, connect_args={"ssl_context": True}, retries=5, delay=4)
+            logger.info("Connected to PostgreSQL via pg8000 successfully.")
             return eng
         except Exception as e:
             _last_pg_error = f"pg8000: {str(e)[:300]}"
-            logger.warning(f"pg8000 failed after retries.")
+            logger.warning(f"pg8000 attempt failed: {_last_pg_error}")
+
+        # Strategy 2: psycopg2 fallback
+        try:
+            eng = _try_connect(clean_url, retries=3, delay=4)
+            logger.info("Connected to PostgreSQL via psycopg2.")
+            return eng
+        except Exception as e:
+            _last_pg_error = f"psycopg2: {str(e)[:300]}"
+            logger.warning(f"psycopg2 attempt failed: {_last_pg_error}")
+
+        # In production (Render/Vercel) or when DATABASE_URL is set, NEVER fall back to ephemeral SQLite!
+        # Falling back to SQLite would cause accounts to be wiped when Render container spins down on idle.
+        is_cloud = bool(os.environ.get("RENDER") or os.environ.get("VERCEL") or os.environ.get("PORT"))
+        if is_cloud:
+            logger.critical(
+                f"FATAL: Could not connect to PostgreSQL database: {_last_pg_error}. "
+                "Refusing to fall back to SQLite in cloud environment to prevent account loss!"
+            )
+            raise RuntimeError(f"Database connection failed: {_last_pg_error}")
 
         logger.error(
-            f"CRITICAL: All PostgreSQL attempts failed. Last error: {_last_pg_error}. "
-            "Falling back to SQLite — accounts will reset on Render restart!"
+            f"Local dev notice: PostgreSQL failed ({_last_pg_error}). Falling back to local SQLite."
         )
 
-    # SQLite fallback — fine for local dev, but ephemeral on Render/Vercel
+    # SQLite fallback — ONLY for local offline development when DATABASE_URL is unset
     sqlite_url = f"sqlite:///{DB_FILE}"
-    logger.info(f"Using SQLite at {sqlite_url}")
+    logger.info(f"Using local SQLite at {sqlite_url}")
     return create_engine(sqlite_url, connect_args={"check_same_thread": False})
 
 

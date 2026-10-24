@@ -103,6 +103,34 @@ export default function ProfilePage() {
     }
   }, [user?.id, user?.username]);
 
+  const handleToggleStar = async (e, repoId) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    try {
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+      const queryParams = new URLSearchParams();
+      if (storedToken) queryParams.set('token', storedToken);
+      if (effectiveUserId) queryParams.set('user_id', effectiveUserId);
+      const headers = {
+        ...(storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {}),
+        ...(effectiveUserId ? { 'X-User-Id': effectiveUserId } : {})
+      };
+      const res = await fetch(`${API_URL}/api/repositories/${repoId}/star?${queryParams.toString()}`, {
+        method: 'POST',
+        headers
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRepos(prev => prev.map(r => r.id === repoId ? { ...r, is_starred: data.starred, stars_count: data.stars_count } : r));
+      }
+    } catch (e) {
+      console.error("Star toggle error:", e);
+    }
+  };
+
   useEffect(() => {
     if (isLoading) return;
     if (!user) {
@@ -705,6 +733,10 @@ export default function ProfilePage() {
                         </div>
                         <span className="font-mono">{repo.latest_version || 'v1.0'}</span>
                         <span>{repo.versions_count || 1} version{(repo.versions_count || 1) > 1 ? 's' : ''}</span>
+                        <div className="flex items-center gap-1 text-[#8b949e] ml-auto">
+                          <Star className={`w-3 h-3 ${repo.is_starred ? 'text-[#e3b341] fill-[#e3b341]' : ''}`} />
+                          <span>{repo.stars_count || 0}</span>
+                        </div>
                       </div>
                     </Link>
                   ))}
@@ -876,9 +908,19 @@ export default function ProfilePage() {
                       })() : ''}</span>
                     </div>
                   </div>
-                  <button className="bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-xs font-semibold text-[#c9d1d9] px-3 py-1 rounded-md flex items-center gap-1.5 transition">
-                    <Star className="w-3.5 h-3.5 text-[#8b949e]" />
-                    Star
+                  <button 
+                    onClick={(e) => handleToggleStar(e, repo.id)}
+                    className={`border text-xs font-semibold px-3 py-1 rounded-md flex items-center gap-1.5 transition ${
+                      repo.is_starred
+                        ? 'bg-[#e3b341]/10 border-[#e3b341]/50 text-[#e3b341]'
+                        : 'bg-[#21262d] hover:bg-[#30363d] border-[#363b42] text-[#c9d1d9]'
+                    }`}
+                  >
+                    <Star className={`w-3.5 h-3.5 ${repo.is_starred ? 'text-[#e3b341] fill-[#e3b341]' : 'text-[#8b949e]'}`} />
+                    <span>{repo.is_starred ? 'Starred' : 'Star'}</span>
+                    <span className="bg-[#30363d] px-1.5 py-0.2 rounded-full text-[10px] text-[#f0f6fc]">
+                      {repo.stars_count || 0}
+                    </span>
                   </button>
                 </div>
               </div>

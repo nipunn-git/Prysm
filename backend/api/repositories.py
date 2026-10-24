@@ -341,11 +341,19 @@ def toggle_star_repository(
     repo_id: str,
     token: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    user_id: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    current_user_id = resolve_user_id_from_token(token or authorization, db)
+    current_user_id = resolve_user_id_from_token(token or authorization, db) or user_id or x_user_id
     if not current_user_id:
         raise HTTPException(status_code=401, detail="Authentication required to star prompts")
+        
+    matched_user = db.query(models.User).filter(
+        or_(models.User.id == current_user_id, models.User.username.ilike(current_user_id))
+    ).first()
+    if matched_user:
+        current_user_id = matched_user.id
         
     repo = db.query(models.Repository).filter(
         or_(models.Repository.id == repo_id, models.Repository.name == repo_id)
@@ -402,6 +410,8 @@ def get_repository_by_id(
     repo_id: str, 
     token: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    user_id: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     repo = db.query(models.Repository).filter(models.Repository.id == repo_id).first()
@@ -411,7 +421,14 @@ def get_repository_by_id(
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
-    current_user_id = resolve_user_id_from_token(token or authorization, db)
+    current_user_id = resolve_user_id_from_token(token or authorization, db) or user_id or x_user_id
+    if current_user_id:
+        matched_user = db.query(models.User).filter(
+            or_(models.User.id == current_user_id, models.User.username.ilike(current_user_id))
+        ).first()
+        if matched_user:
+            current_user_id = matched_user.id
+
     stars_count = db.query(models.RepositoryStar).filter(models.RepositoryStar.repository_id == repo.id).count()
     is_starred = False
     if current_user_id:
