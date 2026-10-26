@@ -85,25 +85,25 @@ export default function RepositoryPage() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const cachedRepo = getCachedData(`repo_detail_${id}`, null);
-  const [repo, setRepo] = useState(cachedRepo);
-  const [loading, setLoading] = useState(!cachedRepo);
+  // Repository state - clean SSR baseline to prevent hydration mismatch
+  const [repo, setRepo] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("Code"); // Code, Commits, Compare, Settings
   const [viewMode, setViewMode] = useState("raw"); // raw, preview
 
-  const [currentPrompt, setCurrentPrompt] = useState(cachedRepo?.versions?.[0]?.content || "");
+  const [currentPrompt, setCurrentPrompt] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
   const [commitTitle, setCommitTitle] = useState("");
   const [commitDesc, setCommitDesc] = useState("");
   const [versionBump, setVersionBump] = useState("patch");
-  const [activeVersion, setActiveVersion] = useState(cachedRepo?.versions?.[0] || null);
+  const [activeVersion, setActiveVersion] = useState(null);
   const [copied, setCopied] = useState(false);
   const [copiedSha, setCopiedSha] = useState(null);
   const [optimizing, setOptimizing] = useState(false);
   const [aiResult, setAiResult] = useState(null);
-  const [isStarred, setIsStarred] = useState(Boolean(cachedRepo?.is_starred));
-  const [starCount, setStarCount] = useState(cachedRepo?.stars_count || 0);
+  const [isStarred, setIsStarred] = useState(false);
+  const [starCount, setStarCount] = useState(0);
   const [isAuthorFollowing, setIsAuthorFollowing] = useState(false);
   const [isAuthorFollowLoading, setIsAuthorFollowLoading] = useState(false);
 
@@ -184,6 +184,19 @@ export default function RepositoryPage() {
   }, [id, user?.id]);
 
   useEffect(() => {
+    if (id) {
+      const cached = getCachedData(`repo_detail_${id}`, null);
+      if (cached) {
+        setRepo(cached);
+        setLoading(false);
+        if (cached.versions && cached.versions.length > 0) {
+          setActiveVersion(cached.versions[0]);
+          setCurrentPrompt(cached.versions[0].content || "");
+        }
+        setIsStarred(Boolean(cached.is_starred));
+        setStarCount(cached.stars_count || 0);
+      }
+    }
     fetchRepo();
   }, [id, fetchRepo]);
 

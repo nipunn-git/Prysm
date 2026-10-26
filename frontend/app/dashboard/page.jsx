@@ -53,14 +53,10 @@ export default function DashboardPage() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
   
-  const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
-  const cachedRepos = getCachedData(`dashboard_repos_${effectiveUserId}`, []);
-  const cachedCommunity = getCachedData('dashboard_community_repos', []);
-
-  // Repositories state - instant display from cache, revalidates in background
-  const [repos, setRepos] = useState(cachedRepos);
-  const [communityRepos, setCommunityRepos] = useState(cachedCommunity);
-  const [loading, setLoading] = useState(cachedRepos.length === 0);
+  // Repositories state - clean SSR baseline to prevent hydration mismatch
+  const [repos, setRepos] = useState([]);
+  const [communityRepos, setCommunityRepos] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [repoSearch, setRepoSearch] = useState("");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
@@ -349,10 +345,22 @@ export default function DashboardPage() {
     }
   }, [chatInput, isAiThinking, chatMessages, user?.id, activeSessionId, chatSessions, persistSessions, getStorageKey]);
 
-  // Fetch repositories immediately on mount — zero waiting time!
+  // Fetch repositories immediately on mount — load local cache first, then fetch
   useEffect(() => {
+    const targetUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+    if (targetUserId) {
+      const cached = getCachedData(`dashboard_repos_${targetUserId}`, []);
+      if (cached && cached.length > 0) {
+        setRepos(cached);
+        setLoading(false);
+      }
+    }
+    const commCached = getCachedData('dashboard_community_repos', []);
+    if (commCached && commCached.length > 0) {
+      setCommunityRepos(commCached);
+    }
     fetchRepos();
-  }, [fetchRepos]);
+  }, [fetchRepos, user?.id]);
 
   // Auth redirect check only after auth check finishes
   useEffect(() => {

@@ -37,11 +37,9 @@ export default function ProfilePage() {
     twitter: ''
   });
 
-  const cachedRepos = getCachedData('profile_my_repos', []);
-  const cachedContrib = getCachedData('profile_my_contributions', null);
-
-  const [repos, setRepos] = useState(cachedRepos);
-  const [contributions, setContributions] = useState(cachedContrib);
+  // Profile repos and contributions state - safe initial SSR baseline
+  const [repos, setRepos] = useState([]);
+  const [contributions, setContributions] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [isCreatingSpecial, setIsCreatingSpecial] = useState(false);
   const [userListModalOpen, setUserListModalOpen] = useState(false);
@@ -155,6 +153,13 @@ export default function ProfilePage() {
       avatar: user.avatar || '',
       status_emoji: user.status_emoji || '🎯'
     });
+
+    // Hydrate cached data immediately on mount
+    const cachedR = getCachedData('profile_my_repos', []);
+    if (cachedR && cachedR.length > 0) setRepos(cachedR);
+    const cachedC = getCachedData('profile_my_contributions', null);
+    if (cachedC) setContributions(cachedC);
+
     fetchRepos();
     fetchContributions();
   }, [user, router, isLoading, fetchRepos, fetchContributions]);

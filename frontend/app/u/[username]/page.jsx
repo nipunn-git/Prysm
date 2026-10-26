@@ -44,18 +44,14 @@ export default function PublicProfilePage() {
   const router = useRouter();
   const { user: currentUser } = useAuth();
 
-  const cachedUser = findUserInCache(username);
-  const cachedRepos = getCachedData(`public_repos_${username}`, []);
-  const cachedContrib = getCachedData(`public_contrib_${username}`, null);
-
-  const [profileUser, setProfileUser] = useState(cachedUser);
-  const [repos, setRepos] = useState(cachedRepos);
-  const [contributions, setContributions] = useState(cachedContrib);
-  const [loading, setLoading] = useState(!cachedUser);
+  const [profileUser, setProfileUser] = useState(null);
+  const [repos, setRepos] = useState([]);
+  const [contributions, setContributions] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isFollowing, setIsFollowing] = useState(Boolean(cachedUser?.is_following));
-  const [followersCount, setFollowersCount] = useState(cachedUser?.followers_count || 0);
-  const [followingCount, setFollowingCount] = useState(cachedUser?.following_count || 0);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
   const [isFollowLoading, setIsFollowLoading] = useState(false);
   const [copiedShare, setCopiedShare] = useState(false);
   const [activeTab, setActiveTab] = useState("prompts"); // "prompts" | "activity"

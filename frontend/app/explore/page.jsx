@@ -34,14 +34,25 @@ function ExploreContent() {
   const urlSearch = searchParams ? (searchParams.get("search") || "") : "";
   const { user } = useAuth();
 
-  const cachedExploreRepos = getCachedData('explore_all_repos', []);
-  const cachedSuggested = getCachedData('explore_suggested_users', []);
-
-  const [repos, setRepos] = useState(cachedExploreRepos);
+  // Explore state - clean SSR baseline to prevent hydration mismatch
+  const [repos, setRepos] = useState([]);
   const [users, setUsers] = useState([]);
-  const [suggestedUsers, setSuggestedUsers] = useState(cachedSuggested);
-  const [loading, setLoading] = useState(cachedExploreRepos.length === 0);
+  const [suggestedUsers, setSuggestedUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState("All");
+
+  // Sync cached data on mount
+  useEffect(() => {
+    const cachedRepos = getCachedData('explore_all_repos', []);
+    if (cachedRepos && cachedRepos.length > 0) {
+      setRepos(cachedRepos);
+      setLoading(false);
+    }
+    const cachedSuggested = getCachedData('explore_suggested_users', []);
+    if (cachedSuggested && cachedSuggested.length > 0) {
+      setSuggestedUsers(cachedSuggested);
+    }
+  }, []);
   const [search, setSearch] = useState(urlSearch);
   const [copiedId, setCopiedId] = useState(null);
   const [forkingId, setForkingId] = useState(null);
