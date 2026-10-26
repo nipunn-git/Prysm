@@ -26,7 +26,7 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { addCreatedRepoId, saveForkInfo } from "../../lib/repoStore";
 import { API_URL } from "../../lib/api";
-import { getCachedData, setCachedData } from "../../lib/cache";
+import { getCachedData, setCachedData, cacheUser, cacheUsers, searchCachedUsers } from "../../lib/cache";
 
 function ExploreContent() {
   const router = useRouter();
@@ -67,6 +67,7 @@ function ExploreContent() {
           const list = Array.isArray(data) ? data : [];
           setSuggestedUsers(list);
           setCachedData('explore_suggested_users', list);
+          cacheUsers(list);
           const fMap = {};
           list.forEach(u => {
             fMap[u.id] = Boolean(u.is_following);
@@ -80,21 +81,17 @@ function ExploreContent() {
     fetchSuggested();
   }, [user?.id]);
 
-  // Instant 0ms pre-match for creators on keystroke
+  // Instant 0ms pre-match for creators across all cached users
   useEffect(() => {
     if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      const localMatches = (suggestedUsers || []).filter(u =>
-        (u.name && u.name.toLowerCase().includes(q)) ||
-        (u.username && u.username.toLowerCase().includes(q))
-      );
+      const localMatches = searchCachedUsers(search.trim());
       if (localMatches.length > 0) {
         setUsers(localMatches);
       }
     } else {
       setUsers([]);
     }
-  }, [search, suggestedUsers]);
+  }, [search]);
 
   useEffect(() => {
     async function fetchData() {
@@ -120,6 +117,7 @@ function ExploreContent() {
           const data = await res.json();
           const list = Array.isArray(data) ? data : [];
           setRepos(list);
+          cacheUsers(list.map(r => r.owner).filter(Boolean));
           if (category === "All" && !search.trim()) {
             setCachedData('explore_all_repos', list);
           }
@@ -129,6 +127,7 @@ function ExploreContent() {
           const usersData = await usersRes.json();
           const uList = Array.isArray(usersData) ? usersData : [];
           setUsers(uList);
+          cacheUsers(uList);
           const fMap = {};
           uList.forEach(u => {
             fMap[u.id] = Boolean(u.is_following);
@@ -334,7 +333,11 @@ function ExploreContent() {
               <div className="space-y-2.5">
                 {suggestedUsers.slice(0, 6).map(u => (
                   <div key={u.id} className="flex items-center justify-between gap-2 p-1.5 rounded-lg hover:bg-[#161b22] transition group">
-                    <Link href={`/u/${u.username}`} className="flex items-center gap-2 min-w-0 flex-1">
+                    <Link 
+                      href={`/u/${u.username}`} 
+                      onClick={() => cacheUser(u)}
+                      className="flex items-center gap-2 min-w-0 flex-1"
+                    >
                       <img 
                         src={u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`} 
                         alt={u.username}
@@ -403,6 +406,7 @@ function ExploreContent() {
                   >
                     <Link 
                       href={`/u/${u.username}`}
+                      onClick={() => cacheUser(u)}
                       className="flex items-center gap-3 min-w-0"
                     >
                       <img 
@@ -496,6 +500,18 @@ function ExploreContent() {
                       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-3">
                         <Link 
                           href={`/u/${repo.owner_username}`}
+                          onClick={() => {
+                            if (repo.owner) {
+                              cacheUser(repo.owner);
+                            } else if (repo.owner_username) {
+                              cacheUser({
+                                id: repo.owner_id,
+                                username: repo.owner_username,
+                                name: repo.owner_name,
+                                avatar: repo.owner_avatar
+                              });
+                            }
+                          }}
                           className="flex items-center gap-3 group/author"
                         >
                           <img 
@@ -640,7 +656,11 @@ function ExploreContent() {
               <div className="space-y-4">
                 {suggestedUsers.map(u => (
                   <div key={u.id} className="flex items-center justify-between gap-3">
-                    <Link href={`/u/${u.username}`} className="flex items-center gap-2.5 min-w-0 group">
+                    <Link 
+                      href={`/u/${u.username}`} 
+                      onClick={() => cacheUser(u)}
+                      className="flex items-center gap-2.5 min-w-0 group"
+                    >
                       <img 
                         src={u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`} 
                         alt={u.username}

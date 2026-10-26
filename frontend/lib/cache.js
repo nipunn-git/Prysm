@@ -91,3 +91,121 @@ export function invalidateCache(keyPrefix) {
     keysToRemoveSession.forEach(k => sessionStorage.removeItem(k));
   } catch (e) {}
 }
+
+// User Global Cache Registry for 0ms profile transitions & 0ms instant search
+export function cacheUser(user) {
+  if (!user || typeof window === 'undefined') return;
+  const username = (user.username || '').toLowerCase().trim();
+  const userId = user.id || '';
+
+  if (username) {
+    setCachedData(`public_profile_${username}`, user);
+  }
+  if (userId) {
+    setCachedData(`public_profile_${userId}`, user);
+  }
+
+  // Update known users list
+  const known = getCachedData('ph_known_users_map', {}) || {};
+  let changed = false;
+  if (username && !known[username]) {
+    known[username] = user;
+    changed = true;
+  } else if (username && known[username]) {
+    known[username] = { ...known[username], ...user };
+    changed = true;
+  }
+  if (userId && !known[userId]) {
+    known[userId] = user;
+    changed = true;
+  }
+  if (changed) {
+    setCachedData('ph_known_users_map', known);
+  }
+}
+
+export function cacheUsers(users) {
+  if (!Array.isArray(users) || typeof window === 'undefined') return;
+  users.forEach(u => cacheUser(u));
+}
+
+export function findUserInCache(usernameOrId) {
+  if (!usernameOrId || typeof window === 'undefined') return null;
+  const key = String(usernameOrId).toLowerCase().trim().replace(/^@/, '');
+  
+  // 1. Direct public profile cache
+  let user = getCachedData(`public_profile_${key}`, null);
+  if (user) return user;
+
+  // 2. Known users map
+  const known = getCachedData('ph_known_users_map', {}) || {};
+  if (known[key]) return known[key];
+
+  // 3. Search in suggested creators
+  const suggested = getCachedData('explore_suggested_users', []) || [];
+  user = suggested.find(u => 
+    (u.username && u.username.toLowerCase() === key) ||
+    (u.id && u.id.toLowerCase() === key)
+  );
+  if (user) return user;
+
+  // 4. Search in explore repos owners
+  const exploreRepos = getCachedData('explore_all_repos', []) || [];
+  for (const r of exploreRepos) {
+    if (r.owner) {
+      if (
+        (r.owner.username && r.owner.username.toLowerCase() === key) ||
+        (r.owner.id && r.owner.id.toLowerCase() === key)
+      ) {
+        return r.owner;
+      }
+    }
+  }
+
+  return null;
+}
+
+export function searchCachedUsers(query) {
+  if (!query || typeof window === 'undefined') return [];
+  const q = query.toLowerCase().trim().replace(/^@/, '');
+  if (!q) return [];
+
+  const results = new Map();
+
+  // Check known users map
+  const known = getCachedData('ph_known_users_map', {}) || {};
+  Object.values(known).forEach(u => {
+    if (!u) return;
+    const uname = (u.username || '').toLowerCase();
+    const name = (u.name || '').toLowerCase();
+    if (uname.includes(q) || name.includes(q)) {
+      results.set(u.username || u.id, u);
+    }
+  });
+
+  // Check suggested creators
+  const suggested = getCachedData('explore_suggested_users', []) || [];
+  suggested.forEach(u => {
+    if (!u) return;
+    const uname = (u.username || '').toLowerCase();
+    const name = (u.name || '').toLowerCase();
+    if (uname.includes(q) || name.includes(q)) {
+      results.set(u.username || u.id, u);
+    }
+  });
+
+  // Check repo owners
+  const exploreRepos = getCachedData('explore_all_repos', []) || [];
+  exploreRepos.forEach(r => {
+    if (r.owner) {
+      const uname = (r.owner.username || '').toLowerCase();
+      const name = (r.owner.name || '').toLowerCase();
+      if (uname.includes(q) || name.includes(q)) {
+        results.set(r.owner.username || r.owner.id, r.owner);
+      }
+    }
+  });
+
+  return Array.from(results.values()).slice(0, 8);
+}
+

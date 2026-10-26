@@ -28,7 +28,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { API_URL } from '../lib/api';
-import { getCachedData } from '../lib/cache';
+import { getCachedData, cacheUser, cacheUsers, searchCachedUsers } from '../lib/cache';
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -96,6 +96,7 @@ export default function Navbar() {
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data) ? data : [];
+        cacheUsers(list);
         
         // Match prompts from locally cached explore repositories in 0ms
         const allCachedRepos = getCachedData('explore_all_repos', []) || [];
@@ -125,7 +126,7 @@ export default function Navbar() {
     }
   }, []);
 
-  // Instant pre-match on keystroke (0ms!) + 70ms background sync
+  // Instant pre-match on keystroke (0ms!) across all cached users + 60ms background sync
   useEffect(() => {
     const trimmed = searchQuery.trim();
     if (trimmed.length === 0) {
@@ -138,12 +139,8 @@ export default function Navbar() {
     setShowSearchDropdown(true);
     const cacheKey = trimmed.toLowerCase();
 
-    // 0ms instant pre-matching from local cache
-    const cachedCreators = getCachedData('explore_suggested_users', []) || [];
-    const localUserMatches = cachedCreators.filter(u => 
-      (u.name && u.name.toLowerCase().includes(cacheKey)) ||
-      (u.username && u.username.toLowerCase().includes(cacheKey))
-    );
+    // 0ms instant pre-matching from global user and repo cache
+    const localUserMatches = searchCachedUsers(trimmed);
     const cachedRepos = getCachedData('explore_all_repos', []) || [];
     const localPromptMatches = cachedRepos.filter(r => 
       (r.name && r.name.toLowerCase().includes(cacheKey)) ||
@@ -159,7 +156,7 @@ export default function Navbar() {
     
     const timer = setTimeout(() => {
       performSearch(trimmed);
-    }, 70);
+    }, 60);
     return () => clearTimeout(timer);
   }, [searchQuery, performSearch]);
 
@@ -446,20 +443,28 @@ export default function Navbar() {
               <div className="absolute top-full left-0 right-0 mt-1 bg-[#161b22] border border-[#30363d] rounded-xl shadow-2xl py-1.5 z-50 overflow-hidden">
                 <div className="px-3 py-1.5 text-[10px] uppercase font-bold tracking-wider text-[#8b949e] border-b border-[#21262d] flex items-center justify-between">
                   <span>Creators & Users</span>
-                  <span className="text-[9px] text-[#58a6ff]">Live Search</span>
-                </div>
-                {isSearching ? (
-                  <div className="px-3 py-3 text-xs text-[#8b949e] flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-[#58a6ff] animate-ping"></span>
-                    Searching creators...
+                  <div className="flex items-center gap-1.5">
+                    {isSearching && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#58a6ff] animate-ping"></span>
+                    )}
+                    <span className="text-[9px] text-[#58a6ff]">
+                      {searchResults.length > 0 ? `${searchResults.length} Found` : isSearching ? "Searching..." : "Live Search"}
+                    </span>
                   </div>
-                ) : searchResults.length > 0 ? (
+                </div>
+                {searchResults.length > 0 ? (
                   <div className="max-h-64 overflow-y-auto divide-y divide-[#21262d]">
                     {searchResults.map(u => (
                       <Link
                         key={u.id}
                         href={`/u/${u.username}`}
-                        onClick={() => { setSearchQuery(''); setSearchResults([]); setShowSearchDropdown(false); setIsMobileSearchOpen(false); }}
+                        onClick={() => {
+                          cacheUser(u);
+                          setSearchQuery('');
+                          setSearchResults([]);
+                          setShowSearchDropdown(false);
+                          setIsMobileSearchOpen(false);
+                        }}
                         className="flex items-center gap-3 px-3 py-2.5 hover:bg-[#1f6feb]/20 hover:border-[#1f6feb]/40 transition group"
                       >
                         <img 
@@ -476,6 +481,11 @@ export default function Navbar() {
                         </div>
                       </Link>
                     ))}
+                  </div>
+                ) : isSearching ? (
+                  <div className="px-3 py-3 text-xs text-[#8b949e] flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#58a6ff] animate-ping"></span>
+                    Searching creators...
                   </div>
                 ) : (
                   <div className="px-3 py-3 text-xs text-[#8b949e]">No users found for &quot;{searchQuery}&quot;</div>
@@ -993,7 +1003,13 @@ export default function Navbar() {
                     <Link
                       key={u.id}
                       href={`/u/${u.username}`}
-                      onClick={() => { setIsDrawerOpen(false); setSearchQuery(''); setSearchResults([]); setShowSearchDropdown(false); }}
+                      onClick={() => {
+                        cacheUser(u);
+                        setIsDrawerOpen(false);
+                        setSearchQuery('');
+                        setSearchResults([]);
+                        setShowSearchDropdown(false);
+                      }}
                       className="flex items-center gap-2.5 p-2 hover:bg-[#21262d] transition"
                     >
                       <img 

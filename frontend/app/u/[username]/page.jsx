@@ -28,7 +28,7 @@ import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import { useAuth } from "../../../context/AuthContext";
 import { API_URL } from "../../../lib/api";
-import { getCachedData, setCachedData } from "../../../lib/cache";
+import { getCachedData, setCachedData, findUserInCache, cacheUser } from "../../../lib/cache";
 import UserListModal from "../../../components/UserListModal";
 
 const LEVEL_COLORS = [
@@ -44,7 +44,7 @@ export default function PublicProfilePage() {
   const router = useRouter();
   const { user: currentUser } = useAuth();
 
-  const cachedUser = getCachedData(`public_profile_${username}`, null);
+  const cachedUser = findUserInCache(username);
   const cachedRepos = getCachedData(`public_repos_${username}`, []);
   const cachedContrib = getCachedData(`public_contrib_${username}`, null);
 
@@ -72,51 +72,98 @@ export default function PublicProfilePage() {
   );
 
   useEffect(() => {
+    let isCancelled = false;
+
     async function fetchPublicProfile() {
-      try {
-        if (!cachedUser) setLoading(true);
-        setError(null);
-        const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-        const headers = storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {};
-
-        // Parallel fetch for lightning speed
-        const [userRes, repoRes, contribRes] = await Promise.all([
-          fetch(`${API_URL}/api/auth/users/${encodeURIComponent(username)}${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`, { headers }),
-          fetch(`${API_URL}/api/repositories/user/${encodeURIComponent(username)}${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`, { headers }),
-          fetch(`${API_URL}/api/auth/users/${encodeURIComponent(username)}/contributions`)
-        ]);
-
-        if (userRes.ok) {
-          const userData = await userRes.json();
-          setProfileUser(userData);
-          setCachedData(`public_profile_${username}`, userData);
-          setIsFollowing(Boolean(userData.is_following));
-          setFollowersCount(userData.followers_count || 0);
-          setFollowingCount(userData.following_count || 0);
-        } else if (!cachedUser) {
-          throw new Error("User not found");
-        }
-
-        if (repoRes.ok) {
-          const repoData = await repoRes.json();
-          setRepos(repoData);
-          setCachedData(`public_repos_${username}`, repoData);
-        }
-
-        if (contribRes.ok) {
-          const contribData = await contribRes.json();
-          setContributions(contribData);
-          setCachedData(`public_contrib_${username}`, contribData);
-        }
-
-      } catch (err) {
-        setError(err.message);
-      } finally {
+      // 0ms instant display check
+      const currentCache = findUserInCache(username);
+      if (currentCache && !profileUser) {
+        setProfileUser(currentCache);
         setLoading(false);
+        setIsFollowing(Boolean(currentCache.is_following));
+        setFollowersCount(currentCache.followers_count || 0);
+        setFollowingCount(currentCache.following_count || 0);
+      } else if (!currentCache && !profileUser) {
+        setLoading(true);
       }
+      setError(null);
+
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const headers = storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {};
+      if (currentUser?.id) {
+        headers['X-User-Id'] = currentUser.id;
+      }
+
+      // Decoupled, independent fetching with background SWR so UI is never blocked
+      const userPromise = fetch(
+        `${API_URL}/api/auth/users/${encodeURIComponent(username)}${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`,
+        { headers }
+      )
+        .then(async (res) => {
+          if (isCancelled) return;
+          if (res.ok) {
+            const userData = await res.json();
+            if (isCancelled) return;
+            setProfileUser(userData);
+            cacheUser(userData);
+            setIsFollowing(Boolean(userData.is_following));
+            setFollowersCount(userData.followers_count || 0);
+            setFollowingCount(userData.following_count || 0);
+            setLoading(false);
+          } else if (!cachedUser && !profileUser) {
+            setError("User not found");
+            setLoading(false);
+          }
+        })
+        .catch((err) => {
+          if (isCancelled) return;
+          console.error("Profile fetch error:", err);
+          if (!cachedUser && !profileUser) {
+            setError("Failed to load user profile");
+            setLoading(false);
+          }
+        });
+
+      const reposPromise = fetch(
+        `${API_URL}/api/repositories/user/${encodeURIComponent(username)}${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`,
+        { headers }
+      )
+        .then(async (res) => {
+          if (isCancelled) return;
+          if (res.ok) {
+            const repoData = await res.json();
+            if (isCancelled) return;
+            setRepos(repoData);
+            setCachedData(`public_repos_${username}`, repoData);
+          }
+        })
+        .catch((err) => console.error("Repos fetch error:", err));
+
+      const contribPromise = fetch(
+        `${API_URL}/api/auth/users/${encodeURIComponent(username)}/contributions`
+      )
+        .then(async (res) => {
+          if (isCancelled) return;
+          if (res.ok) {
+            const contribData = await res.json();
+            if (isCancelled) return;
+            setContributions(contribData);
+            setCachedData(`public_contrib_${username}`, contribData);
+          }
+        })
+        .catch((err) => console.error("Contributions fetch error:", err));
+
+      await Promise.allSettled([userPromise, reposPromise, contribPromise]);
+      if (!isCancelled) setLoading(false);
     }
+
     fetchPublicProfile();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [username, currentUser?.id]);
+
 
   const handleToggleFollow = async () => {
     if (!currentUser) {

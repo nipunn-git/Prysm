@@ -47,7 +47,7 @@ import {
 } from "../../../lib/repoStore";
 
 import { API_URL } from "../../../lib/api";
-import { getCachedData, setCachedData } from "../../../lib/cache";
+import { getCachedData, setCachedData, cacheUser } from "../../../lib/cache";
 
 // Helper to format relative time (e.g. "2 hours ago", "just now")
 function formatRelativeTime(dateString) {
@@ -150,6 +150,16 @@ export default function RepositoryPage() {
         const data = await res.json();
         setRepo(data);
         setCachedData(`repo_detail_${id}`, data);
+        if (data.owner) {
+          cacheUser(data.owner);
+        } else if (data.owner_username) {
+          cacheUser({
+            id: data.owner_id,
+            username: data.owner_username,
+            name: data.owner_name,
+            avatar: data.owner_avatar
+          });
+        }
         setIsStarred(Boolean(data.is_starred));
         setStarCount(data.stars_count || 0);
 

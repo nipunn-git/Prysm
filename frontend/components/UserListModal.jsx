@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { X, Users, UserPlus, UserCheck, Loader2, Book } from 'lucide-react';
 import { API_URL } from '../lib/api';
+import { cacheUser, cacheUsers } from '../lib/cache';
 
 export default function UserListModal({
   isOpen,
@@ -42,6 +43,7 @@ export default function UserListModal({
         const data = await res.json();
         const list = Array.isArray(data) ? data : [];
         setUsers(list);
+        cacheUsers(list);
         const map = {};
         list.forEach(u => {
           map[u.id] = Boolean(u.is_following);
@@ -188,7 +190,10 @@ export default function UserListModal({
                 >
                   <Link
                     href={`/u/${u.username}`}
-                    onClick={onClose}
+                    onClick={() => {
+                      cacheUser(u);
+                      onClose();
+                    }}
                     className="flex items-center gap-3 min-w-0 flex-1 group"
                   >
                     <img

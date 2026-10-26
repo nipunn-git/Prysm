@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Header, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 from database import get_db
 import models
@@ -550,9 +550,21 @@ def get_user_profile(
     username: str, 
     token: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
     db: Session = Depends(get_db)
 ):
-    clean_uname = username.lstrip('@').strip()
+    clean_uname = username.lstrip('@').strip().lower()
+    current_user_id = resolve_user_id_from_token(token or authorization, db)
+    if not current_user_id and isinstance(x_user_id, str) and x_user_id.strip():
+        current_user_id = x_user_id.strip()
+    if not isinstance(current_user_id, str):
+        current_user_id = None
+
+    cache_key = f"user_profile:{clean_uname}:{current_user_id or 'anon'}"
+    cached = fast_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     user = db.query(models.User).filter(
         or_(
             models.User.username.ilike(clean_uname),
@@ -563,8 +575,9 @@ def get_user_profile(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
         
-    current_user_id = resolve_user_id_from_token(token or authorization, db)
-    return build_user_response(user, db, current_user_id)
+    res = build_user_response(user, db, current_user_id)
+    fast_cache.set(cache_key, res, ttl=60)
+    return res
 
 @router.post("/users/{target_id}/follow")
 def toggle_follow_user(
@@ -637,6 +650,9 @@ def toggle_follow_user(
         
     fast_cache.invalidate("suggested_creators")
     fast_cache.invalidate("user_search")
+    fast_cache.invalidate("user_profile")
+    fast_cache.invalidate("user_followers")
+    fast_cache.invalidate("user_following")
 
     followers_count = db.query(models.UserFollow).filter(models.UserFollow.following_id == target_user.id).count()
     return {
@@ -653,25 +669,33 @@ def get_user_followers(
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
     db: Session = Depends(get_db)
 ):
-    clean_target = user_id.lstrip('@').strip()
+    clean_target = user_id.lstrip('@').strip().lower()
+    current_user_id = resolve_user_id_from_token(token or authorization, db)
+    if not current_user_id and isinstance(x_user_id, str):
+        current_user_id = x_user_id.strip()
+    if not isinstance(current_user_id, str):
+        current_user_id = None
+
+    cache_key = f"user_followers:{clean_target}:{current_user_id or 'anon'}"
+    cached = fast_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     target_user = db.query(models.User).filter(
         or_(models.User.id == clean_target, models.User.username.ilike(clean_target))
     ).first()
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
         
-    current_user_id = resolve_user_id_from_token(token or authorization, db)
-    if not current_user_id and isinstance(x_user_id, str):
-        current_user_id = x_user_id.strip()
-    if not isinstance(current_user_id, str):
-        current_user_id = None
-        
     follows = db.query(models.UserFollow).filter(models.UserFollow.following_id == target_user.id).all()
     follower_ids = [f.follower_id for f in follows]
     if not follower_ids:
+        fast_cache.set(cache_key, [], ttl=60)
         return []
     users = db.query(models.User).filter(models.User.id.in_(follower_ids)).all()
-    return [build_user_response(u, db, current_user_id) for u in users]
+    res = build_user_responses_batch(users, db, current_user_id)
+    fast_cache.set(cache_key, res, ttl=60)
+    return res
 
 @router.get("/users/{user_id}/following", response_model=List[schemas.UserResponse])
 def get_user_following(
@@ -681,25 +705,33 @@ def get_user_following(
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
     db: Session = Depends(get_db)
 ):
-    clean_target = user_id.lstrip('@').strip()
+    clean_target = user_id.lstrip('@').strip().lower()
+    current_user_id = resolve_user_id_from_token(token or authorization, db)
+    if not current_user_id and isinstance(x_user_id, str):
+        current_user_id = x_user_id.strip()
+    if not isinstance(current_user_id, str):
+        current_user_id = None
+
+    cache_key = f"user_following:{clean_target}:{current_user_id or 'anon'}"
+    cached = fast_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     target_user = db.query(models.User).filter(
         or_(models.User.id == clean_target, models.User.username.ilike(clean_target))
     ).first()
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
         
-    current_user_id = resolve_user_id_from_token(token or authorization, db)
-    if not current_user_id and isinstance(x_user_id, str):
-        current_user_id = x_user_id.strip()
-    if not isinstance(current_user_id, str):
-        current_user_id = None
-        
     follows = db.query(models.UserFollow).filter(models.UserFollow.follower_id == target_user.id).all()
     following_ids = [f.following_id for f in follows]
     if not following_ids:
+        fast_cache.set(cache_key, [], ttl=60)
         return []
     users = db.query(models.User).filter(models.User.id.in_(following_ids)).all()
-    return [build_user_response(u, db, current_user_id) for u in users]
+    res = build_user_responses_batch(users, db, current_user_id)
+    fast_cache.set(cache_key, res, ttl=60)
+    return res
 
 class SyncUserPayload(BaseModel):
     id: Optional[str] = None
@@ -756,8 +788,14 @@ def sync_user(payload: SyncUserPayload, db: Session = Depends(get_db)):
 
 @router.get("/users/{user_id}/contributions")
 def get_user_contributions(user_id: str, db: Session = Depends(get_db)):
+    clean_target = user_id.lstrip('@').strip().lower()
+    cache_key = f"user_contributions:{clean_target}"
+    cached = fast_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     user = db.query(models.User).filter(
-        (models.User.id == user_id) | (models.User.username == user_id)
+        or_(models.User.id == clean_target, models.User.username.ilike(clean_target))
     ).first()
     
     if not user:
@@ -768,8 +806,13 @@ def get_user_contributions(user_id: str, db: Session = Depends(get_db)):
 
     actual_user_id = user.id
 
-    # 1. Fetch user's real repositories and prompt versions
-    user_repos = db.query(models.Repository).filter(models.Repository.owner_id == actual_user_id).all()
+    # 1. Fetch user's real repositories and prompt versions in a single query with joinedload
+    user_repos = (
+        db.query(models.Repository)
+        .options(joinedload(models.Repository.versions))
+        .filter(models.Repository.owner_id == actual_user_id)
+        .all()
+    )
     
     counts = {}
     recent_activity = []
@@ -842,10 +885,12 @@ def get_user_contributions(user_id: str, db: Session = Depends(get_db)):
             weeks.append(current_week)
             current_week = []
 
-    return {
+    res = {
         "user_id": actual_user_id,
         "username": user.username,
         "total_contributions": total_contributions,
         "recent_activities": recent_activity[:15],
         "weeks": weeks
     }
+    fast_cache.set(cache_key, res, ttl=120)
+    return res

@@ -295,7 +295,7 @@ def list_public_repositories_for_user(
         )
     repos = query.order_by(desc(models.Repository.updated_at)).all()
     res = build_repo_responses_batch(repos, db, current_user_id)
-    fast_cache.set(cache_key, res, ttl=20)
+    fast_cache.set(cache_key, res, ttl=60)
     return res
 
 @router.get("/activity")
