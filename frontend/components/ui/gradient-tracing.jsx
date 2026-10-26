@@ -12,18 +12,25 @@ export const GradientTracing = ({
   strokeWidth = 2,
   path = `M0,${height / 2} L${width},${height / 2}`,
   className = "",
+  style = {},
 }) => {
   const reactId = useId();
   const gradientId = `pulse-${reactId.replace(/:/g, "")}`;
 
+  const containerStyle = {
+    width: className.includes("w-full") ? "100%" : width,
+    height: className.includes("h-full") ? "100%" : height,
+    ...style,
+  };
+
   return (
-    <div className={`relative ${className}`} style={{ width, height }}>
+    <div className={`relative ${className}`} style={containerStyle}>
       <svg
-        width={width}
-        height={height}
+        width="100%"
+        height="100%"
         viewBox={`0 0 ${width} ${height}`}
         fill="none"
-        className="overflow-visible"
+        className="overflow-visible w-full h-full"
       >
         <path
           d={path}
@@ -35,7 +42,11 @@ export const GradientTracing = ({
           d={path}
           stroke={`url(#${gradientId})`}
           strokeLinecap="round"
+          strokeLinejoin="round"
           strokeWidth={strokeWidth}
+          style={{
+            filter: "drop-shadow(0 0 8px rgba(121, 40, 202, 0.5))",
+          }}
         />
         <defs>
           <motion.linearGradient
