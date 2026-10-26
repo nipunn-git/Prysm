@@ -349,17 +349,20 @@ export default function DashboardPage() {
     }
   }, [chatInput, isAiThinking, chatMessages, user?.id, activeSessionId, chatSessions, persistSessions, getStorageKey]);
 
+  // Fetch repositories immediately on mount — zero waiting time!
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
+    fetchRepos();
+  }, [fetchRepos]);
+
+  // Auth redirect check only after auth check finishes
+  useEffect(() => {
+    if (!authLoading && !user) {
       const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
       if (!storedToken) {
         router.replace('/login');
-        return;
       }
     }
-    fetchRepos();
-  }, [authLoading, user, router, fetchRepos]);
+  }, [authLoading, user, router]);
 
   // Auto-scroll chat to bottom
   useEffect(() => {

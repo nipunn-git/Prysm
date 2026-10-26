@@ -28,6 +28,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { API_URL } from '../lib/api';
+import { getCachedData } from '../lib/cache';
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -41,6 +42,7 @@ export default function Navbar() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [promptResults, setPromptResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
 
@@ -64,18 +66,18 @@ export default function Navbar() {
     const trimmed = (query || '').trim();
     if (trimmed.length === 0) {
       setSearchResults([]);
+      setPromptResults([]);
       setShowSearchDropdown(false);
       return;
     }
 
     const cacheKey = trimmed.toLowerCase();
     if (searchCacheRef.current.has(cacheKey)) {
-      setSearchResults(searchCacheRef.current.get(cacheKey));
+      const cachedData = searchCacheRef.current.get(cacheKey);
+      setSearchResults(cachedData.users || []);
+      setPromptResults(cachedData.prompts || []);
       setShowSearchDropdown(true);
       setIsSearching(false);
-    } else {
-      setIsSearching(true);
-      setShowSearchDropdown(true);
     }
     
     // Cancel any in-flight request
@@ -88,16 +90,27 @@ export default function Navbar() {
     try {
       const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
       const res = await fetch(
-        `${API_URL}/api/auth/users/search?q=${encodeURIComponent(trimmed)}&_t=${Date.now()}${storedToken ? `&token=${encodeURIComponent(storedToken)}` : ''}`,
+        `${API_URL}/api/auth/users/search?q=${encodeURIComponent(trimmed)}${storedToken ? `&token=${encodeURIComponent(storedToken)}` : ''}`,
         { signal: controller.signal }
       );
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data) ? data : [];
-        searchCacheRef.current.set(cacheKey, list);
+        
+        // Match prompts from locally cached explore repositories in 0ms
+        const allCachedRepos = getCachedData('explore_all_repos', []) || [];
+        const matchedPrompts = allCachedRepos.filter(r => 
+          (r.name && r.name.toLowerCase().includes(cacheKey)) ||
+          (r.description && r.description.toLowerCase().includes(cacheKey)) ||
+          (r.category && r.category.toLowerCase().includes(cacheKey))
+        ).slice(0, 4);
+
+        searchCacheRef.current.set(cacheKey, { users: list, prompts: matchedPrompts });
+
         // Only update if this is still the current query (case-insensitive)
         if (searchQueryRef.current.trim().toLowerCase() === cacheKey) {
           setSearchResults(list);
+          setPromptResults(matchedPrompts);
           setShowSearchDropdown(true);
         }
       }
@@ -112,20 +125,41 @@ export default function Navbar() {
     }
   }, []);
 
-  // Debounced search: fires with 150ms delay for ultra snappy feel
+  // Instant pre-match on keystroke (0ms!) + 70ms background sync
   useEffect(() => {
     const trimmed = searchQuery.trim();
     if (trimmed.length === 0) {
       setSearchResults([]);
+      setPromptResults([]);
       setShowSearchDropdown(false);
       return;
     }
     
     setShowSearchDropdown(true);
+    const cacheKey = trimmed.toLowerCase();
+
+    // 0ms instant pre-matching from local cache
+    const cachedCreators = getCachedData('explore_suggested_users', []) || [];
+    const localUserMatches = cachedCreators.filter(u => 
+      (u.name && u.name.toLowerCase().includes(cacheKey)) ||
+      (u.username && u.username.toLowerCase().includes(cacheKey))
+    );
+    const cachedRepos = getCachedData('explore_all_repos', []) || [];
+    const localPromptMatches = cachedRepos.filter(r => 
+      (r.name && r.name.toLowerCase().includes(cacheKey)) ||
+      (r.description && r.description.toLowerCase().includes(cacheKey)) ||
+      (r.category && r.category.toLowerCase().includes(cacheKey))
+    ).slice(0, 4);
+
+    if (localUserMatches.length > 0 || localPromptMatches.length > 0) {
+      setSearchResults(localUserMatches);
+      setPromptResults(localPromptMatches);
+    }
+    setIsSearching(true);
     
     const timer = setTimeout(() => {
       performSearch(trimmed);
-    }, 150);
+    }, 70);
     return () => clearTimeout(timer);
   }, [searchQuery, performSearch]);
 
@@ -446,10 +480,34 @@ export default function Navbar() {
                 ) : (
                   <div className="px-3 py-3 text-xs text-[#8b949e]">No users found for &quot;{searchQuery}&quot;</div>
                 )}
+                {promptResults.length > 0 && (
+                  <>
+                    <div className="px-3 py-1.5 text-[10px] uppercase font-bold tracking-wider text-[#8b949e] border-t border-b border-[#21262d] flex items-center justify-between bg-[#161b22]">
+                      <span>Matching Prompts</span>
+                      <span className="text-[9px] text-[#3fb950]">Instant</span>
+                    </div>
+                    <div className="max-h-44 overflow-y-auto divide-y divide-[#21262d]">
+                      {promptResults.map(p => (
+                        <Link
+                          key={p.id}
+                          href={`/repo/${p.id}`}
+                          onClick={() => { setSearchQuery(''); setSearchResults([]); setPromptResults([]); setShowSearchDropdown(false); setIsMobileSearchOpen(false); }}
+                          className="flex items-center gap-2.5 px-3 py-2 hover:bg-[#238636]/20 transition group"
+                        >
+                          <FolderGit2 className="w-3.5 h-3.5 text-[#58a6ff] shrink-0" />
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-xs font-semibold text-[#f0f6fc] group-hover:text-[#58a6ff] truncate">{p.name}</span>
+                            <span className="text-[10px] text-[#8b949e] truncate">{p.description || p.category}</span>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </>
+                )}
                 <div className="border-t border-[#30363d]"></div>
                 <Link
                   href={`/explore?search=${encodeURIComponent(searchQuery.trim())}`}
-                  onClick={() => { setSearchQuery(''); setSearchResults([]); setShowSearchDropdown(false); setIsMobileSearchOpen(false); }}
+                  onClick={() => { setSearchQuery(''); setSearchResults([]); setPromptResults([]); setShowSearchDropdown(false); setIsMobileSearchOpen(false); }}
                   className="block px-3 py-2 text-xs font-semibold text-[#58a6ff] hover:bg-[#161b22] transition text-center"
                 >
                   Search all prompts for &quot;{searchQuery}&quot; →

@@ -7,6 +7,7 @@ import models
 import schemas
 
 from services.ai_service import generate_prompt_and_repo_metadata
+from cache import fast_cache
 
 DEFAULT_USER_ID = "usr_nipun_01"
 
@@ -61,6 +62,9 @@ def ai_generate_repository(
     db.add(first_version)
     db.commit()
     db.refresh(new_repo)
+
+    fast_cache.invalidate("explore_repos")
+    fast_cache.invalidate("user_repos")
 
     owner = db.query(models.User).filter(models.User.id == user_id).first()
 
@@ -165,6 +169,11 @@ def list_user_repositories(
         
     target_user_id = user_id if isinstance(user_id, str) and user_id.strip() else current_user_id
     
+    cache_key = f"user_repos:{target_user_id or 'all'}:{search or 'none'}:{current_user_id or 'anon'}"
+    cached = fast_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     query = db.query(models.Repository).options(
         joinedload(models.Repository.owner),
         joinedload(models.Repository.versions)
@@ -186,7 +195,9 @@ def list_user_repositories(
             )
         )
     repos = query.order_by(desc(models.Repository.updated_at)).all()
-    return build_repo_responses_batch(repos, db, current_user_id)
+    res = build_repo_responses_batch(repos, db, current_user_id)
+    fast_cache.set(cache_key, res, ttl=20)
+    return res
 
 @router.get("/explore", response_model=List[schemas.RepositoryResponse])
 def explore_public_repositories(
@@ -205,6 +216,11 @@ def explore_public_repositories(
             current_user_id = fallback.strip()
     if not isinstance(current_user_id, str):
         current_user_id = None
+
+    cache_key = f"explore_repos:{category or 'all'}:{search or 'none'}:{current_user_id or 'anon'}"
+    cached = fast_cache.get(cache_key)
+    if cached is not None:
+        return cached
 
     query = (
         db.query(models.Repository)
@@ -231,7 +247,9 @@ def explore_public_repositories(
             )
         )
     repos = query.order_by(desc(models.Repository.updated_at)).limit(60).all()
-    return build_repo_responses_batch(repos, db, current_user_id)
+    res = build_repo_responses_batch(repos, db, current_user_id)
+    fast_cache.set(cache_key, res, ttl=20)
+    return res
 
 @router.get("/user/{username}", response_model=List[schemas.RepositoryResponse])
 def list_public_repositories_for_user(
@@ -255,6 +273,11 @@ def list_public_repositories_for_user(
     current_user_id = resolve_user_id_from_token(token or authorization, db) or x_user_id
     is_owner = bool(current_user_id and current_user_id == user.id)
     
+    cache_key = f"public_repos_user:{clean_uname}:{current_user_id or 'anon'}"
+    cached = fast_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     query = (
         db.query(models.Repository)
         .options(
@@ -271,7 +294,9 @@ def list_public_repositories_for_user(
             )
         )
     repos = query.order_by(desc(models.Repository.updated_at)).all()
-    return build_repo_responses_batch(repos, db, current_user_id)
+    res = build_repo_responses_batch(repos, db, current_user_id)
+    fast_cache.set(cache_key, res, ttl=20)
+    return res
 
 @router.get("/activity")
 def get_recent_activity(db: Session = Depends(get_db)):
@@ -392,6 +417,10 @@ def create_repository(
     db.commit()
     db.refresh(new_repo)
 
+    fast_cache.invalidate("explore_repos")
+    fast_cache.invalidate("user_repos")
+    fast_cache.invalidate("public_repos_user")
+
     return build_repo_response(new_repo, db, actual_user_id)
 
 @router.post("/{repo_id}/star")
@@ -453,6 +482,9 @@ def toggle_star_repository(
 
         db.commit()
         starred = True
+
+    fast_cache.invalidate("explore_repos")
+    fast_cache.invalidate("user_repos")
         
     stars_count = db.query(models.RepositoryStar).filter(models.RepositoryStar.repository_id == repo.id).count()
     return {

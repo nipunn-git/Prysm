@@ -80,6 +80,22 @@ function ExploreContent() {
     fetchSuggested();
   }, [user?.id]);
 
+  // Instant 0ms pre-match for creators on keystroke
+  useEffect(() => {
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      const localMatches = (suggestedUsers || []).filter(u =>
+        (u.name && u.name.toLowerCase().includes(q)) ||
+        (u.username && u.username.toLowerCase().includes(q))
+      );
+      if (localMatches.length > 0) {
+        setUsers(localMatches);
+      }
+    } else {
+      setUsers([]);
+    }
+  }, [search, suggestedUsers]);
+
   useEffect(() => {
     async function fetchData() {
       // Don't show blocking loading state if we already have cached repos
@@ -129,7 +145,7 @@ function ExploreContent() {
     }
     const delayDebounceFn = setTimeout(() => {
       fetchData();
-    }, 150);
+    }, 70);
     return () => clearTimeout(delayDebounceFn);
   }, [category, search, user?.id]);
 

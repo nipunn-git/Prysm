@@ -11,6 +11,7 @@ from firebase_admin import credentials, auth as firebase_auth
 import base64
 import json
 import os
+from cache import fast_cache
 
 try:
     # Initialize default app with default credentials or credentials object if available
@@ -474,6 +475,11 @@ def search_users(
         search_filters.append(models.User.username.ilike(f"%{word}%"))
         search_filters.append(models.User.name.ilike(f"%{word}%"))
 
+    cache_key = f"user_search:{stripped_q}:{current_user_id or 'anon'}"
+    cached = fast_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     raw_users = db.query(models.User).filter(or_(*search_filters)).limit(50).all()
     
     # Deduplicate while preserving order
@@ -503,7 +509,9 @@ def search_users(
         return 6
 
     sorted_users = sorted(users, key=score_match)
-    return build_user_responses_batch(sorted_users, db, current_user_id)
+    res = build_user_responses_batch(sorted_users, db, current_user_id)
+    fast_cache.set(cache_key, res, ttl=45)
+    return res
 
 @router.get("/users/suggested", response_model=List[schemas.UserResponse])
 def get_suggested_creators(
@@ -518,6 +526,11 @@ def get_suggested_creators(
     if not isinstance(current_user_id, str):
         current_user_id = None
 
+    cache_key = f"suggested_creators:{current_user_id or 'anon'}"
+    cached = fast_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     query = db.query(models.User)
     if current_user_id:
         query = query.filter(models.User.id != current_user_id)
@@ -527,7 +540,9 @@ def get_suggested_creators(
     # Batch build user responses without N+1 queries
     user_responses = build_user_responses_batch(users, db, current_user_id)
     user_responses.sort(key=lambda ur: (ur.repos_count or 0, ur.followers_count or 0), reverse=True)
-    return user_responses[:12]
+    res = user_responses[:12]
+    fast_cache.set(cache_key, res, ttl=60)
+    return res
 
 
 @router.get("/users/{username}", response_model=schemas.UserResponse)
@@ -620,6 +635,9 @@ def toggle_follow_user(
         db.commit()
         following = True
         
+    fast_cache.invalidate("suggested_creators")
+    fast_cache.invalidate("user_search")
+
     followers_count = db.query(models.UserFollow).filter(models.UserFollow.following_id == target_user.id).count()
     return {
         "following": following,
