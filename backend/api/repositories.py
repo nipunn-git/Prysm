@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Header
-from sqlalchemy.orm import Session
-from sqlalchemy import or_, desc
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import or_, desc, func
 from typing import List, Optional
 from database import get_db
 import models
@@ -84,34 +84,70 @@ def ai_generate_repository(
 
 from api.auth import resolve_user_id_from_token
 
-def build_repo_response(r: models.Repository, db: Session, current_user_id: Optional[str] = None) -> schemas.RepositoryResponse:
-    latest = r.versions[0] if r.versions else None
-    stars_count = db.query(models.RepositoryStar).filter(models.RepositoryStar.repository_id == r.id).count()
-    is_starred = False
-    if current_user_id and isinstance(current_user_id, str):
-        is_starred = bool(db.query(models.RepositoryStar).filter(
-            models.RepositoryStar.user_id == current_user_id,
-            models.RepositoryStar.repository_id == r.id
-        ).first())
-    return schemas.RepositoryResponse(
-        id=r.id,
-        owner_id=r.owner_id,
-        owner_username=r.owner.username if r.owner else "user",
-        owner_name=r.owner.name if r.owner else "Developer",
-        owner_avatar=r.owner.avatar if r.owner else None,
-        name=r.name,
-        description=r.description or "",
-        category=r.category,
-        visibility=r.visibility,
-        created_at=r.created_at,
-        updated_at=r.updated_at,
-        versions_count=len(r.versions),
-        latest_version=latest.version if latest else "v1.0",
-        latest_prompt=latest.content if latest else "",
-        stars_count=stars_count,
-        forks_count=0,
-        is_starred=is_starred
+def build_repo_responses_batch(
+    repos: List[models.Repository], 
+    db: Session, 
+    current_user_id: Optional[str] = None
+) -> List[schemas.RepositoryResponse]:
+    if not repos:
+        return []
+        
+    valid_repos = [r for r in repos if r]
+    if not valid_repos:
+        return []
+
+    repo_ids = [r.id for r in valid_repos]
+
+    # 1. Batch fetch stars count for all repositories in one query
+    star_counts = dict(
+        db.query(models.RepositoryStar.repository_id, func.count(models.RepositoryStar.id))
+        .filter(models.RepositoryStar.repository_id.in_(repo_ids))
+        .group_by(models.RepositoryStar.repository_id)
+        .all()
     )
+
+    # 2. Batch fetch starred set for current_user_id
+    starred_set = set()
+    if current_user_id and isinstance(current_user_id, str):
+        starred_rows = (
+            db.query(models.RepositoryStar.repository_id)
+            .filter(
+                models.RepositoryStar.user_id == current_user_id,
+                models.RepositoryStar.repository_id.in_(repo_ids)
+            )
+            .all()
+        )
+        starred_set = {r[0] for r in starred_rows}
+
+    responses = []
+    for r in valid_repos:
+        latest = r.versions[0] if r.versions else None
+        responses.append(schemas.RepositoryResponse(
+            id=r.id,
+            owner_id=r.owner_id,
+            owner_username=r.owner.username if r.owner else "user",
+            owner_name=r.owner.name if r.owner else "Developer",
+            owner_avatar=r.owner.avatar if r.owner else None,
+            name=r.name,
+            description=r.description or "",
+            category=r.category,
+            visibility=r.visibility,
+            created_at=r.created_at,
+            updated_at=r.updated_at,
+            versions_count=len(r.versions),
+            latest_version=latest.version if latest else "v1.0",
+            latest_prompt=latest.content if latest else "",
+            stars_count=star_counts.get(r.id, 0),
+            forks_count=0,
+            is_starred=(r.id in starred_set)
+        ))
+    return responses
+
+def build_repo_response(r: models.Repository, db: Session, current_user_id: Optional[str] = None) -> Optional[schemas.RepositoryResponse]:
+    if not r:
+        return None
+    res = build_repo_responses_batch([r], db, current_user_id)
+    return res[0] if res else None
 
 
 @router.get("", response_model=List[schemas.RepositoryResponse])
@@ -123,20 +159,25 @@ def list_user_repositories(
     search: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    current_user_id = resolve_user_id_from_token(token or authorization, db) or x_user_id
-    target_user_id = user_id or current_user_id
+    current_user_id = resolve_user_id_from_token(token or authorization, db)
+    if not current_user_id and isinstance(x_user_id, str):
+        current_user_id = x_user_id.strip() or None
+        
+    target_user_id = user_id if isinstance(user_id, str) and user_id.strip() else current_user_id
     
-    query = db.query(models.Repository)
-    if target_user_id:
-        # Check by id or username
+    query = db.query(models.Repository).options(
+        joinedload(models.Repository.owner),
+        joinedload(models.Repository.versions)
+    )
+    if target_user_id and isinstance(target_user_id, str) and target_user_id.strip():
         matched_user = db.query(models.User).filter(
-            or_(models.User.id == target_user_id, models.User.username.ilike(target_user_id))
+            or_(models.User.id == target_user_id.strip(), models.User.username.ilike(target_user_id.strip()))
         ).first()
-        target_uid = matched_user.id if matched_user else target_user_id
+        target_uid = matched_user.id if matched_user else target_user_id.strip()
         query = query.filter(models.Repository.owner_id == target_uid)
         
-    if search:
-        search_pattern = f"%{search}%"
+    if search and isinstance(search, str) and search.strip():
+        search_pattern = f"%{search.strip()}%"
         query = query.filter(
             or_(
                 models.Repository.name.ilike(search_pattern),
@@ -145,7 +186,7 @@ def list_user_repositories(
             )
         )
     repos = query.order_by(desc(models.Repository.updated_at)).all()
-    return [build_repo_response(r, db, current_user_id) for r in repos]
+    return build_repo_responses_batch(repos, db, current_user_id)
 
 @router.get("/explore", response_model=List[schemas.RepositoryResponse])
 def explore_public_repositories(
@@ -157,15 +198,29 @@ def explore_public_repositories(
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
     db: Session = Depends(get_db)
 ):
-    current_user_id = resolve_user_id_from_token(token or authorization, db) or user_id or x_user_id
-    query = db.query(models.Repository).join(models.User, models.Repository.owner_id == models.User.id).filter(
-        models.Repository.visibility.ilike("Public")
+    current_user_id = resolve_user_id_from_token(token or authorization, db)
+    if not current_user_id:
+        fallback = user_id or x_user_id
+        if isinstance(fallback, str) and fallback.strip():
+            current_user_id = fallback.strip()
+    if not isinstance(current_user_id, str):
+        current_user_id = None
+
+    query = (
+        db.query(models.Repository)
+        .join(models.User, models.Repository.owner_id == models.User.id)
+        .options(
+            joinedload(models.Repository.owner),
+            joinedload(models.Repository.versions)
+        )
+        .filter(models.Repository.visibility.ilike("Public"))
     )
-    if category and category.lower() != "all":
-        query = query.filter(models.Repository.category.ilike(category))
-    if search:
+    if isinstance(category, str) and category.strip() and category.strip().lower() != "all":
+        query = query.filter(models.Repository.category.ilike(category.strip()))
+    if isinstance(search, str) and search.strip():
         clean_s = search.strip().lstrip('@').strip()
-        search_pattern = f"%{clean_s}%"
+        if clean_s:
+            search_pattern = f"%{clean_s}%"
         query = query.filter(
             or_(
                 models.Repository.name.ilike(search_pattern),
@@ -175,8 +230,8 @@ def explore_public_repositories(
                 models.User.name.ilike(search_pattern)
             )
         )
-    repos = query.order_by(desc(models.Repository.updated_at)).all()
-    return [build_repo_response(r, db, current_user_id) for r in repos]
+    repos = query.order_by(desc(models.Repository.updated_at)).limit(60).all()
+    return build_repo_responses_batch(repos, db, current_user_id)
 
 @router.get("/user/{username}", response_model=List[schemas.RepositoryResponse])
 def list_public_repositories_for_user(
@@ -200,20 +255,23 @@ def list_public_repositories_for_user(
     current_user_id = resolve_user_id_from_token(token or authorization, db) or x_user_id
     is_owner = bool(current_user_id and current_user_id == user.id)
     
-    if is_owner:
-        repos = db.query(models.Repository).filter(
-            models.Repository.owner_id == user.id
-        ).order_by(desc(models.Repository.updated_at)).all()
-    else:
-        repos = db.query(models.Repository).filter(
-            models.Repository.owner_id == user.id,
+    query = (
+        db.query(models.Repository)
+        .options(
+            joinedload(models.Repository.owner),
+            joinedload(models.Repository.versions)
+        )
+        .filter(models.Repository.owner_id == user.id)
+    )
+    if not is_owner:
+        query = query.filter(
             or_(
                 models.Repository.visibility.ilike("Public"),
                 models.Repository.name.ilike(user.username)  # Special profile repo
             )
-        ).order_by(desc(models.Repository.updated_at)).all()
-    
-    return [build_repo_response(r, db, current_user_id) for r in repos]
+        )
+    repos = query.order_by(desc(models.Repository.updated_at)).all()
+    return build_repo_responses_batch(repos, db, current_user_id)
 
 @router.get("/activity")
 def get_recent_activity(db: Session = Depends(get_db)):

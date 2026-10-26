@@ -70,6 +70,7 @@ export function AuthProvider({ children }) {
           const cachedUser = JSON.parse(storedUser);
           setUser(cachedUser);
           setToken(storedToken);
+          setIsLoading(false); // Instant load! No waiting on network roundtrips
         } catch (e) {
           console.error("Failed to parse cached user:", e);
         }

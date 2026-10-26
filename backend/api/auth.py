@@ -36,36 +36,82 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 # In-memory session cache for fast lookups
 active_sessions = {}
 
-def build_user_response(user: models.User, db: Session, current_user_id: Optional[str] = None) -> schemas.UserResponse:
+def build_user_responses_batch(users: List[models.User], db: Session, current_user_id: Optional[str] = None) -> List[schemas.UserResponse]:
+    if not users:
+        return []
+    
+    valid_users = [u for u in users if u]
+    if not valid_users:
+        return []
+
+    user_ids = [u.id for u in valid_users]
+    from sqlalchemy import func
+
+    # 1. Batch followers count for all users in one query
+    followers_counts = dict(
+        db.query(models.UserFollow.following_id, func.count(models.UserFollow.id))
+        .filter(models.UserFollow.following_id.in_(user_ids))
+        .group_by(models.UserFollow.following_id)
+        .all()
+    )
+
+    # 2. Batch following count for all users in one query
+    following_counts = dict(
+        db.query(models.UserFollow.follower_id, func.count(models.UserFollow.id))
+        .filter(models.UserFollow.follower_id.in_(user_ids))
+        .group_by(models.UserFollow.follower_id)
+        .all()
+    )
+
+    # 3. Batch repos count for all users in one query
+    repos_counts = dict(
+        db.query(models.Repository.owner_id, func.count(models.Repository.id))
+        .filter(models.Repository.owner_id.in_(user_ids))
+        .group_by(models.Repository.owner_id)
+        .all()
+    )
+
+    # 4. Batch is_following status for current_user_id
+    following_set = set()
+    if current_user_id and isinstance(current_user_id, str):
+        following_rows = (
+            db.query(models.UserFollow.following_id)
+            .filter(
+                models.UserFollow.follower_id == current_user_id,
+                models.UserFollow.following_id.in_(user_ids)
+            )
+            .all()
+        )
+        following_set = {r[0] for r in following_rows}
+
+    responses = []
+    for user in valid_users:
+        is_fol = (user.id in following_set) if (current_user_id and current_user_id != user.id) else False
+        responses.append(schemas.UserResponse(
+            id=user.id,
+            username=user.username,
+            name=user.name,
+            email=user.email,
+            avatar=user.avatar,
+            bio=user.bio,
+            company=user.company,
+            location=user.location,
+            website=user.website,
+            twitter=user.twitter,
+            status_emoji=user.status_emoji,
+            created_at=user.created_at,
+            followers_count=followers_counts.get(user.id, 0),
+            following_count=following_counts.get(user.id, 0),
+            repos_count=repos_counts.get(user.id, 0),
+            is_following=is_fol
+        ))
+    return responses
+
+def build_user_response(user: models.User, db: Session, current_user_id: Optional[str] = None) -> Optional[schemas.UserResponse]:
     if not user:
         return None
-    followers_cnt = db.query(models.UserFollow).filter(models.UserFollow.following_id == user.id).count()
-    following_cnt = db.query(models.UserFollow).filter(models.UserFollow.follower_id == user.id).count()
-    repos_cnt = db.query(models.Repository).filter(models.Repository.owner_id == user.id).count()
-    is_following = False
-    if current_user_id and isinstance(current_user_id, str) and current_user_id != user.id:
-        is_following = bool(db.query(models.UserFollow).filter(
-            models.UserFollow.follower_id == current_user_id,
-            models.UserFollow.following_id == user.id
-        ).first())
-    return schemas.UserResponse(
-        id=user.id,
-        username=user.username,
-        name=user.name,
-        email=user.email,
-        avatar=user.avatar,
-        bio=user.bio,
-        company=user.company,
-        location=user.location,
-        website=user.website,
-        twitter=user.twitter,
-        status_emoji=user.status_emoji,
-        created_at=user.created_at,
-        followers_count=followers_cnt,
-        following_count=following_cnt,
-        repos_count=repos_cnt,
-        is_following=is_following
-    )
+    res = build_user_responses_batch([user], db, current_user_id)
+    return res[0] if res else None
 
 def resolve_user_id_from_token(token: Optional[str], db: Session) -> Optional[str]:
     if not token or not isinstance(token, str):
@@ -428,22 +474,36 @@ def search_users(
         search_filters.append(models.User.username.ilike(f"%{word}%"))
         search_filters.append(models.User.name.ilike(f"%{word}%"))
 
-    users = db.query(models.User).filter(or_(*search_filters)).limit(40).all()
+    raw_users = db.query(models.User).filter(or_(*search_filters)).limit(50).all()
     
-    # Sort results to prioritize exact username or name match
+    # Deduplicate while preserving order
+    seen_ids = set()
+    users = []
+    for u in raw_users:
+        if u.id not in seen_ids:
+            seen_ids.add(u.id)
+            users.append(u)
+    
+    # Sort results to prioritize exact username, then exact name, startswith, etc.
     def score_match(u):
         uname = (u.username or "").lower()
         name = (u.name or "").lower()
         if uname == stripped_q:
             return 0
-        if uname.startswith(stripped_q):
+        if name == stripped_q:
             return 1
-        if name.startswith(stripped_q):
+        if uname.startswith(stripped_q):
             return 2
-        return 3
+        if name.startswith(stripped_q):
+            return 3
+        if any(name.startswith(w) for w in words):
+            return 4
+        if any(uname.startswith(w) for w in words):
+            return 5
+        return 6
 
     sorted_users = sorted(users, key=score_match)
-    return [build_user_response(u, db, current_user_id) for u in sorted_users]
+    return build_user_responses_batch(sorted_users, db, current_user_id)
 
 @router.get("/users/suggested", response_model=List[schemas.UserResponse])
 def get_suggested_creators(
@@ -462,11 +522,11 @@ def get_suggested_creators(
     if current_user_id:
         query = query.filter(models.User.id != current_user_id)
     
-    users = query.all()
+    users = query.limit(30).all()
     
-    # Sort suggested creators by repository count descending
-    user_responses = [build_user_response(u, db, current_user_id) for u in users]
-    user_responses.sort(key=lambda ur: (ur.repos_count, ur.followers_count), reverse=True)
+    # Batch build user responses without N+1 queries
+    user_responses = build_user_responses_batch(users, db, current_user_id)
+    user_responses.sort(key=lambda ur: (ur.repos_count or 0, ur.followers_count or 0), reverse=True)
     return user_responses[:12]
 
 

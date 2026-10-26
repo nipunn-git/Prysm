@@ -92,8 +92,15 @@ function ExploreContent() {
         if (user?.id) queryParams.append("user_id", user.id);
         if (storedToken) queryParams.append("token", storedToken);
         
-        const res = await fetch(`${API_URL}/api/repositories/explore?${queryParams.toString()}`);
-        if (res.ok) {
+        // Execute repos and user search in parallel for maximum speed
+        const [res, usersRes] = await Promise.all([
+          fetch(`${API_URL}/api/repositories/explore?${queryParams.toString()}`),
+          search.trim()
+            ? fetch(`${API_URL}/api/auth/users/search?q=${encodeURIComponent(search.trim())}${storedToken ? `&token=${encodeURIComponent(storedToken)}` : ''}`)
+            : Promise.resolve(null)
+        ]);
+
+        if (res && res.ok) {
           const data = await res.json();
           const list = Array.isArray(data) ? data : [];
           setRepos(list);
@@ -102,18 +109,16 @@ function ExploreContent() {
           }
         }
 
-        if (search.trim()) {
-          const usersRes = await fetch(`${API_URL}/api/auth/users/search?q=${encodeURIComponent(search.trim())}${storedToken ? `&token=${encodeURIComponent(storedToken)}` : ''}`);
-          if (usersRes.ok) {
-            const usersData = await usersRes.json();
-            setUsers(Array.isArray(usersData) ? usersData : []);
-            const fMap = {};
-            usersData.forEach(u => {
-              fMap[u.id] = Boolean(u.is_following);
-            });
-            setFollowingMap(prev => ({ ...prev, ...fMap }));
-          }
-        } else {
+        if (usersRes && usersRes.ok) {
+          const usersData = await usersRes.json();
+          const uList = Array.isArray(usersData) ? usersData : [];
+          setUsers(uList);
+          const fMap = {};
+          uList.forEach(u => {
+            fMap[u.id] = Boolean(u.is_following);
+          });
+          setFollowingMap(prev => ({ ...prev, ...fMap }));
+        } else if (!search.trim()) {
           setUsers([]);
         }
       } catch (e) {
@@ -124,7 +129,7 @@ function ExploreContent() {
     }
     const delayDebounceFn = setTimeout(() => {
       fetchData();
-    }, 300);
+    }, 150);
     return () => clearTimeout(delayDebounceFn);
   }, [category, search, user?.id]);
 
@@ -262,7 +267,19 @@ function ExploreContent() {
                 placeholder="Find prompts or @users..." 
                 className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg pl-9 pr-4 py-2 text-sm text-[#f0f6fc] focus:outline-none focus:border-[#58a6ff] transition-colors placeholder:text-[#8b949e]"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSearch(val);
+                  if (typeof window !== 'undefined') {
+                    const url = new URL(window.location.href);
+                    if (val.trim()) {
+                      url.searchParams.set("search", val);
+                    } else {
+                      url.searchParams.delete("search");
+                    }
+                    window.history.replaceState(null, "", url.toString());
+                  }
+                }}
               />
             </div>
           </div>
@@ -428,9 +445,20 @@ function ExploreContent() {
             ) : repos.length === 0 && users.length === 0 ? (
               <div className="py-20 text-center flex flex-col items-center bg-[#0d1117] border border-[#30363d] rounded-2xl">
                 <Compass className="w-8 h-8 text-[#8b949e] mb-3" />
-                <p className="text-base font-semibold text-[#f0f6fc] mb-1">No prompts found</p>
+                <p className="text-base font-semibold text-[#f0f6fc] mb-1">
+                  {search.trim() ? `No prompts or creators found for "${search}"` : "No prompts found"}
+                </p>
                 <p className="text-xs text-[#8b949e] max-w-sm">
-                  Try another keyword or category filter.
+                  Try another keyword, creator username, or category filter.
+                </p>
+              </div>
+            ) : repos.length === 0 ? (
+              <div className="py-12 text-center flex flex-col items-center bg-[#0d1117] border border-[#30363d] rounded-2xl">
+                <p className="text-sm font-semibold text-[#f0f6fc] mb-1">
+                  No prompt repositories found for &quot;{search}&quot;
+                </p>
+                <p className="text-xs text-[#8b949e] max-w-sm">
+                  Found matching creator(s) above! You can explore their profile directly.
                 </p>
               </div>
             ) : (

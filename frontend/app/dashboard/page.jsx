@@ -606,7 +606,8 @@ export default function DashboardPage() {
     });
   };
 
-  if (authLoading || (!user && (typeof window !== 'undefined' && !localStorage.getItem('prompthub_token')))) {
+  const hasLocalSession = typeof window !== 'undefined' && (Boolean(localStorage.getItem('prompthub_token')) || Boolean(localStorage.getItem('prompthub_user')));
+  if (authLoading && !hasLocalSession) {
     return (
       <div className="min-h-[calc(100vh-56px)] bg-[#010409] flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-[#58a6ff]" />

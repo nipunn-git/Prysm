@@ -28,6 +28,7 @@ import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import { useAuth } from "../../../context/AuthContext";
 import { API_URL } from "../../../lib/api";
+import { getCachedData, setCachedData } from "../../../lib/cache";
 import UserListModal from "../../../components/UserListModal";
 
 const LEVEL_COLORS = [
@@ -43,14 +44,18 @@ export default function PublicProfilePage() {
   const router = useRouter();
   const { user: currentUser } = useAuth();
 
-  const [profileUser, setProfileUser] = useState(null);
-  const [repos, setRepos] = useState([]);
-  const [contributions, setContributions] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const cachedUser = getCachedData(`public_profile_${username}`, null);
+  const cachedRepos = getCachedData(`public_repos_${username}`, []);
+  const cachedContrib = getCachedData(`public_contrib_${username}`, null);
+
+  const [profileUser, setProfileUser] = useState(cachedUser);
+  const [repos, setRepos] = useState(cachedRepos);
+  const [contributions, setContributions] = useState(cachedContrib);
+  const [loading, setLoading] = useState(!cachedUser);
   const [error, setError] = useState(null);
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [followersCount, setFollowersCount] = useState(0);
-  const [followingCount, setFollowingCount] = useState(0);
+  const [isFollowing, setIsFollowing] = useState(Boolean(cachedUser?.is_following));
+  const [followersCount, setFollowersCount] = useState(cachedUser?.followers_count || 0);
+  const [followingCount, setFollowingCount] = useState(cachedUser?.following_count || 0);
   const [isFollowLoading, setIsFollowLoading] = useState(false);
   const [copiedShare, setCopiedShare] = useState(false);
   const [activeTab, setActiveTab] = useState("prompts"); // "prompts" | "activity"
@@ -69,34 +74,39 @@ export default function PublicProfilePage() {
   useEffect(() => {
     async function fetchPublicProfile() {
       try {
-        setLoading(true);
+        if (!cachedUser) setLoading(true);
         setError(null);
         const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
         const headers = storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {};
 
-        // 1. Fetch user profile
-        const userRes = await fetch(`${API_URL}/api/auth/users/${encodeURIComponent(username)}${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`, { headers });
-        if (!userRes.ok) {
+        // Parallel fetch for lightning speed
+        const [userRes, repoRes, contribRes] = await Promise.all([
+          fetch(`${API_URL}/api/auth/users/${encodeURIComponent(username)}${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`, { headers }),
+          fetch(`${API_URL}/api/repositories/user/${encodeURIComponent(username)}${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`, { headers }),
+          fetch(`${API_URL}/api/auth/users/${encodeURIComponent(username)}/contributions`)
+        ]);
+
+        if (userRes.ok) {
+          const userData = await userRes.json();
+          setProfileUser(userData);
+          setCachedData(`public_profile_${username}`, userData);
+          setIsFollowing(Boolean(userData.is_following));
+          setFollowersCount(userData.followers_count || 0);
+          setFollowingCount(userData.following_count || 0);
+        } else if (!cachedUser) {
           throw new Error("User not found");
         }
-        const userData = await userRes.json();
-        setProfileUser(userData);
-        setIsFollowing(Boolean(userData.is_following));
-        setFollowersCount(userData.followers_count || 0);
-        setFollowingCount(userData.following_count || 0);
 
-        // 2. Fetch user's public repositories
-        const repoRes = await fetch(`${API_URL}/api/repositories/user/${encodeURIComponent(username)}${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`, { headers });
         if (repoRes.ok) {
           const repoData = await repoRes.json();
           setRepos(repoData);
+          setCachedData(`public_repos_${username}`, repoData);
         }
 
-        // 3. Fetch user's contributions
-        const contribRes = await fetch(`${API_URL}/api/auth/users/${encodeURIComponent(username)}/contributions`);
         if (contribRes.ok) {
           const contribData = await contribRes.json();
           setContributions(contribData);
+          setCachedData(`public_contrib_${username}`, contribData);
         }
 
       } catch (err) {

@@ -57,13 +57,25 @@ export default function Navbar() {
   const searchAbortRef = useRef(null);
   searchQueryRef.current = searchQuery;
 
-  // The actual search function — always makes a fresh API call
+  const searchCacheRef = useRef(new Map());
+
+  // The actual search function — fast with local caching and non-blocking abort handling
   const performSearch = useCallback(async (query) => {
     const trimmed = (query || '').trim();
     if (trimmed.length === 0) {
       setSearchResults([]);
       setShowSearchDropdown(false);
       return;
+    }
+
+    const cacheKey = trimmed.toLowerCase();
+    if (searchCacheRef.current.has(cacheKey)) {
+      setSearchResults(searchCacheRef.current.get(cacheKey));
+      setShowSearchDropdown(true);
+      setIsSearching(false);
+    } else {
+      setIsSearching(true);
+      setShowSearchDropdown(true);
     }
     
     // Cancel any in-flight request
@@ -73,8 +85,6 @@ export default function Navbar() {
     const controller = new AbortController();
     searchAbortRef.current = controller;
     
-    setIsSearching(true);
-    setShowSearchDropdown(true);
     try {
       const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
       const res = await fetch(
@@ -83,9 +93,11 @@ export default function Navbar() {
       );
       if (res.ok) {
         const data = await res.json();
-        // Only update if this is still the current query (not stale)
-        if (searchQueryRef.current.trim() === trimmed) {
-          setSearchResults(Array.isArray(data) ? data : []);
+        const list = Array.isArray(data) ? data : [];
+        searchCacheRef.current.set(cacheKey, list);
+        // Only update if this is still the current query (case-insensitive)
+        if (searchQueryRef.current.trim().toLowerCase() === cacheKey) {
+          setSearchResults(list);
           setShowSearchDropdown(true);
         }
       }
@@ -94,11 +106,13 @@ export default function Navbar() {
         console.error(e);
       }
     } finally {
-      setIsSearching(false);
+      if (searchAbortRef.current === controller) {
+        setIsSearching(false);
+      }
     }
   }, []);
 
-  // Debounced search: fires on every keystroke with 300ms delay
+  // Debounced search: fires with 150ms delay for ultra snappy feel
   useEffect(() => {
     const trimmed = searchQuery.trim();
     if (trimmed.length === 0) {
@@ -107,11 +121,11 @@ export default function Navbar() {
       return;
     }
     
-    setShowSearchDropdown(true); // Show dropdown immediately with loading state
+    setShowSearchDropdown(true);
     
     const timer = setTimeout(() => {
       performSearch(trimmed);
-    }, 300);
+    }, 150);
     return () => clearTimeout(timer);
   }, [searchQuery, performSearch]);
 
