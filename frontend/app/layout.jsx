@@ -1,6 +1,7 @@
 import './globals.css'
 import { Providers } from '../components/Providers'
 import Navbar from '../components/Navbar'
+import AppLoader from '../components/AppLoader'
 
 export const metadata = {
   title: 'PromptHub',
@@ -33,6 +34,7 @@ export default function RootLayout({ children }) {
       </head>
       <body className="antialiased min-h-screen flex flex-col">
         <Providers>
+          <AppLoader />
           <Navbar />
           <main className="flex-1">
             {children}
