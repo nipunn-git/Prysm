@@ -23,7 +23,8 @@ import {
   Star as StarIcon,
   Trash2,
   CheckCheck,
-  Bell
+  Bell,
+  TrendingUp
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -534,6 +535,16 @@ export default function Navbar() {
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2">
+            {/* Trending in Community icon button */}
+            <Link
+              href="/explore"
+              title="Trending in Community"
+              aria-label="Trending in Community"
+              className="p-1.5 text-[#8b949e] hover:text-[#58a6ff] hover:bg-[#21262d] rounded-md transition flex items-center justify-center group"
+            >
+              <TrendingUp className="w-4 h-4 text-[#8b949e] group-hover:text-[#58a6ff] transition-transform group-hover:scale-110" />
+            </Link>
+
             {/* Prysm AI button */}
             <Link 
               href="/dashboard"
@@ -731,37 +742,53 @@ export default function Navbar() {
               )}
             </div>
 
-            {/* Color Theme Switcher Dropdown */}
-            <div className="relative" ref={themeRef}>
+            {/* Color Theme Switcher */}
+            <div className="relative flex items-center" ref={themeRef}>
               <button
-                onClick={() => setIsThemeOpen(!isThemeOpen)}
-                className="p-1.5 text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] rounded-md transition flex items-center gap-1"
-                title={`Theme: ${currentThemeObj?.name || 'Theme'}`}
-                aria-label="Switch color theme"
+                type="button"
+                onClick={() => {
+                  console.log('[Navbar] Clicked toggle theme button, isDark is:', isDark);
+                  setTheme(isDark ? 'light_default' : 'dark_default');
+                }}
+                className="p-1.5 text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] rounded-l-md transition flex items-center gap-1"
+                title={`Toggle theme (Currently ${currentThemeObj?.name || (isDark ? 'Dark' : 'Light')})`}
+                aria-label="Toggle light or dark theme"
               >
                 {isDark ? (
                   <Moon className="w-4 h-4 text-[#58a6ff]" />
                 ) : (
                   <Sun className="w-4 h-4 text-[#d97706]" />
                 )}
-                <ChevronDown className="w-3 h-3 text-[#8b949e] hidden sm:inline" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsThemeOpen(!isThemeOpen)}
+                className="p-1 text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] rounded-r-md transition"
+                title="Choose theme appearance"
+                aria-label="Theme options"
+              >
+                <ChevronDown className="w-3 h-3 text-[#8b949e]" />
               </button>
 
               {isThemeOpen && (
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-[#161b22] border border-[#30363d] rounded-xl shadow-2xl py-2 z-50 text-xs text-[#c9d1d9] max-h-[85vh] overflow-y-auto">
-                  <div className="px-3.5 py-2 border-b border-[#30363d] flex items-center justify-between">
+                <div className={`absolute right-0 mt-2 top-full w-80 sm:w-96 rounded-xl border shadow-2xl py-2 z-50 text-xs max-h-[85vh] overflow-y-auto ${
+                  isDark ? "bg-[#161b22] border-[#30363d] text-[#c9d1d9]" : "bg-white border-[#d0d7de] text-[#1f2328]"
+                }`}>
+                  <div className={`px-3.5 py-2 border-b flex items-center justify-between ${
+                    isDark ? "border-[#30363d]" : "border-[#d0d7de]"
+                  }`}>
                     <div>
-                      <div className="font-semibold text-sm text-[#f0f6fc] flex items-center gap-2">
+                      <div className={`font-semibold text-sm flex items-center gap-2 ${isDark ? "text-[#f0f6fc]" : "text-[#1f2328]"}`}>
                         <Palette className="w-4 h-4 text-[#58a6ff]" />
                         <span>Color theme</span>
                       </div>
-                      <p className="text-[11px] text-[#8b949e] mt-0.5">
+                      <p className={`text-[11px] mt-0.5 ${isDark ? "text-[#8b949e]" : "text-[#57606a]"}`}>
                         Choose your preferred theme appearance
                       </p>
                     </div>
                     <button
                       onClick={() => setIsThemeOpen(false)}
-                      className="text-[#8b949e] hover:text-[#f0f6fc] p-1 rounded-md hover:bg-[#21262d]"
+                      className={`p-1 rounded-md transition ${isDark ? "text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d]" : "text-[#57606a] hover:text-[#1f2328] hover:bg-[#eaeef2]"}`}
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>

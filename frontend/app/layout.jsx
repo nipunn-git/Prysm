@@ -15,17 +15,17 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" data-theme="light_default" suppressHydrationWarning>
+    <html lang="en" data-theme="dark_default" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
                 try {
-                  var t = localStorage.getItem('prompthub_theme') || 'light_default';
+                  var t = localStorage.getItem('prompthub_theme') || 'dark_default';
                   document.documentElement.setAttribute('data-theme', t);
                 } catch(e) {
-                  document.documentElement.setAttribute('data-theme', 'light_default');
+                  document.documentElement.setAttribute('data-theme', 'dark_default');
                 }
               })();
             `,

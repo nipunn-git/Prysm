@@ -36,9 +36,21 @@ import {
   Pencil,
   Check,
   ChevronUp,
-  Eye
+  Eye,
+  ArrowUp,
+  Mic,
+  Lightbulb,
+  Code,
+  Cog,
+  History,
+  BookmarkPlus,
+  Search
 } from "lucide-react";
+import { GridPulse } from "@/components/ui/grid-pulse";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
 import { 
   filterUserRepos, 
   addCreatedRepoId, 
@@ -52,13 +64,20 @@ import { getCachedData, setCachedData } from "../../lib/cache";
 export default function DashboardPage() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
+  const { isDark } = useTheme();
   
   // Repositories state - clean SSR baseline to prevent hydration mismatch
   const [repos, setRepos] = useState([]);
   const [communityRepos, setCommunityRepos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [repoSearch, setRepoSearch] = useState("");
+  const [historySearch, setHistorySearch] = useState("");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  // Futuristic Prysm AI Controls
+  const [selectedMode, setSelectedMode] = useState("Auto");
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const [isListening, setIsListening] = useState(false);
 
   // AI Chat State
   const [chatMessages, setChatMessages] = useState([]);
@@ -67,6 +86,36 @@ export default function DashboardPage() {
   const [chatError, setChatError] = useState(null);
   const chatEndRef = useRef(null);
   const chatInputRef = useRef(null);
+
+  // Voice speech-to-text handler
+  const handleVoiceInput = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRec) {
+      alert("Voice input is not supported by your current browser.");
+      return;
+    }
+    try {
+      const recognition = new SpeechRec();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+      setIsListening(true);
+      recognition.onresult = (event) => {
+        const transcript = event.results?.[0]?.[0]?.transcript || '';
+        if (transcript) {
+          setChatInput(prev => (prev ? prev + ' ' : '') + transcript);
+        }
+        setIsListening(false);
+        chatInputRef.current?.focus();
+      };
+      recognition.onerror = () => setIsListening(false);
+      recognition.onend = () => setIsListening(false);
+      recognition.start();
+    } catch (e) {
+      setIsListening(false);
+    }
+  }, []);
 
   // Save as Repo Modal State
   const [saveModalOpen, setSaveModalOpen] = useState(false);
@@ -134,7 +183,7 @@ export default function DashboardPage() {
     return effectiveUserId ? `prompthub_chat_sessions_${effectiveUserId}` : 'prompthub_chat_sessions_guest';
   }, [user?.id]);
 
-  // Load chat sessions on mount or when user changes
+  // Load chat sessions on mount or when user changes - ALWAYS start on fresh New Chat
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
@@ -144,8 +193,9 @@ export default function DashboardPage() {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
           setChatSessions(parsed);
-          setActiveSessionId(parsed[0].id);
-          setChatMessages(parsed[0].messages || []);
+          // Always start in fresh New Chat on app launch
+          setActiveSessionId(null);
+          setChatMessages([]);
         }
       }
       const hiddenPref = localStorage.getItem('prompthub_chat_history_hidden');
@@ -243,15 +293,29 @@ export default function DashboardPage() {
 
   // Send a chat message to AI (AI answers in chat WITHOUT auto-creating repo)
   const sendMessage = useCallback(async (overrideText) => {
-    const msgText = overrideText || chatInput.trim();
+    const rawDomValue = chatInputRef.current ? chatInputRef.current.value : "";
+    const msgText = (typeof overrideText === "string" && overrideText.trim().length > 0)
+      ? overrideText.trim()
+      : (chatInput.trim() || rawDomValue.trim());
+
     if (!msgText || isAiThinking) return;
 
-    const userMsg = { role: "user", content: msgText };
-    const newMessages = [...chatMessages, userMsg];
-    setChatMessages(newMessages);
+    if (chatInputRef.current) chatInputRef.current.value = "";
     setChatInput("");
-    setIsAiThinking(true);
     setChatError(null);
+
+    const userMsg = { role: "user", content: msgText };
+    const placeholderAssistantMsg = {
+      role: "assistant",
+      content: "",
+      isStreaming: true,
+      userQuery: msgText,
+      suggested_actions: ["save_as_repo", "copy_prompt"]
+    };
+
+    const newMessages = [...chatMessages, userMsg, placeholderAssistantMsg];
+    setChatMessages(newMessages);
+    setIsAiThinking(true);
 
     // Track or create session
     let currentId = activeSessionId;
@@ -263,7 +327,7 @@ export default function DashboardPage() {
       const createdSession = {
         id: currentId,
         title: generatedTitle,
-        messages: newMessages,
+        messages: [userMsg],
         updatedAt: Date.now()
       };
       nextSessions = [createdSession, ...nextSessions];
@@ -271,7 +335,7 @@ export default function DashboardPage() {
     } else {
       const idx = nextSessions.findIndex(s => s.id === currentId);
       if (idx !== -1) {
-        const item = { ...nextSessions[idx], messages: newMessages, updatedAt: Date.now() };
+        const item = { ...nextSessions[idx], messages: [...chatMessages, userMsg], updatedAt: Date.now() };
         nextSessions.splice(idx, 1);
         nextSessions.unshift(item);
         persistSessions(nextSessions);
@@ -283,8 +347,9 @@ export default function DashboardPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
+          messages: [...chatMessages, userMsg].map(m => ({ role: m.role, content: m.content })),
           user_id: user?.id || null,
+          mode: selectedMode,
           create_repo: false, // Do NOT auto-create repo without user action!
           visibility: "Private"
         })
@@ -296,15 +361,50 @@ export default function DashboardPage() {
       }
 
       const data = await res.json();
-      
-      const assistantMsg = {
+      const fullReply = data.reply || "";
+
+      // Stream response words smoothly in real-time (fluid flow like ChatGPT)
+      const tokens = fullReply.match(/\S+|\s+/g) || [fullReply];
+      let currentWordIdx = 0;
+      let accumulated = "";
+
+      await new Promise((resolve) => {
+        const intervalId = setInterval(() => {
+          for (let k = 0; k < 2 && currentWordIdx < tokens.length; k++) {
+            accumulated += tokens[currentWordIdx];
+            currentWordIdx++;
+          }
+
+          setChatMessages((prev) => {
+            const copy = [...prev];
+            const targetIdx = copy.length - 1;
+            if (copy[targetIdx] && copy[targetIdx].role === "assistant") {
+              copy[targetIdx] = {
+                ...copy[targetIdx],
+                content: accumulated,
+                isStreaming: currentWordIdx < tokens.length
+              };
+            }
+            return copy;
+          });
+
+          if (currentWordIdx >= tokens.length) {
+            clearInterval(intervalId);
+            resolve();
+          }
+        }, 16);
+      });
+
+      const finalAssistantMsg = {
         role: "assistant",
-        content: data.reply,
+        content: fullReply,
+        isStreaming: false,
         userQuery: msgText,
+        repo_created: data.repo_created || null,
         suggested_actions: ["save_as_repo", "copy_prompt"]
       };
-      
-      const finalMessages = [...newMessages, assistantMsg];
+
+      const finalMessages = [...chatMessages, userMsg, finalAssistantMsg];
       setChatMessages(finalMessages);
 
       // Save into sessions
@@ -325,9 +425,10 @@ export default function DashboardPage() {
       const errAssistantMsg = {
         role: "assistant",
         content: `Sorry, I encountered an error: ${err.message}. Please try again.`,
-        isError: true
+        isError: true,
+        isStreaming: false
       };
-      const finalMessages = [...newMessages, errAssistantMsg];
+      const finalMessages = [...chatMessages, userMsg, errAssistantMsg];
       setChatMessages(finalMessages);
 
       setChatSessions(prev => {
@@ -343,7 +444,7 @@ export default function DashboardPage() {
     } finally {
       setIsAiThinking(false);
     }
-  }, [chatInput, isAiThinking, chatMessages, user?.id, activeSessionId, chatSessions, persistSessions, getStorageKey]);
+  }, [chatInput, isAiThinking, chatMessages, user?.id, selectedMode, activeSessionId, chatSessions, persistSessions, getStorageKey]);
 
   // Fetch repositories immediately on mount — load local cache first, then fetch
   useEffect(() => {
@@ -362,15 +463,10 @@ export default function DashboardPage() {
     fetchRepos();
   }, [fetchRepos, user?.id]);
 
-  // Auth redirect check only after auth check finishes
+  // Auth check: if guest, allow them to freely interact with Prysm and save session locally
   useEffect(() => {
-    if (!authLoading && !user) {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-      if (!storedToken) {
-        router.replace('/login');
-      }
-    }
-  }, [authLoading, user, router]);
+    // Guest sessions are persisted in localStorage under prompthub_chat_sessions_guest
+  }, []);
 
   // Auto-scroll chat to bottom
   useEffect(() => {
@@ -552,713 +648,1013 @@ export default function DashboardPage() {
     (repo?.description && repo.description.toLowerCase().includes((repoSearch || '').toLowerCase()))
   );
 
-  // Quick action pills
-  const quickActions = [
-    { label: "Optimize Prompt", icon: Zap, iconColor: "text-[#e3b341]", query: "Optimize a prompt for token efficiency and strict JSON response" },
-    { label: "Agent Prompt", icon: Bot, iconColor: "text-[#58a6ff]", query: "Create an autonomous agent prompt with tool calling and self-correction" },
-    { label: "Benchmark Test", icon: FlaskConical, iconColor: "text-[#3fb950]", query: "Create a benchmark evaluation prompt for comparing AI model outputs" },
-    { label: "System Instructions", icon: FileCode2, iconColor: "text-[#8b949e]", query: "Create system instructions for code generation with constraints and tests" },
-    { label: "Version Diff", icon: GitCompare, iconColor: "text-[#8b949e]", query: "Help me compare and analyze differences between prompt versions" },
+  // 5 Suggestion pills from Image 1
+  const suggestionPills = [
+    { label: "Explain a concept", icon: Sparkles, query: "Explain a complex AI or machine learning concept simply with intuitive analogies and practical examples." },
+    { label: "Write a blog", icon: FileText, query: "Write an engaging, SEO-optimized technical blog post about modern software engineering best practices with code snippets." },
+    { label: "Generate ideas", icon: Lightbulb, query: "Generate 10 groundbreaking AI prompt tools and autonomous agent system ideas with high utility." },
+    { label: "Debug code", icon: Code, query: "Analyze and debug this code snippet, explaining the root cause and providing an optimized solution." },
+    { label: "Brainstorm", icon: Cog, query: "Brainstorm a comprehensive prompt architecture and evaluation suite for our AI assistant system." }
   ];
 
-  // Render markdown-like chat content
+  // Render ultra-premium markdown chat content with code copy, tables & rich typography
   const renderMessageContent = (content) => {
     if (!content) return null;
-    const parts = content.split(/(```[\s\S]*?```)/g);
-    
-    return parts.map((part, idx) => {
-      if (part.startsWith("```")) {
-        const lines = part.split("\n");
-        const lang = lines[0].replace("```", "").trim();
-        const code = lines.slice(1, -1).join("\n");
-        return (
-          <div key={idx} className="my-3 rounded-lg border border-[#30363d] overflow-hidden bg-[#0d1117]">
-            <div className="bg-[#161b22] border-b border-[#30363d] px-3 py-1.5 flex items-center justify-between">
-              <span className="text-[10px] text-[#8b949e] font-mono">{lang || "prompt"}</span>
-              <button 
-                onClick={() => handleCopy(code, `code-${idx}`)}
-                className="text-[#8b949e] hover:text-[#f0f6fc] p-0.5 rounded transition"
-                title="Copy prompt"
+
+    return (
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          code({ node, inline, className, children, ...props }) {
+            const match = /language-(\w+)/.exec(className || "");
+            const codeString = String(children).replace(/\n$/, "");
+
+            if (!inline && (match || codeString.includes("\n"))) {
+              const lang = match ? match[1] : "prompt";
+              const codeId = `code-${Math.random().toString(36).substring(2, 8)}`;
+
+              return (
+                <div className={`my-3 rounded-2xl border overflow-hidden shadow-lg transition-all ${
+                  isDark 
+                    ? "bg-[#090d16] border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.5)]" 
+                    : "bg-[#0f172a] border-slate-700 shadow-[0_8px_30px_rgba(15,23,42,0.15)] text-slate-100"
+                }`}>
+                  <div className="bg-white/[0.04] border-b border-white/10 px-3.5 py-2 flex items-center justify-between select-none">
+                    <div className="flex items-center gap-2">
+                      <span className="flex gap-1.5 items-center">
+                        <span className="w-2.5 h-2.5 rounded-full bg-red-500/80 inline-block" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block" />
+                      </span>
+                      <span className="text-[11px] font-mono uppercase tracking-wider text-slate-400 font-semibold ml-1">
+                        {lang}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(codeString, codeId)}
+                      className="px-2 py-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all flex items-center gap-1.5 text-[11px] font-mono cursor-pointer"
+                      title="Copy code"
+                    >
+                      {copiedId === codeId ? (
+                        <>
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-emerald-400 font-medium">Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <pre className="p-4 text-xs font-mono text-slate-200 leading-relaxed overflow-x-auto whitespace-pre-wrap selection:bg-cyan-500/30">
+                    <code>{codeString}</code>
+                  </pre>
+                </div>
+              );
+            }
+
+            return (
+              <code 
+                className={`px-1.5 py-0.5 rounded-md font-mono text-[12px] font-semibold border ${
+                  isDark
+                    ? "bg-white/10 text-cyan-300 border-white/10"
+                    : "bg-slate-100 text-cyan-700 border-slate-200"
+                }`}
+                {...props}
               >
-                {copiedId === `code-${idx}` ? (
-                  <CheckCircle className="w-3.5 h-3.5 text-[#3fb950]" />
-                ) : (
-                  <Copy className="w-3.5 h-3.5" />
-                )}
-              </button>
+                {children}
+              </code>
+            );
+          },
+          h1: ({ children }) => (
+            <h1 className={`text-base sm:text-lg font-bold tracking-tight mt-4 mb-2 pb-1.5 border-b ${
+              isDark ? "text-white border-white/10" : "text-slate-900 border-slate-200"
+            }`}>
+              {children}
+            </h1>
+          ),
+          h2: ({ children }) => (
+            <h2 className={`text-sm sm:text-base font-bold tracking-tight mt-4 mb-2 flex items-center gap-2 ${
+              isDark ? "text-white" : "text-slate-900"
+            }`}>
+              <span className="w-1.5 h-4 rounded-full bg-cyan-500 inline-block shrink-0 shadow-[0_0_8px_#06b6d4]" />
+              <span>{children}</span>
+            </h2>
+          ),
+          h3: ({ children }) => (
+            <h3 className={`text-xs sm:text-sm font-bold tracking-tight mt-3 mb-1.5 ${
+              isDark ? "text-slate-200" : "text-slate-800"
+            }`}>
+              {children}
+            </h3>
+          ),
+          p: ({ children }) => (
+            <p className={`text-xs sm:text-sm leading-relaxed my-2 ${
+              isDark ? "text-slate-200" : "text-slate-700"
+            }`}>
+              {children}
+            </p>
+          ),
+          ul: ({ children }) => (
+            <ul className="my-2 space-y-1.5 pl-1 list-none">{children}</ul>
+          ),
+          ol: ({ children }) => (
+            <ol className="my-2 space-y-1.5 pl-4 list-decimal text-xs sm:text-sm leading-relaxed">{children}</ol>
+          ),
+          li: ({ children }) => (
+            <li className={`text-xs sm:text-sm leading-relaxed flex items-start gap-2.5 ${
+              isDark ? "text-slate-200" : "text-slate-700"
+            }`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 mt-2 shrink-0 shadow-[0_0_6px_#38bdf8]" />
+              <div className="flex-1">{children}</div>
+            </li>
+          ),
+          strong: ({ children }) => (
+            <strong className={`font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>
+              {children}
+            </strong>
+          ),
+          blockquote: ({ children }) => (
+            <blockquote className={`my-3 pl-3.5 py-1 border-l-2 rounded-r-lg italic text-xs leading-relaxed ${
+              isDark 
+                ? "border-cyan-400/60 bg-cyan-500/5 text-slate-300" 
+                : "border-cyan-600 bg-cyan-50 text-slate-700"
+            }`}>
+              {children}
+            </blockquote>
+          ),
+          table: ({ children }) => (
+            <div className="overflow-x-auto my-3 rounded-xl border border-slate-200 dark:border-white/10">
+              <table className="w-full text-left text-xs border-collapse">{children}</table>
             </div>
-            <pre className="p-3 text-xs font-mono text-[#c9d1d9] whitespace-pre-wrap leading-relaxed overflow-x-auto">
-              {code}
-            </pre>
-          </div>
-        );
-      }
-      
-      const formatted = part
-        .split("\n")
-        .map((line, lineIdx) => {
-          if (line.startsWith("## ")) {
-            return <h3 key={lineIdx} className="text-sm font-bold text-[#f0f6fc] mt-3 mb-1.5">{line.replace("## ", "")}</h3>;
-          }
-          if (line.startsWith("### ")) {
-            return <h4 key={lineIdx} className="text-xs font-bold text-[#f0f6fc] mt-2 mb-1">{line.replace("### ", "")}</h4>;
-          }
-          let processed = line.replace(/\*\*(.*?)\*\*/g, '<strong class="text-[#f0f6fc] font-semibold">$1</strong>');
-          processed = processed.replace(/\*(.*?)\*/g, '<em>$1</em>');
-          processed = processed.replace(/`([^`]+)`/g, '<code class="bg-[#161b22] border border-[#30363d] px-1 py-0.5 rounded text-[11px] text-[#e3b341] font-mono">$1</code>');
-          if (line.startsWith("- ") || line.startsWith("* ")) {
-            return <li key={lineIdx} className="ml-3 text-xs leading-relaxed list-disc" dangerouslySetInnerHTML={{ __html: processed.replace(/^[-*]\s/, "") }} />;
-          }
-          if (!line.trim()) return <br key={lineIdx} />;
-          return <p key={lineIdx} className="text-xs leading-relaxed" dangerouslySetInnerHTML={{ __html: processed }} />;
-        });
-      
-      return <div key={idx}>{formatted}</div>;
-    });
+          ),
+          th: ({ children }) => (
+            <th className={`p-2.5 font-semibold text-xs border-b ${
+              isDark ? "bg-white/5 border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+            }`}>
+              {children}
+            </th>
+          ),
+          td: ({ children }) => (
+            <td className={`p-2.5 text-xs border-b ${
+              isDark ? "border-white/5 text-slate-300" : "border-slate-100 text-slate-700"
+            }`}>
+              {children}
+            </td>
+          ),
+          a: ({ href, children }) => (
+            <a 
+              href={href} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-cyan-500 hover:text-cyan-400 underline underline-offset-2 transition"
+            >
+              {children}
+            </a>
+          )
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    );
   };
 
-  const hasLocalSession = typeof window !== 'undefined' && (Boolean(localStorage.getItem('prompthub_token')) || Boolean(localStorage.getItem('prompthub_user')));
-  if (authLoading && !hasLocalSession) {
-    return (
-      <div className="min-h-[calc(100vh-56px)] bg-[#010409] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[#58a6ff]" />
-      </div>
-    );
-  }
+  // Helper to detect if AI response is a normal conversation or contains savable code / prompt
+  const isSavableResponse = (content, userQuery = "") => {
+    if (!content || typeof content !== "string") return false;
+    const lowerQuery = (userQuery || "").toLowerCase().trim();
+    
+    // Normal casual greetings or small talk
+    const casualList = ["hi", "hello", "hey", "sup", "yo", "thanks", "thank you", "who are you", "what is your name", "how are you", "help"];
+    if (casualList.some(w => lowerQuery === w || lowerQuery === w + "!")) {
+      return false;
+    }
+
+    // Contains markdown code block (prompt, python, ts, js, etc.)
+    const hasCodeBlock = /```[a-zA-Z0-9_-]*\s*\n[\s\S]+?```/.test(content);
+    // Contains structured prompt markers
+    const hasPromptStructure = 
+      content.includes("### Role") || 
+      content.includes("### Primary Objective") || 
+      content.includes("## System Prompt") || 
+      content.includes("```prompt") ||
+      content.includes("```python") ||
+      content.includes("```javascript") ||
+      content.includes("```tsx");
+
+    const hasActionKeyword = ["create", "generate", "write", "draft", "code", "prompt", "function", "script", "repo", "template", "build", "optimize"].some(k => lowerQuery.includes(k));
+
+    return hasCodeBlock || hasPromptStructure || (hasActionKeyword && content.length > 80);
+  };
 
   return (
-    <div className="w-full max-w-[1540px] mx-auto px-4 sm:px-6 py-6 min-h-[calc(100vh-56px)] bg-[#010409]">
-      <div className="flex gap-6 lg:gap-8 items-start relative">
-        
+
+    <div className={`w-full max-w-[1600px] mx-auto px-2 sm:px-4 lg:px-6 py-2 sm:py-3 h-[calc(100vh-64px)] max-h-[calc(100vh-64px)] overflow-hidden flex flex-col relative transition-colors duration-300 ${
+      isDark ? "bg-[#05070c]" : "bg-[#f8fafc]"
+    }`}>
+      {/* Background Interactive Canvas GridPulse */}
+      <GridPulse cell={28} reach={2.8} ambient={3} className="opacity-35 dark:opacity-20 pointer-events-none" />
+
+      {/* Buttery Smooth Looping Tracing Beam Animation */}
+      <style jsx global>{`
+        @keyframes prysmBeamSweep {
+          0% {
+            stroke-dashoffset: 1600;
+          }
+          100% {
+            stroke-dashoffset: -240;
+          }
+        }
+        .prysm-dome-beam {
+          stroke-dasharray: 240 1600;
+          animation: prysmBeamSweep 3.6s linear infinite;
+          will-change: stroke-dashoffset;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(148, 163, 184, 0.25);
+          border-radius: 9999px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(148, 163, 184, 0.45);
+        }
+      `}</style>
+
+      <div className="flex gap-3 sm:gap-5 items-stretch relative justify-center flex-1 min-h-0 h-full max-h-full overflow-hidden">
+
         {/* ========================================================
-            LEFT COLUMN: Top repositories (User Created Only!)
+            LEFT COLUMN: Chat History (Futuristic Glass, Toggleable, Searchable)
            ======================================================== */}
-        {!isSidebarCollapsed && (
-          <aside className="w-full md:w-[300px] lg:w-[320px] shrink-0 border-r border-[#21262d] md:pr-6 relative">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-semibold text-[#f0f6fc]">Top repositories</h2>
-              <Link 
-                href="/new" 
-                className="bg-[#238636] hover:bg-[#2ea043] border border-[#2ea043]/60 text-white text-xs font-medium px-2.5 py-1 rounded-md transition flex items-center gap-1.5 shadow-sm"
-              >
-                <Book className="w-3.5 h-3.5" />
-                New
-              </Link>
-            </div>
-
-            {/* Filter Input */}
-            <div className="relative mb-3">
-              <input 
-                type="text" 
-                placeholder="Find a repository..." 
-                value={repoSearch}
-                onChange={(e) => setRepoSearch(e.target.value)}
-                className="w-full bg-[#161b22] border border-[#30363d] rounded-md px-3 py-1.5 text-xs text-[#c9d1d9] placeholder:text-[#8b949e] focus:outline-none focus:border-[#58a6ff] transition"
-              />
-            </div>
-
-            {/* Repository List - Only user-created repositories, NO demo data! */}
-            <div className="max-h-[calc(100vh-240px)] overflow-y-auto pr-1">
-              {loading ? (
-                <div className="py-4 text-xs text-[#8b949e] flex items-center gap-2">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#58a6ff]" />
-                  <span>Loading your repositories...</span>
-                </div>
-              ) : filteredRepos.length === 0 ? (
-                /* GitHub-style Empty State */
-                <div className="py-6 px-3 border border-[#30363d] border-dashed rounded-lg bg-[#0d1117] text-center my-2">
-                  <Book className="w-6 h-6 mx-auto mb-2 text-[#8b949e]/60" />
-                  <p className="text-xs font-medium text-[#c9d1d9] mb-1">No repositories yet</p>
-                  <p className="text-[11px] text-[#8b949e] mb-3 leading-relaxed">
-                    Repositories you create with AI or fork from the community will appear here.
-                  </p>
-                  <div className="flex flex-col gap-1.5">
-                    <Link
-                      href="/new"
-                      className="bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-xs font-medium text-[#f0f6fc] py-1 px-2.5 rounded transition"
-                    >
-                      + Create repository
-                    </Link>
-                    <Link
-                      href="/explore"
-                      className="text-[11px] text-[#58a6ff] hover:underline flex items-center justify-center gap-1 pt-1"
-                    >
-                      <Compass className="w-3 h-3" />
-                      Explore public prompts
-                    </Link>
-                  </div>
-                </div>
-              ) : (
-                <ul className="space-y-2.5">
-                  {filteredRepos.map((repo) => (
-                    <li key={repo.id} className="flex items-center gap-2 group">
-                      <div className="w-4 h-4 rounded-full bg-[#21262d] border border-[#30363d] overflow-hidden shrink-0 flex items-center justify-center">
-                        <span className="text-[9px] text-[#8b949e] font-bold">
-                          {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-                        </span>
-                      </div>
-                      <Link 
-                        href={`/repo/${repo.id}`} 
-                        className="text-xs font-semibold text-[#c9d1d9] group-hover:text-[#58a6ff] group-hover:underline truncate flex items-center gap-1.5 flex-1 min-w-0"
-                      >
-                        <span className="font-normal text-[#8b949e]">
-                          {user?.username || 'user'}/
-                        </span>
-                        <span className="truncate">{repo.name}</span>
-                        {repo.visibility?.toLowerCase() === 'private' ? (
-                          <Lock className="w-2.5 h-2.5 text-[#8b949e] shrink-0" title="Private repository" />
-                        ) : (
-                          <Globe className="w-2.5 h-2.5 text-[#3fb950] shrink-0" title="Public repository" />
-                        )}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {/* Collapse button on vertical edge */}
-            <button 
-              onClick={() => setIsSidebarCollapsed(true)}
-              title="Collapse sidebar"
-              className="hidden md:flex absolute -right-3 top-28 w-6 h-6 rounded-full bg-[#161b22] border border-[#30363d] text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] items-center justify-center shadow-md z-10 transition"
+        {isHistoryHidden ? (
+          <aside className="shrink-0 hidden md:flex flex-col items-center z-20 pt-1">
+            <button
+              onClick={toggleHistoryHidden}
+              title="Show Chat History"
+              className={`p-3 rounded-2xl border backdrop-blur-xl transition-all duration-200 hover:scale-105 shadow-xl group cursor-pointer ${
+                isDark 
+                  ? "bg-[#0d1117]/85 border-white/10 hover:border-cyan-500/40 text-slate-400 hover:text-cyan-400" 
+                  : "bg-white/90 border-slate-200 hover:border-cyan-600/40 text-slate-600 hover:text-cyan-600"
+              }`}
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
+              <History className="w-5 h-5 transition-transform group-hover:rotate-[-20deg]" />
             </button>
           </aside>
-        )}
-
-        {/* Expand button if sidebar is collapsed */}
-        {isSidebarCollapsed && (
-          <button 
-            onClick={() => setIsSidebarCollapsed(false)}
-            title="Expand sidebar"
-            className="hidden md:flex shrink-0 w-6 h-6 rounded-full bg-[#161b22] border border-[#30363d] text-[#8b949e] hover:text-[#f0f6fc] items-center justify-center shadow-md transition mt-2"
-          >
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        )}
-
-        {/* ========================================================
-            CENTER COLUMN: AI Chat & Prompt Crafting
-           ======================================================== */}
-        <main className="flex-1 min-w-0 max-w-[840px]">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-xl font-semibold text-[#f0f6fc] flex items-center gap-2.5">
-              <div className="relative flex items-center justify-center">
-                <div 
-                  className="logo-flashlight-glow absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.75)_0%,rgba(255,255,255,0.2)_50%,transparent_80%)] blur-[5px] pointer-events-none" 
-                  aria-hidden="true"
-                />
-                <img 
-                  src="/prysm.png" 
-                  alt="Prysm" 
-                  className="logo-drop-shadow w-5 h-5 object-contain relative z-10" 
-                  style={{ filter: "drop-shadow(0 0 6px rgba(255, 255, 255, 0.85))" }}
-                />
-              </div>
-              Prysm
-            </h1>
-            {chatMessages.length > 0 && (
-              <button 
-                onClick={handleNewChat}
-                className="text-xs text-[#8b949e] hover:text-[#f0f6fc] flex items-center gap-1 transition"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                New Chat
-              </button>
-            )}
-          </div>
-
-          {/* Chat Container */}
-          <div 
-            className="rounded-xl border border-[#30363d] bg-[#0d1117] shadow-lg overflow-hidden flex flex-col" 
-            style={{ minHeight: "calc(100vh - 200px)", maxHeight: "calc(100vh - 160px)" }}
-          >
-            {/* Chat Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {chatMessages.length === 0 ? (
-                /* Welcome / Starter View */
-                <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-4">
-                  {/* Prysm Emblem with white flashlight glow - no surrounding box */}
-                  <div className="relative flex items-center justify-center mb-5">
-                    <div 
-                      className="logo-flashlight-glow absolute w-24 h-24 rounded-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.85)_0%,rgba(255,255,255,0.35)_35%,transparent_70%)] blur-xl pointer-events-none" 
-                      aria-hidden="true"
-                    />
-                    <img 
-                      src="/prysm.png" 
-                      alt="Prysm" 
-                      className="logo-drop-shadow w-12 h-12 sm:w-14 sm:h-14 object-contain relative z-10" 
-                      style={{ filter: "drop-shadow(0 0 12px rgba(255, 255, 255, 0.9)) drop-shadow(0 0 24px rgba(255, 255, 255, 0.45))" }}
-                    />
+        ) : (
+          <aside className="w-[280px] lg:w-[305px] shrink-0 hidden md:flex flex-col h-full max-h-full min-h-0 z-20">
+            <div className={`border rounded-3xl overflow-hidden shadow-2xl backdrop-blur-2xl transition-all flex flex-col h-full max-h-full min-h-0 ${
+              isDark 
+                ? "bg-[#090d16]/85 border-white/10 shadow-[0_16px_50px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.06)]" 
+                : "bg-white/85 border-slate-200 shadow-[0_16px_40px_rgba(15,23,42,0.05),inset_0_1px_1px_rgba(255,255,255,0.8)]"
+            }`}>
+              {/* Header */}
+              <div className={`p-3.5 border-b flex items-center justify-between shrink-0 transition-colors ${
+                isDark ? "bg-white/[0.02] border-white/10" : "bg-slate-50/80 border-slate-200"
+              }`}>
+                <div className="flex items-center gap-2 select-none">
+                  <div className={`w-7 h-7 rounded-xl flex items-center justify-center shadow-sm ${
+                    isDark ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/20" : "bg-cyan-600/10 text-cyan-600 border border-cyan-600/15"
+                  }`}>
+                    <MessageSquare className="w-3.5 h-3.5" />
                   </div>
-                  <h2 className="text-xl font-bold text-[#f0f6fc] mb-2 tracking-tight">Prysm</h2>
-                  <p className="text-xs text-[#8b949e] mb-6 max-w-md leading-relaxed">
-                    Your AI prompt engineering assistant. Create production-ready prompts, 
-                    iterate via chat, and save them directly as private repositories.
-                  </p>
-
-                  {/* Quick Action Pills */}
-                  <div className="flex flex-wrap justify-center gap-2 mb-6">
-                    {quickActions.map((action, idx) => (
-                      <button 
-                        key={idx}
-                        onClick={() => {
-                          setChatInput(action.query);
-                          chatInputRef.current?.focus();
-                        }}
-                        className="bg-[#161b22] hover:bg-[#21262d] border border-[#30363d] text-[#c9d1d9] hover:text-[#f0f6fc] text-xs font-medium px-3 py-2 rounded-lg flex items-center gap-1.5 transition"
-                      >
-                        <action.icon className={`w-3.5 h-3.5 ${action.iconColor}`} />
-                        {action.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Starter Prompts */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
-                    {[
-                      "Create a customer support chatbot prompt",
-                      "Build a code review agent system prompt",
-                      "Design a research paper analyzer prompt",
-                      "Make a SQL query generator prompt"
-                    ].map((starter, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => sendMessage(starter)}
-                        className="text-left bg-[#161b22] hover:bg-[#21262d] border border-[#30363d] hover:border-[#8b949e]/50 rounded-lg px-3 py-2.5 text-xs text-[#c9d1d9] hover:text-[#f0f6fc] transition flex items-center gap-2 group"
-                      >
-                        <ArrowRight className="w-3 h-3 text-[#8b949e] group-hover:text-[#58a6ff] shrink-0 transition" />
-                        <span>{starter}</span>
-                      </button>
-                    ))}
+                  <div>
+                    <span className={`text-xs font-bold tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
+                      Chat History
+                    </span>
+                    <span className={`ml-1.5 text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded-full ${
+                      isDark ? "bg-white/10 text-cyan-300" : "bg-cyan-100 text-cyan-800"
+                    }`}>
+                      {chatSessions.length}
+                    </span>
                   </div>
                 </div>
-              ) : (
-                /* Chat Messages */
-                chatMessages.map((msg, idx) => (
-                  <div key={idx} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                    {msg.role === "assistant" && (
-                      <div className="relative flex items-center justify-center shrink-0 mt-0.5">
-                        <div 
-                          className="logo-flashlight-glow absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.75)_0%,transparent_70%)] blur-[4px] pointer-events-none rounded-full" 
-                          aria-hidden="true"
-                        />
-                        <div className="w-7 h-7 rounded-full bg-[#161b22] border border-[#30363d] flex items-center justify-center p-1 overflow-hidden relative z-10 shadow-sm">
-                          <img 
-                            src="/prysm.png" 
-                            alt="Prysm" 
-                            className="logo-drop-shadow w-full h-full object-contain" 
-                            style={{ filter: "drop-shadow(0 0 4px rgba(255, 255, 255, 0.9))" }}
-                          />
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div className={`max-w-[85%] ${msg.role === "user" ? "order-first" : ""}`}>
-                      <div className={`rounded-xl px-4 py-3 ${
-                        msg.role === "user" 
-                          ? "bg-[#1f6feb] text-white ml-auto" 
-                          : msg.isError 
-                            ? "bg-[#da3633]/10 border border-[#da3633]/30 text-[#f85149]"
-                            : "bg-[#161b22] border border-[#30363d] text-[#c9d1d9]"
-                      }`}>
-                        {msg.role === "user" ? (
-                          <p className="text-xs leading-relaxed">{msg.content}</p>
-                        ) : (
-                          <div className="prose-sm">
-                            {renderMessageContent(msg.content)}
-                          </div>
-                        )}
-                      </div>
 
-                      {/* Repo Created Success Card (if created) */}
-                      {msg.repo_created && (
-                        <div className="mt-2 border border-[#1b4b27] bg-[#041d11]/80 rounded-lg p-3 flex items-center justify-between gap-3 shadow-sm">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-md bg-[#238636]/30 border border-[#238636] flex items-center justify-center shrink-0">
-                              <Book className="w-4 h-4 text-[#3fb950]" />
-                            </div>
-                            <div>
-                              <div className="text-xs font-semibold text-[#3fb950] flex items-center gap-1.5">
-                                Private Repository Created
-                                <Lock className="w-3 h-3 text-[#e3b341]" />
-                              </div>
-                              <div className="text-[11px] text-[#8b949e] font-mono">{msg.repo_created.name}</div>
-                            </div>
-                          </div>
-                          <Link
-                            href={`/repo/${msg.repo_created.id}`}
-                            className="bg-[#238636] hover:bg-[#2ea043] text-white text-[11px] font-semibold px-3 py-1.5 rounded-md flex items-center gap-1 transition shadow-sm whitespace-nowrap"
-                          >
-                            View Repository
-                            <ExternalLink className="w-3 h-3" />
-                          </Link>
-                        </div>
-                      )}
-
-                      {/* Action Buttons for AI responses: Save to Repo, Copy */}
-                      {msg.role === "assistant" && !msg.isError && !msg.repo_created && (
-                        <div className="flex items-center gap-2 mt-2">
-                          <button
-                            onClick={() => handleCopy(msg.content, `msg-${idx}`)}
-                            className="text-[#8b949e] hover:text-[#f0f6fc] p-1.5 rounded hover:bg-[#21262d] transition flex items-center gap-1 text-[11px]"
-                            title="Copy prompt"
-                          >
-                            {copiedId === `msg-${idx}` ? (
-                              <>
-                                <CheckCircle className="w-3.5 h-3.5 text-[#3fb950]" />
-                                <span className="text-[#3fb950]">Copied</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3.5 h-3.5" />
-                                <span>Copy</span>
-                              </>
-                            )}
-                          </button>
-
-                          {/* Save as Repository button with smart naming according to prompt */}
-                          <button
-                            onClick={() => openSaveAsRepoModal(msg.content, msg.userQuery)}
-                            className="bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-[#f0f6fc] hover:text-white px-2.5 py-1 rounded transition flex items-center gap-1.5 text-[11px] font-medium shadow-sm"
-                            title="Save as Private Repository"
-                          >
-                            <Save className="w-3.5 h-3.5 text-[#3fb950]" />
-                            <span>Save as Repo</span>
-                            <Lock className="w-2.5 h-2.5 text-[#e3b341] ml-0.5" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {msg.role === "user" && (
-                      <div className="w-7 h-7 rounded-full bg-[#21262d] border border-[#30363d] flex items-center justify-center shrink-0 mt-0.5 overflow-hidden">
-                        {user?.avatar ? (
-                          <img src={user.avatar} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <UserIcon className="w-3.5 h-3.5 text-[#8b949e]" />
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-
-              {/* AI Thinking Indicator */}
-              {isAiThinking && (
-                <div className="flex gap-3 items-start">
-                  <div className="relative flex items-center justify-center shrink-0">
-                    <div 
-                      className="logo-flashlight-glow absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.8)_0%,transparent_70%)] blur-[5px] pointer-events-none rounded-full animate-pulse" 
-                      aria-hidden="true"
-                    />
-                    <div className="w-7 h-7 rounded-full bg-[#161b22] border border-[#30363d] flex items-center justify-center p-1 overflow-hidden relative z-10 shadow-sm">
-                      <img 
-                        src="/prysm.png" 
-                        alt="Prysm" 
-                        className="logo-drop-shadow w-full h-full object-contain animate-pulse" 
-                        style={{ filter: "drop-shadow(0 0 5px rgba(255, 255, 255, 0.95))" }}
-                      />
-                    </div>
-                  </div>
-                  <div className="bg-[#161b22] border border-[#30363d] rounded-xl px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-[#58a6ff] animate-bounce" style={{ animationDelay: "0ms" }}></div>
-                        <div className="w-1.5 h-1.5 rounded-full bg-[#58a6ff] animate-bounce" style={{ animationDelay: "150ms" }}></div>
-                        <div className="w-1.5 h-1.5 rounded-full bg-[#58a6ff] animate-bounce" style={{ animationDelay: "300ms" }}></div>
-                      </div>
-                      <span className="text-xs text-[#8b949e] animate-pulse">Prysm is crafting your prompt...</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div ref={chatEndRef} />
-            </div>
-
-            {/* Chat Input Bar */}
-            <div className="border-t border-[#21262d] bg-[#0d1117] p-3">
-              {chatError && (
-                <div className="text-xs text-[#da3633] mb-2 px-1 flex items-center gap-1">
-                  <X className="w-3 h-3" />
-                  {chatError}
-                </div>
-              )}
-              
-              <div className="flex items-end gap-2">
-                <div className="flex-1 relative">
-                  <textarea
-                    ref={chatInputRef}
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        sendMessage();
-                      }
-                    }}
-                    placeholder="Ask Prysm to create, optimize, or explain prompts..."
-                    rows={1}
-                    className="w-full bg-[#161b22] border border-[#30363d] rounded-lg px-4 py-2.5 text-sm text-[#f0f6fc] placeholder:text-[#8b949e] focus:outline-none focus:border-[#58a6ff] transition resize-none"
-                    style={{ minHeight: "40px", maxHeight: "120px" }}
-                    onInput={(e) => {
-                      e.target.style.height = "40px";
-                      e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
-                    }}
-                    disabled={isAiThinking}
-                  />
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <button 
-                    onClick={() => sendMessage()}
-                    disabled={isAiThinking || !chatInput.trim()}
-                    className="w-10 h-10 rounded-lg bg-[#238636] hover:bg-[#2ea043] disabled:bg-[#21262d] disabled:opacity-50 text-white flex items-center justify-center transition shadow-sm"
-                    title="Send message"
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={handleNewChat}
+                    title="New Chat"
+                    className={`px-2 py-1 rounded-lg transition-all flex items-center gap-1 text-[11px] font-semibold cursor-pointer ${
+                      isDark 
+                        ? "bg-white/5 border border-white/10 text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/20" 
+                        : "bg-black/5 border border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-black/10"
+                    }`}
                   >
-                    {isAiThinking ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4" />
-                    )}
+                    <Plus className="w-3 h-3 text-cyan-400" />
+                    <span>New</span>
+                  </button>
+                  <button
+                    onClick={toggleHistoryHidden}
+                    title="Collapse history"
+                    className={`p-1.5 rounded-lg transition cursor-pointer ${
+                      isDark ? "text-slate-400 hover:text-white hover:bg-white/10" : "text-slate-500 hover:text-slate-900 hover:bg-black/5"
+                    }`}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
-              {/* Quick actions row */}
-              {chatMessages.length === 0 && (
-                <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <span className="text-[11px] text-[#8b949e]">Quick:</span>
-                  {quickActions.slice(0, 3).map((action, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setChatInput(action.query)}
-                      className="text-[11px] text-[#8b949e] hover:text-[#58a6ff] transition"
-                    >
-                      {action.label}
+              {/* Quick Search */}
+              <div className="px-3 pt-2.5 pb-1 shrink-0">
+                <div className={`relative flex items-center rounded-xl border px-2.5 py-1.5 transition ${
+                  isDark ? "bg-white/[0.03] border-white/10 focus-within:border-cyan-500/50" : "bg-slate-100/70 border-slate-200 focus-within:border-cyan-600/50"
+                }`}>
+                  <Search className="w-3.5 h-3.5 text-slate-400 shrink-0 mr-2" />
+                  <input
+                    type="text"
+                    placeholder="Search chats..."
+                    value={historySearch}
+                    onChange={(e) => setHistorySearch(e.target.value)}
+                    className={`w-full bg-transparent border-0 outline-none text-xs ${
+                      isDark ? "text-slate-100 placeholder:text-slate-500" : "text-slate-900 placeholder:text-slate-400"
+                    }`}
+                  />
+                  {historySearch && (
+                    <button onClick={() => setHistorySearch("")} className="text-slate-400 hover:text-slate-200">
+                      <X className="w-3 h-3" />
                     </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </main>
-
-        {/* ========================================================
-            RIGHT COLUMN: Recent Repos & Community Prompts to Fork
-           ======================================================== */}
-        <aside className="w-[300px] shrink-0 hidden xl:block sticky top-20 space-y-4">
-          
-          {/* AI Chat History (ChatGPT-style: Saved, Rename, Delete, Collapsible/Toggleable) */}
-          <div className="border border-[#30363d] bg-[#0d1117] rounded-xl overflow-hidden shadow-sm transition-all">
-            {/* Header */}
-            <div className="p-3 bg-[#161b22]/50 border-b border-[#21262d] flex items-center justify-between">
-              <div 
-                onClick={toggleHistoryHidden}
-                className="flex items-center gap-2 cursor-pointer select-none group"
-                title={isHistoryHidden ? "Show chat history" : "Hide chat history"}
-              >
-                <MessageSquare className="w-4 h-4 text-[#58a6ff]" />
-                <span className="text-xs font-semibold text-[#f0f6fc] group-hover:text-[#58a6ff] transition">
-                  Chat History
-                </span>
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#21262d] text-[#8b949e]">
-                  {chatSessions.length}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={handleNewChat}
-                  title="New Chat"
-                  className="p-1 text-[#8b949e] hover:text-[#58a6ff] hover:bg-[#21262d] rounded transition flex items-center gap-1 text-[11px]"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">New</span>
-                </button>
-                <button
-                  onClick={toggleHistoryHidden}
-                  title={isHistoryHidden ? "Show chat history" : "Hide chat history"}
-                  className="p-1 text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] rounded transition"
-                >
-                  {isHistoryHidden ? (
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  ) : (
-                    <ChevronUp className="w-3.5 h-3.5" />
                   )}
-                </button>
+                </div>
               </div>
-            </div>
 
-            {/* Body */}
-            {!isHistoryHidden ? (
-              <div className="p-2">
+              {/* Sessions List */}
+              <div className="p-2 flex-1 min-h-0 flex flex-col overflow-hidden">
                 {chatSessions.length === 0 ? (
-                  <div className="text-center py-6 px-3">
-                    <Bot className="w-6 h-6 text-[#8b949e] mx-auto mb-2 opacity-50" />
-                    <p className="text-xs text-[#8b949e]">No chat history yet.</p>
-                    <p className="text-[11px] text-[#484f58] mt-0.5">Start chatting with Prysm!</p>
+                  <div className="text-center py-12 px-3 my-auto">
+                    <Bot className={`w-8 h-8 mx-auto mb-2 opacity-30 ${isDark ? "text-white" : "text-black"}`} />
+                    <p className={`text-xs font-semibold ${isDark ? "text-slate-400" : "text-slate-600"}`}>No chats yet</p>
+                    <p className={`text-[11px] mt-0.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>Conversations will appear here</p>
                     <button
                       onClick={handleNewChat}
-                      className="mt-3 text-xs text-[#58a6ff] hover:underline flex items-center justify-center gap-1 mx-auto"
+                      className={`mt-4 text-xs font-semibold px-3 py-1.5 rounded-xl border transition flex items-center gap-1.5 mx-auto cursor-pointer ${
+                        isDark 
+                          ? "bg-white/5 border-white/10 text-cyan-400 hover:bg-white/10" 
+                          : "bg-black/5 border-slate-200 text-cyan-700 hover:bg-black/10"
+                      }`}
                     >
-                      <Plus className="w-3 h-3" />
-                      Start new chat
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Start new chat</span>
                     </button>
                   </div>
                 ) : (
-                  <div className="space-y-1 max-h-[340px] overflow-y-auto pr-0.5">
-                    {chatSessions.map((session) => {
-                      const isActive = session.id === activeSessionId;
-                      const isEditing = editingSessionId === session.id;
+                  <div className="space-y-1.5 overflow-y-auto custom-scrollbar pr-1 flex-1 min-h-0">
+                    {chatSessions
+                      .filter(s => (s.title || "Untitled Chat").toLowerCase().includes(historySearch.toLowerCase()))
+                      .map((session) => {
+                        const isActive = session.id === activeSessionId;
+                        const isEditing = editingSessionId === session.id;
 
-                      if (isEditing) {
+                        if (isEditing) {
+                          return (
+                            <div 
+                              key={session.id}
+                              className={`p-1.5 rounded-xl flex items-center gap-1.5 border ${
+                                isDark ? "bg-[#161b22] border-cyan-500/50" : "bg-slate-100 border-cyan-600/50"
+                              }`}
+                            >
+                              <input
+                                type="text"
+                                value={editTitleInput}
+                                onChange={(e) => setEditTitleInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveRename(e, session.id);
+                                  if (e.key === 'Escape') handleCancelRename(e);
+                                }}
+                                autoFocus
+                                className={`w-full border rounded-lg px-2 py-1 text-xs focus:outline-none ${
+                                  isDark 
+                                    ? "bg-[#0d1117] border-white/20 text-white focus:border-cyan-400" 
+                                    : "bg-white border-slate-300 text-slate-900 focus:border-cyan-600"
+                                }`}
+                              />
+                              <button
+                                onClick={(e) => handleSaveRename(e, session.id)}
+                                title="Save title"
+                                className="p-1 text-emerald-400 hover:bg-black/10 rounded-md cursor-pointer"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={handleCancelRename}
+                                title="Cancel"
+                                className="p-1 text-rose-400 hover:bg-black/10 rounded-md cursor-pointer"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          );
+                        }
+
                         return (
-                          <div 
+                          <div
                             key={session.id}
-                            className="p-1.5 bg-[#161b22] border border-[#58a6ff]/50 rounded-lg flex items-center gap-1.5"
+                            onClick={() => handleSelectSession(session.id)}
+                            className={`group relative flex items-center justify-between px-3 py-2.5 rounded-2xl text-xs cursor-pointer transition-all duration-200 border ${
+                              isActive
+                                ? isDark 
+                                  ? "bg-gradient-to-r from-cyan-500/20 via-blue-500/10 to-transparent border-cyan-500/40 text-white shadow-[0_0_20px_rgba(6,182,212,0.15)] font-medium" 
+                                  : "bg-gradient-to-r from-cyan-50 via-blue-50 to-transparent border-cyan-600/30 text-cyan-900 font-medium shadow-sm"
+                                : isDark
+                                  ? "border-transparent text-slate-300 hover:bg-white/[0.04] hover:border-white/10 hover:text-white"
+                                  : "border-transparent text-slate-700 hover:bg-slate-100/80 hover:border-slate-200 hover:text-slate-900"
+                            }`}
                           >
-                            <input
-                              type="text"
-                              value={editTitleInput}
-                              onChange={(e) => setEditTitleInput(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleSaveRename(e, session.id);
-                                if (e.key === 'Escape') handleCancelRename(e);
-                              }}
-                              autoFocus
-                              className="w-full bg-[#0d1117] border border-[#30363d] rounded px-2 py-0.5 text-xs text-[#f0f6fc] focus:outline-none focus:border-[#58a6ff]"
-                            />
-                            <button
-                              onClick={(e) => handleSaveRename(e, session.id)}
-                              title="Save title"
-                              className="p-1 text-[#3fb950] hover:bg-[#21262d] rounded"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={handleCancelRename}
-                              title="Cancel"
-                              className="p-1 text-[#8b949e] hover:text-[#f85149] hover:bg-[#21262d] rounded"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-1">
+                              {isActive ? (
+                                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0 shadow-[0_0_8px_#22d3ee] animate-pulse" />
+                              ) : (
+                                <MessageSquare className="w-3.5 h-3.5 shrink-0 text-slate-400 group-hover:text-slate-300" />
+                              )}
+                              <span className="truncate text-xs tracking-tight">
+                                {session.title || "Untitled Chat"}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                              <button
+                                onClick={(e) => handleStartRename(e, session)}
+                                title="Rename chat"
+                                className={`p-1 rounded-md transition cursor-pointer ${
+                                  isDark ? "text-slate-400 hover:text-white hover:bg-white/10" : "text-slate-500 hover:text-slate-900 hover:bg-black/5"
+                                }`}
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={(e) => handleDeleteSession(e, session.id)}
+                                title="Delete chat"
+                                className="p-1 text-rose-400 hover:bg-rose-500/10 rounded-md transition cursor-pointer"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
                           </div>
                         );
-                      }
-
-                      return (
-                        <div
-                          key={session.id}
-                          onClick={() => handleSelectSession(session.id)}
-                          className={`group flex items-center justify-between px-2.5 py-2 rounded-lg text-xs cursor-pointer transition border ${
-                            isActive
-                              ? "bg-[#1f6feb]/15 border-[#1f6feb]/40 text-[#58a6ff]"
-                              : "border-transparent text-[#c9d1d9] hover:bg-[#161b22] hover:text-[#f0f6fc]"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0 flex-1 mr-1">
-                            <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-[#58a6ff]" : "text-[#8b949e]"}`} />
-                            <span className="truncate font-medium text-xs">
-                              {session.title || "Untitled Chat"}
-                            </span>
-                          </div>
-
-                          {/* Action buttons (Rename & Delete) */}
-                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                            <button
-                              onClick={(e) => handleStartRename(e, session)}
-                              title="Rename chat"
-                              className="p-1 text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] rounded transition"
-                            >
-                              <Pencil className="w-3 h-3" />
-                            </button>
-                            <button
-                              onClick={(e) => handleDeleteSession(e, session.id)}
-                              title="Delete chat"
-                              className="p-1 text-[#8b949e] hover:text-[#f85149] hover:bg-[#21262d] rounded transition"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
+                      })}
                   </div>
                 )}
               </div>
-            ) : (
-              <div 
-                onClick={toggleHistoryHidden}
-                className="py-2.5 px-3 text-center text-xs text-[#8b949e] hover:text-[#58a6ff] cursor-pointer hover:bg-[#161b22]/50 transition flex items-center justify-center gap-1.5"
-                title="Click to expand chat history"
-              >
-                <Eye className="w-3.5 h-3.5" />
-                <span>Show Chat History</span>
+            </div>
+          </aside>
+        )}
+
+        {/* ========================================================
+            CENTER COLUMN: Futuristic Prysm AI Chatbot (Fixed Ratios, Only Chat Scrolls)
+           ======================================================== */}
+        <main className={`flex-1 min-w-0 h-full max-h-full min-h-0 flex flex-col mx-auto transition-all duration-300 ${isHistoryHidden ? 'max-w-4xl' : 'max-w-3xl xl:max-w-4xl'}`}>
+          
+          {/* Main Futuristic Card Container */}
+          <div className={`rounded-3xl border transition-all duration-300 shadow-2xl overflow-hidden relative flex flex-col h-full max-h-full min-h-0 ${
+            isDark 
+              ? "bg-[#080b11]/90 backdrop-blur-2xl border-white/10 shadow-[0_20px_70px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.1)]" 
+              : "bg-white/95 backdrop-blur-2xl border-[#d0d7de] shadow-[0_20px_50px_rgba(0,0,0,0.06),inset_0_1px_1px_rgba(0,0,0,0.02)]"
+          }`}>
+            {/* Background Celestial Arc with Looping Animated Tracing Beam (Only on Welcome Screen) */}
+            {chatMessages.length === 0 && (
+              <div className="absolute inset-0 pointer-events-none overflow-hidden flex items-start justify-center">
+                {/* Top ambient radiance */}
+                <div className={`absolute -top-12 w-[600px] sm:w-[950px] h-[340px] rounded-[100%] blur-[90px] pointer-events-none transition-opacity ${
+                  isDark 
+                    ? "bg-[radial-gradient(ellipse_at_top,rgba(56,189,248,0.22)_0%,rgba(14,165,233,0.08)_40%,transparent_75%)] opacity-100" 
+                    : "bg-[radial-gradient(ellipse_at_top,rgba(9,105,218,0.12)_0%,rgba(56,189,248,0.05)_50%,transparent_70%)] opacity-80"
+                }`} />
+                
+                {/* Planetary Orbital Horizon Arc with Looping Glowing Beam */}
+                <svg 
+                  className="w-[780px] sm:w-[1150px] h-[360px] sm:h-[460px] overflow-visible -top-8 sm:-top-12 relative pointer-events-none select-none" 
+                  viewBox="0 0 1000 400"
+                >
+                  <defs>
+                    <linearGradient id="domeBaseGrad" x1="0%" y1="100%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor={isDark ? "rgba(255,255,255,0)" : "rgba(9,105,218,0)"} />
+                      <stop offset="25%" stopColor={isDark ? "rgba(255,255,255,0.16)" : "rgba(9,105,218,0.15)"} />
+                      <stop offset="50%" stopColor={isDark ? "rgba(255,255,255,0.38)" : "rgba(9,105,218,0.32)"} />
+                      <stop offset="75%" stopColor={isDark ? "rgba(255,255,255,0.16)" : "rgba(9,105,218,0.15)"} />
+                      <stop offset="100%" stopColor={isDark ? "rgba(255,255,255,0)" : "rgba(9,105,218,0)"} />
+                    </linearGradient>
+
+                    <linearGradient id="domeBeamGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#38bdf8" stopOpacity="0" />
+                      <stop offset="35%" stopColor="#38bdf8" stopOpacity="0.5" />
+                      <stop offset="75%" stopColor="#67e8f9" stopOpacity="0.95" />
+                      <stop offset="95%" stopColor="#ffffff" stopOpacity="1" />
+                      <stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
+                    </linearGradient>
+
+                    <filter id="domeGlowFilter" x="-30%" y="-30%" width="160%" height="160%">
+                      <feGaussianBlur stdDeviation="5" result="blur" />
+                      <feMerge>
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                  </defs>
+
+                  {/* Base subtle dome arc */}
+                  <path
+                    d="M 60,370 A 500,320 0 0,1 940,370"
+                    fill="none"
+                    stroke="url(#domeBaseGrad)"
+                    strokeWidth="1.5"
+                  />
+
+                  {/* Looping glowing comet beam tracing along the arc - single smooth continuous flow */}
+                  <path
+                    d="M 60,370 A 500,320 0 0,1 940,370"
+                    fill="none"
+                    stroke="url(#domeBeamGrad)"
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    filter="url(#domeGlowFilter)"
+                    className="prysm-dome-beam"
+                  />
+                </svg>
+
+                {/* Lower subtle perspective glow line */}
+                <div className={`absolute bottom-12 w-full max-w-2xl h-px pointer-events-none ${
+                  isDark 
+                    ? "bg-gradient-to-r from-transparent via-white/15 to-transparent" 
+                    : "bg-gradient-to-r from-transparent via-black/10 to-transparent"
+                }`} />
               </div>
             )}
-          </div>
 
-          {/* Public Community Prompts (Explore & Fork) */}
-          <div className="border border-[#30363d] bg-[#0d1117] rounded-xl p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-[#f0f6fc] flex items-center gap-2">
-                <Compass className="w-4 h-4 text-[#58a6ff]" />
-                Trending in Community
-              </h2>
-              <Link href="/explore" className="text-[11px] text-[#58a6ff] hover:underline">
-                Explore all →
-              </Link>
-            </div>
-            
-            <p className="text-[11px] text-[#8b949e] mb-3">
-              Use other users' public prompts and enhance them in your own repo by forking.
-            </p>
+            {/* Inner Content Area - strictly bounded flex-1 */}
+            <div className="relative z-10 flex flex-col h-full max-h-full min-h-0 flex-1 overflow-hidden">
 
-            <div className="space-y-3">
-              {(Array.isArray(communityRepos) ? communityRepos : []).slice(0, 4).map((cRepo) => (
-                <div key={cRepo.id} className="border border-[#21262d] rounded-lg p-2.5 bg-[#161b22]/50 hover:border-[#30363d] transition">
-                  <div className="flex items-start justify-between gap-1 mb-1">
-                    <Link 
-                      href={`/repo/${cRepo.id}`}
-                      className="text-xs font-semibold text-[#58a6ff] hover:underline truncate"
-                    >
-                      {cRepo.name}
-                    </Link>
-                    <span className="text-[9px] border border-[#30363d] text-[#8b949e] px-1 py-0.2 rounded font-mono shrink-0">
-                      {cRepo.category}
+              {/* Active Chat Header (Visible when chat messages exist) */}
+              {chatMessages.length > 0 && (
+                <div className={`px-5 py-2.5 border-b flex items-center justify-between backdrop-blur-md shrink-0 transition-colors ${
+                  isDark ? "bg-[#0d1117]/60 border-white/10" : "bg-white/70 border-[#d0d7de]"
+                }`}>
+                  <div className="flex items-center gap-2.5">
+                    <img 
+                      src="/prysm.png" 
+                      alt="Prysm" 
+                      className="w-5 h-5 object-contain drop-shadow" 
+                    />
+                    <span className={`font-bold text-sm tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>Prysm</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-medium border ${
+                      isDark ? "bg-white/5 border-white/10 text-cyan-300" : "bg-black/5 border-black/10 text-cyan-800"
+                    }`}>
+                      {selectedMode}
                     </span>
                   </div>
 
-                  <p className="text-[11px] text-[#8b949e] line-clamp-2 mb-2">
-                    {cRepo.description || "Public AI prompt."}
-                  </p>
-
-                  <div className="flex items-center justify-between pt-1 border-t border-[#21262d]">
-                    <span className="text-[10px] text-[#8b949e]">by {cRepo.owner_name}</span>
-                    <button
-                      onClick={() => {
-                        setForkModalRepo(cRepo);
-                        setForkRepoName(cRepo.name);
-                        setForkVisibility("Private");
-                      }}
-                      className="bg-[#21262d] hover:bg-[#30363d] text-[10px] font-semibold text-[#c9d1d9] hover:text-white px-2 py-0.5 rounded flex items-center gap-1 transition"
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={handleNewChat}
+                      className={`text-xs px-2.5 py-1 rounded-lg border transition flex items-center gap-1.5 font-medium cursor-pointer ${
+                        isDark 
+                          ? "bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 hover:text-white" 
+                          : "bg-black/5 border-[#d0d7de] text-slate-700 hover:bg-black/10"
+                      }`}
                     >
-                      <GitFork className="w-2.5 h-2.5" />
-                      Fork
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>New Chat</span>
                     </button>
                   </div>
                 </div>
-              ))}
+              )}
+
+              {/* Messages or Welcome Hero - Fixed on Hero, scrollable only during chat */}
+              <div className={`flex-1 min-h-0 p-4 sm:p-6 ${
+                chatMessages.length === 0
+                  ? "overflow-hidden flex flex-col justify-center"
+                  : "overflow-y-auto custom-scrollbar space-y-4"
+              }`}>
+                {chatMessages.length === 0 ? (
+                  /* ========================================================
+                      WELCOME HERO VIEW (Exact Futuristic Design from Image 1)
+                     ======================================================== */
+                  <div className="flex flex-col items-center justify-center text-center px-4 py-2 relative my-auto">
+                    
+                    {/* Metallic/Crystal Prysm Emblem */}
+                    <div className="relative flex items-center justify-center mb-2">
+                      <img 
+                        src="/prysm.png" 
+                        alt="Prysm" 
+                        className="w-14 h-14 sm:w-16 sm:h-16 object-contain relative z-10 select-none hover:scale-105 transition-transform duration-300 drop-shadow-[0_4px_24px_rgba(56,189,248,0.25)]" 
+                      />
+                    </div>
+
+                    {/* Brand Wordmark Title */}
+                    <h1 className={`text-3xl sm:text-4xl font-extrabold tracking-tight mb-6 ${
+                      isDark 
+                        ? "bg-gradient-to-b from-white via-slate-100 to-slate-400 bg-clip-text text-transparent drop-shadow-[0_2px_14px_rgba(255,255,255,0.15)]" 
+                        : "text-slate-900"
+                    }`}>
+                      Prysm
+                    </h1>
+
+                    {/* Futuristic Floating Input Capsule */}
+                    <div
+                      className={`w-full max-w-2xl sm:max-w-3xl rounded-3xl p-3 sm:p-4 transition-all duration-300 relative z-20 text-left ${
+                        isDark 
+                          ? "bg-[#0d1117]/85 backdrop-blur-2xl border border-white/15 shadow-[0_16px_50px_rgba(0,0,0,0.6),0_0_25px_rgba(255,255,255,0.05)] focus-within:border-white/30 focus-within:shadow-[0_16px_60px_rgba(0,0,0,0.8),0_0_30px_rgba(88,166,255,0.2)]"
+                          : "bg-white/90 backdrop-blur-2xl border border-[#d0d7de] shadow-[0_16px_40px_rgba(0,0,0,0.08),0_0_20px_rgba(9,105,218,0.06)] focus-within:border-[#0969da]/50 focus-within:shadow-[0_16px_50px_rgba(9,105,218,0.12)]"
+                      }`}
+                    >
+                      {/* Textarea for "Ask anything..." */}
+                      <textarea
+                        ref={chatInputRef}
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        onInput={(e) => setChatInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            sendMessage();
+                          }
+                        }}
+                        placeholder="Ask anything..."
+                        rows={2}
+                        className={`w-full bg-transparent border-0 outline-none resize-none px-3 pt-1 text-sm sm:text-base leading-relaxed ${
+                          isDark ? "text-slate-100 placeholder:text-slate-500" : "text-slate-900 placeholder:text-slate-400"
+                        }`}
+                        style={{ minHeight: "44px", maxHeight: "120px" }}
+                        disabled={isAiThinking}
+                      />
+
+                      {/* Lower capsule controls bar */}
+                      <div className="flex items-center justify-between pt-2 px-1">
+                        {/* Left action icons: (+) and (🌐 Auto ⌵) */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            title="Add context"
+                            onClick={() => {
+                              setChatInput(prev => prev ? prev + "\n[Context: Add requirements]" : "Context: ");
+                              chatInputRef.current?.focus();
+                            }}
+                            className={`w-8 h-8 rounded-full flex items-center justify-center transition cursor-pointer ${
+                              isDark 
+                                ? "text-slate-400 hover:text-white hover:bg-white/10" 
+                                : "text-slate-500 hover:text-slate-950 hover:bg-black/5"
+                            }`}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+
+                          {/* Model / Auto selector dropdown */}
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setShowModelDropdown(!showModelDropdown)}
+                              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition cursor-pointer ${
+                                isDark 
+                                  ? "bg-white/[0.04] border-white/10 text-slate-300 hover:bg-white/[0.08] hover:border-white/20" 
+                                  : "bg-black/[0.03] border-[#d0d7de] text-slate-700 hover:bg-black/[0.06]"
+                              }`}
+                            >
+                              <Globe className="w-3.5 h-3.5 text-cyan-400" />
+                              <span>{selectedMode}</span>
+                              <ChevronDown className="w-3 h-3 opacity-60" />
+                            </button>
+
+                            {showModelDropdown && (
+                              <div className={`absolute left-0 bottom-full mb-2 w-48 rounded-xl border p-1 shadow-2xl z-50 text-xs backdrop-blur-xl ${
+                                isDark ? "bg-[#161b22]/95 border-white/15 text-slate-200" : "bg-white/95 border-[#d0d7de] text-slate-800"
+                              }`}>
+                                {["Auto", "Prompt Architect", "Code Specialist", "Fast Creative"].map((mode) => (
+                                  <button
+                                    key={mode}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedMode(mode);
+                                      setShowModelDropdown(false);
+                                    }}
+                                    className={`w-full text-left px-3 py-2 rounded-lg transition flex items-center justify-between cursor-pointer ${
+                                      selectedMode === mode 
+                                        ? (isDark ? "bg-cyan-600 text-white" : "bg-cyan-600 text-white") 
+                                        : (isDark ? "hover:bg-white/10" : "hover:bg-black/5")
+                                    }`}
+                                  >
+                                    <span>{mode}</span>
+                                    {selectedMode === mode && <Check className="w-3.5 h-3.5" />}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Right action icons: Voice mic and Glowing Circular Arrow Submit */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            title="Voice input"
+                            onClick={handleVoiceInput}
+                            className={`w-8 h-8 rounded-full flex items-center justify-center transition cursor-pointer ${
+                              isListening 
+                                ? "text-red-500 animate-pulse bg-red-500/20" 
+                                : isDark 
+                                  ? "text-slate-400 hover:text-white hover:bg-white/10" 
+                                  : "text-slate-500 hover:text-slate-900 hover:bg-black/5"
+                            }`}
+                          >
+                            <Mic className="w-4 h-4" />
+                          </button>
+
+                          {/* Glowing circular up-arrow submit button */}
+                          <button
+                            type="button"
+                            onClick={() => sendMessage()}
+                            disabled={isAiThinking}
+                            title="Send"
+                            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 shadow-md ${
+                              chatInput.trim()
+                                ? isDark
+                                  ? "bg-white text-black hover:bg-slate-200 hover:scale-105 active:scale-95 shadow-[0_0_15px_rgba(255,255,255,0.6)] cursor-pointer"
+                                  : "bg-slate-900 text-white hover:bg-slate-800 hover:scale-105 active:scale-95 shadow-md cursor-pointer"
+                                : isDark
+                                  ? "bg-white/20 text-white/50 hover:bg-white/30 cursor-pointer"
+                                  : "bg-black/15 text-black/40 hover:bg-black/25 cursor-pointer"
+                            }`}
+                          >
+                            {isAiThinking ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <ArrowUp className="w-4 h-4 stroke-[2.5]" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Action Suggestion Pills underneath (Exact 5 from Image 1) */}
+                    <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-2.5 mt-5 max-w-3xl">
+                      {suggestionPills.map((action, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => sendMessage(action.query)}
+                          className={`px-3.5 sm:px-4 py-2 rounded-full text-xs font-medium border transition-all duration-200 flex items-center gap-2 group backdrop-blur-md cursor-pointer ${
+                            isDark
+                              ? "bg-white/[0.03] border-white/10 hover:border-cyan-400/40 text-slate-300 hover:text-white hover:bg-white/[0.08] shadow-sm hover:shadow-[0_0_15px_rgba(6,182,212,0.15)]"
+                              : "bg-black/[0.02] border-[#d0d7de] hover:border-cyan-600/40 text-slate-700 hover:text-slate-900 hover:bg-black/[0.05] shadow-sm"
+                          }`}
+                        >
+                          <action.icon className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform" />
+                          <span>{action.label}</span>
+                          <span className="opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all">→</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Bottom Tagline: —— A BETTER WAY TO THINK —— */}
+                    <div className="mt-8 sm:mt-10 flex items-center justify-center gap-4 w-full max-w-md opacity-60">
+                      <div className={`h-px flex-1 ${isDark ? "bg-gradient-to-r from-transparent to-white/30" : "bg-gradient-to-r from-transparent to-black/20"}`} />
+                      <span className={`text-[10px] tracking-[0.3em] uppercase font-mono font-medium ${
+                        isDark ? "text-slate-400" : "text-slate-500"
+                      }`}>
+                        A BETTER WAY TO THINK
+                      </span>
+                      <div className={`h-px flex-1 ${isDark ? "bg-gradient-to-l from-transparent to-white/30" : "bg-gradient-to-l from-transparent to-black/20"}`} />
+                    </div>
+
+                  </div>
+                ) : (
+                  /* ========================================================
+                      ACTIVE CHAT MESSAGES STREAM (Premium Futuristic UI)
+                     ======================================================== */
+                  chatMessages.map((msg, idx) => (
+                    <div key={idx} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                      {msg.role === "assistant" && (
+                        <div className="relative flex items-center justify-center shrink-0 mt-1">
+                          <div className={`w-8 h-8 rounded-2xl border flex items-center justify-center p-1.5 overflow-hidden shadow-md transition-all ${
+                            isDark 
+                              ? "bg-[#0f172a] border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)] ring-1 ring-cyan-500/20" 
+                              : "bg-white border-slate-200 shadow-sm ring-1 ring-slate-100"
+                          }`}>
+                            <img 
+                              src="/prysm.png" 
+                              alt="Prysm" 
+                              className="w-full h-full object-contain" 
+                            />
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className={`max-w-[88%] ${msg.role === "user" ? "order-first" : ""}`}>
+                        <div className={`rounded-3xl px-5 py-4 transition-all duration-200 shadow-md ${
+                          msg.role === "user" 
+                            ? "bg-gradient-to-r from-cyan-600 to-blue-600 text-white ml-auto shadow-[0_8px_25px_rgba(6,182,212,0.25)] border border-cyan-400/30" 
+                            : msg.isError 
+                              ? "bg-rose-500/10 border border-rose-500/30 text-rose-400"
+                              : isDark 
+                                ? "bg-[#0d121d]/90 backdrop-blur-xl border border-white/10 text-slate-200 shadow-[0_12px_40px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.06)]" 
+                                : "bg-white/95 backdrop-blur-xl border border-slate-200/90 text-slate-800 shadow-[0_12px_35px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.9)]"
+                        }`}>
+                          {msg.role === "user" ? (
+                            <p className="text-xs sm:text-sm leading-relaxed">{msg.content}</p>
+                          ) : (
+                            <div className="prose-sm">
+                              {msg.content ? (
+                                <>
+                                  {renderMessageContent(msg.content)}
+                                  {msg.isStreaming && (
+                                    <span className="inline-block w-1.5 h-4 ml-1.5 bg-cyan-400 animate-pulse rounded-sm align-middle shadow-[0_0_8px_#22d3ee]" />
+                                  )}
+                                </>
+                              ) : msg.isStreaming ? (
+                                <div className="flex items-center gap-2 py-0.5 select-none">
+                                  <span className="inline-block w-1.5 h-4 bg-cyan-400 animate-pulse rounded-sm shadow-[0_0_8px_#22d3ee]" />
+                                </div>
+                              ) : null}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Repo Created Success Card (if created) */}
+                        {msg.repo_created && (
+                          <div className="mt-2.5 border border-emerald-500/40 bg-emerald-950/40 rounded-2xl p-3.5 flex items-center justify-between gap-3 shadow-lg backdrop-blur-xl">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center shrink-0">
+                                <Book className="w-4 h-4 text-emerald-400" />
+                              </div>
+                              <div>
+                                <div className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
+                                  Private Repository Created
+                                  <Lock className="w-3 h-3 text-amber-300" />
+                                </div>
+                                <div className="text-[11px] text-slate-300 font-mono">{msg.repo_created.name}</div>
+                              </div>
+                            </div>
+                            <Link
+                              href={`/repo/${msg.repo_created.id}`}
+                              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 transition shadow-md whitespace-nowrap"
+                            >
+                              <span>View Repository</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </Link>
+                          </div>
+                        )}
+
+                        {/* Action Buttons for AI responses: Save to Repo, Copy (shown when complete) */}
+                        {msg.role === "assistant" && !msg.isStreaming && !msg.isError && !msg.repo_created && (
+                          <div className="flex items-center gap-2.5 mt-2.5 pl-1">
+                            {/* Copy button */}
+                            <button
+                              onClick={() => handleCopy(msg.content, `msg-${idx}`)}
+                              className={`px-3 py-1.5 rounded-xl border transition-all duration-200 flex items-center gap-1.5 text-xs font-medium cursor-pointer shadow-sm ${
+                                isDark 
+                                  ? "bg-white/5 border-white/10 hover:border-white/20 text-slate-300 hover:text-white hover:bg-white/10" 
+                                  : "bg-black/[0.03] border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 hover:bg-black/[0.06]"
+                              }`}
+                              title="Copy prompt content"
+                            >
+                              {copiedId === `msg-${idx}` ? (
+                                <>
+                                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                                  <span className="text-emerald-400 font-semibold">Copied</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3.5 h-3.5" />
+                                  <span>Copy</span>
+                                </>
+                              )}
+                            </button>
+
+                            {/* Ultra-Premium Save as Repo Button - Only for code or prompts, NOT on normal conversation */}
+                            {isSavableResponse(msg.content, msg.userQuery) && (
+                              <button
+                                onClick={() => openSaveAsRepoModal(msg.content, msg.userQuery)}
+                                className="relative group overflow-hidden px-4 py-1.5 rounded-xl font-medium text-xs transition-all duration-300 flex items-center gap-2 text-white bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:via-teal-500 hover:to-cyan-400 border border-emerald-400/40 shadow-[0_0_20px_rgba(16,185,129,0.35)] hover:shadow-[0_0_30px_rgba(16,185,129,0.6)] hover:scale-[1.03] active:scale-[0.98] cursor-pointer"
+                                title="Save as Private Repository"
+                              >
+                                {/* Shimmer light sweep on hover */}
+                                <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                                <BookmarkPlus className="w-3.5 h-3.5 text-emerald-100 group-hover:scale-110 transition-transform" />
+                                <span className="font-semibold tracking-wide">Save as Repo</span>
+                                <span className="inline-flex items-center gap-1 text-[10px] font-mono bg-black/25 px-1.5 py-0.5 rounded-md border border-white/20 text-emerald-100">
+                                  <Lock className="w-2.5 h-2.5 text-amber-300" />
+                                  <span>Private</span>
+                                </span>
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {msg.role === "user" && (
+                        <div className={`w-8 h-8 rounded-full border flex items-center justify-center shrink-0 mt-1 overflow-hidden shadow-sm ${
+                          isDark ? "bg-[#21262d] border-white/10" : "bg-white border-slate-200"
+                        }`}>
+                          {user?.avatar ? (
+                            <img src={user.avatar} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <UserIcon className="w-3.5 h-3.5 text-slate-400" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+
+                <div ref={chatEndRef} />
+              </div>
+
+              {/* Chat Input Bar for Active Chat Messages - firmly docked shrink-0 */}
+              {chatMessages.length > 0 && (
+                <div className={`border-t p-3 sm:p-4 backdrop-blur-xl shrink-0 ${
+                  isDark ? "bg-[#0d1117]/80 border-white/10" : "bg-white/80 border-[#d0d7de]"
+                }`}>
+                  {chatError && (
+                    <div className="text-xs text-rose-400 mb-2 px-1 flex items-center gap-1">
+                      <X className="w-3 h-3" />
+                      {chatError}
+                    </div>
+                  )}
+                  {/* Floating Capsule Input in Active Chat */}
+                  <div
+                    className={`rounded-2xl p-2.5 sm:p-3 border transition-all ${
+                      isDark 
+                        ? "bg-[#161b22]/90 border-white/15 focus-within:border-cyan-500/50" 
+                        : "bg-[#f6f8fa] border-[#d0d7de] focus-within:border-cyan-600/50"
+                    }`}
+                  >
+                    <textarea
+                      ref={chatInputRef}
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          sendMessage();
+                        }
+                      }}
+                      placeholder="Ask Prysm to create, optimize, or explain prompts..."
+                      rows={1}
+                      className={`w-full bg-transparent border-0 outline-none resize-none px-2 text-sm ${
+                        isDark ? "text-slate-100 placeholder:text-slate-500" : "text-slate-900 placeholder:text-slate-400"
+                      }`}
+                      style={{ minHeight: "36px", maxHeight: "110px" }}
+                      onInput={(e) => {
+                        e.target.style.height = "36px";
+                        e.target.style.height = Math.min(e.target.scrollHeight, 110) + "px";
+                      }}
+                      disabled={isAiThinking}
+                    />
+
+                    <div className="flex items-center justify-between pt-2 px-1 border-t border-dashed border-white/5">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[11px] font-mono font-medium ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                          Mode: {selectedMode}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          title="Voice input"
+                          onClick={handleVoiceInput}
+                          className={`w-7 h-7 rounded-full flex items-center justify-center transition cursor-pointer ${
+                            isListening ? "text-red-500 animate-pulse bg-red-500/20" : isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900"
+                          }`}
+                        >
+                          <Mic className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button 
+                          type="button"
+                          onClick={() => sendMessage()}
+                          disabled={isAiThinking}
+                          className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                            chatInput.trim()
+                              ? isDark
+                                ? "bg-white text-black hover:bg-slate-200 cursor-pointer shadow-md"
+                                : "bg-slate-900 text-white hover:bg-slate-800 cursor-pointer shadow-md"
+                              : isDark
+                                ? "bg-white/10 text-white/30 cursor-pointer hover:bg-white/20"
+                                : "bg-black/10 text-black/30 cursor-pointer hover:bg-black/20"
+                          }`}
+                          title="Send message"
+                        >
+                          {isAiThinking ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
-
-        </aside>
-
+        </main>
       </div>
 
       {/* ========================================================

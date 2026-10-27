@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useId, useRef, useEffect, useState } from "react";
-import { motion } from "motion/react";
+import { motion } from "framer-motion";
 
 export const GradientTracing = ({
   width = 1024,

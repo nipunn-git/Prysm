@@ -31,29 +31,32 @@ export function ParticleWave({
     camera.position.set(0, cameraHeight, cameraDistance);
     camera.lookAt(0, 0, 0);
 
-    // WebGL Renderer
-    const renderer = new THREE.WebGLRenderer({
-      alpha: true,
-      antialias: true,
-      powerPreference: "high-performance",
-    });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    container.appendChild(renderer.domElement);
+    // WebGL Renderer with graceful error handling
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        alpha: true,
+        antialias: true,
+        powerPreference: "high-performance",
+      });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      container.appendChild(renderer.domElement);
+    } catch (e) {
+      console.warn("[ParticleWave] WebGL initialization skipped:", e);
+      return;
+    }
 
-    // Create soft circular dot texture
+    // Create crisp circular dot texture
     const canvas = document.createElement("canvas");
     canvas.width = 64;
     canvas.height = 64;
     const ctx = canvas.getContext("2d");
     if (ctx) {
-      const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-      gradient.addColorStop(0, "rgba(255, 255, 255, 1)");
-      gradient.addColorStop(0.3, "rgba(255, 255, 255, 0.8)");
-      gradient.addColorStop(0.7, "rgba(255, 255, 255, 0.2)");
-      gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, 64, 64);
+      ctx.beginPath();
+      ctx.arc(32, 32, 26, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
     }
     const texture = new THREE.CanvasTexture(canvas);
 
@@ -79,20 +82,20 @@ export function ParticleWave({
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
 
-    // Material with soft particle texture
+    // Material with high-visibility crisp fine particle texture
     const color = new THREE.Color(particleColor);
     const material = new THREE.PointsMaterial({
       color: color,
-      size: 0.55,
+      size: 0.35,
       map: texture,
       transparent: true,
-      opacity: opacity,
+      opacity: Math.min(0.55, opacity),
       depthWrite: false,
       blending: THREE.NormalBlending,
     });
 
     const particles = new THREE.Points(geometry, material);
-    particles.position.y = -4; // Sit gracefully in the lower plane
+    particles.position.y = -3.5; // Sit gracefully in the lower plane
     scene.add(particles);
 
     // Mouse parallax tracking
