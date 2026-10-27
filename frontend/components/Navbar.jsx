@@ -29,6 +29,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { API_URL } from '../lib/api';
 import { getCachedData, cacheUser, cacheUsers, searchCachedUsers } from '../lib/cache';
+import PromptHubWordmark from './PromptHubWordmark';
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -406,7 +407,7 @@ export default function Navbar() {
                 style={{ filter: "drop-shadow(0 0 10px rgba(255, 255, 255, 0.75)) drop-shadow(0 0 20px rgba(255, 255, 255, 0.35))" }}
               />
             </div>
-            <span className="font-bold text-base sm:text-lg text-[#f0f6fc] tracking-tight hidden xs:inline">PromptHub</span>
+            <PromptHubWordmark height="h-5 sm:h-6" className="inline-flex" />
           </Link>
         </div>
 
@@ -967,7 +968,7 @@ export default function Navbar() {
                     style={{ filter: "drop-shadow(0 0 8px rgba(255, 255, 255, 0.7))" }}
                   />
                 </div>
-                <span className="font-bold text-base text-foreground">PromptHub</span>
+                <PromptHubWordmark height="h-5" />
               </div>
               <button 
                 onClick={() => setIsDrawerOpen(false)}

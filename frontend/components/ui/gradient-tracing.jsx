@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useId } from "react";
+import React, { useId, useRef, useEffect, useState } from "react";
 import { motion } from "motion/react";
 
 export const GradientTracing = ({
@@ -10,7 +10,7 @@ export const GradientTracing = ({
   baseOpacity = 0.18,
   gradientColors = ["#00F2FE", "#FFFFFF", "#00A3FF"],
   glowColor = "rgba(0, 242, 254, 0.85)",
-  animationDuration = 2.2,
+  animationDuration = 2.4,
   strokeWidth = 6.5,
   path = `M0,${height / 2} L${width},${height / 2}`,
   className = "",
@@ -18,13 +18,40 @@ export const GradientTracing = ({
 }) => {
   const reactId = useId();
   const gradientId = `pulse-${reactId.replace(/:/g, "")}`;
-  const filterId = `glow-${reactId.replace(/:/g, "")}`;
+  const glowFilterId = `glow-${reactId.replace(/:/g, "")}`;
+  const pathRef = useRef(null);
+  const [totalLength, setTotalLength] = useState(1565);
+
+  useEffect(() => {
+    if (pathRef.current) {
+      try {
+        const len = pathRef.current.getTotalLength();
+        if (len && len > 0) {
+          setTotalLength(len);
+        }
+      } catch (e) {
+        // Fallback length already initialized
+      }
+    }
+  }, [path]);
 
   const containerStyle = {
     width: className.includes("w-full") ? "100%" : width,
     height: className.includes("h-full") ? "100%" : height,
     ...style,
   };
+
+  // Mathematically seamless dash configuration:
+  // Dash + Gap === totalLength guarantees 100% seamless looping when strokeDashoffset shifts by -totalLength!
+  const beamDash = Math.round(totalLength * 0.24);
+  const beamGap = Math.max(1, Math.round(totalLength - beamDash));
+  const beamDashArray = `${beamDash} ${beamGap}`;
+
+  // Tip is positioned at the leading front of the beam
+  const tipDash = Math.max(16, Math.round(totalLength * 0.05));
+  const tipGap = Math.max(1, Math.round(totalLength - tipDash));
+  const tipDashArray = `${tipDash} ${tipGap}`;
+  const tipLeadOffset = -(beamDash - tipDash);
 
   return (
     <div className={`relative ${className}`} style={containerStyle}>
@@ -37,11 +64,10 @@ export const GradientTracing = ({
         className="overflow-visible w-full h-full"
       >
         <defs>
-          {/* Intense Laser Specular Glow Filter */}
-          <filter id={filterId} x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="4.5" result="coloredBlur" />
+          {/* Hardware-accelerated SVG glow filter */}
+          <filter id={glowFilterId} x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3.5" result="coloredBlur" />
             <feMerge>
-              <feMergeNode in="coloredBlur" />
               <feMergeNode in="coloredBlur" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
@@ -51,10 +77,10 @@ export const GradientTracing = ({
           <linearGradient
             id={gradientId}
             gradientUnits="userSpaceOnUse"
-            x1="200"
-            y1="200"
-            x2="830"
-            y2="490"
+            x1="220"
+            y1="220"
+            x2="800"
+            y2="460"
           >
             <stop offset="0%" stopColor={gradientColors[0]} />
             <stop offset="50%" stopColor={gradientColors[1]} />
@@ -64,6 +90,7 @@ export const GradientTracing = ({
 
         {/* Faint metallic guide line tracing the logo */}
         <path
+          ref={pathRef}
           d={path}
           stroke={baseColor}
           strokeOpacity={baseOpacity}
@@ -76,34 +103,37 @@ export const GradientTracing = ({
         <motion.path
           d={path}
           stroke={glowColor}
-          strokeWidth={strokeWidth + 5}
+          strokeWidth={strokeWidth + 4}
           strokeLinecap="round"
           strokeLinejoin="round"
-          initial={{ pathLength: 0.28, pathOffset: 0 }}
+          strokeDasharray={beamDashArray}
+          initial={{ strokeDashoffset: 0 }}
           animate={{
-            pathOffset: [0, 1],
+            strokeDashoffset: [0, -totalLength],
           }}
           transition={{
             duration: animationDuration,
             repeat: Infinity,
             ease: "linear",
           }}
+          filter={`url(#${glowFilterId})`}
           style={{
-            filter: `drop-shadow(0 0 14px ${glowColor}) drop-shadow(0 0 28px ${glowColor})`,
-            opacity: 0.65,
+            opacity: 0.75,
+            willChange: "stroke-dashoffset",
           }}
         />
 
-        {/* Core Intense Laser Beam (Sharp, Shiny, Pure White-Hot Core) */}
+        {/* Core Intense Laser Beam (Sharp, Shiny, Pure White-Cyan Core) */}
         <motion.path
           d={path}
           stroke={`url(#${gradientId})`}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeLinejoin="round"
-          initial={{ pathLength: 0.28, pathOffset: 0 }}
+          strokeDasharray={beamDashArray}
+          initial={{ strokeDashoffset: 0 }}
           animate={{
-            pathOffset: [0, 1],
+            strokeDashoffset: [0, -totalLength],
           }}
           transition={{
             duration: animationDuration,
@@ -111,20 +141,22 @@ export const GradientTracing = ({
             ease: "linear",
           }}
           style={{
-            filter: `drop-shadow(0 0 8px ${glowColor}) drop-shadow(0 0 4px #ffffff)`,
+            filter: `drop-shadow(0 0 6px ${glowColor})`,
+            willChange: "stroke-dashoffset",
           }}
         />
 
-        {/* Bright White Leading Tip of the Tracer */}
+        {/* Bright White Leading Tip of the Tracer - locked in lockstep with the beam */}
         <motion.path
           d={path}
           stroke="#FFFFFF"
-          strokeWidth={Math.max(2, strokeWidth - 2)}
+          strokeWidth={Math.max(2, strokeWidth - 1.5)}
           strokeLinecap="round"
           strokeLinejoin="round"
-          initial={{ pathLength: 0.08, pathOffset: 0.2 }}
+          strokeDasharray={tipDashArray}
+          initial={{ strokeDashoffset: tipLeadOffset }}
           animate={{
-            pathOffset: [0.2, 1.2],
+            strokeDashoffset: [tipLeadOffset, tipLeadOffset - totalLength],
           }}
           transition={{
             duration: animationDuration,
@@ -132,7 +164,8 @@ export const GradientTracing = ({
             ease: "linear",
           }}
           style={{
-            filter: `drop-shadow(0 0 6px #ffffff) drop-shadow(0 0 10px ${glowColor})`,
+            filter: "drop-shadow(0 0 4px #FFFFFF) drop-shadow(0 0 8px #00F2FE)",
+            willChange: "stroke-dashoffset",
           }}
         />
       </svg>

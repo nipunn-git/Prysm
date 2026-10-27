@@ -1,17 +1,28 @@
-"use client";
+import { AuthComponent } from "@/components/ui/sign-up";
 
-import React from "react";
-import { GradientTracing } from "./gradient-tracing";
-
-export const Demo = () => (
-  <div className="flex items-center justify-center p-8 bg-black rounded-xl">
-    <GradientTracing
-      width={300}
-      height={100}
-      path="M50,50 C50,25 75,25 100,50 S150,75 150,50 S125,25 100,50 C75,75 50,75 50,50 M150,50 C150,25 175,25 200,50 S250,75 250,50 S225,25 200,50 C175,75 150,75 150,50"
-      gradientColors={["#9B59B6", "#9B59B6", "#3498DB"]}
-    />
+// A simple placeholder logo for demonstration
+const CustomLogo = () => (
+  <div className="bg-blue-500 text-white rounded-md p-1.5">
+    <svg 
+      className="h-4 w-4" 
+      xmlns="http://www.w3.org/2000/svg" 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    >
+      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+    </svg>
   </div>
 );
 
-export default Demo;
+export default function CustomAuthDemo() {
+  return (
+    <AuthComponent 
+      logo={<CustomLogo />} 
+      brandName="MyWebApp" 
+    />
+  );
+}
