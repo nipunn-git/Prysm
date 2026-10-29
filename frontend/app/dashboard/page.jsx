@@ -363,38 +363,7 @@ export default function DashboardPage() {
       const data = await res.json();
       const fullReply = data.reply || "";
 
-      // Stream response words smoothly in real-time (fluid flow like ChatGPT)
-      const tokens = fullReply.match(/\S+|\s+/g) || [fullReply];
-      let currentWordIdx = 0;
-      let accumulated = "";
-
-      await new Promise((resolve) => {
-        const intervalId = setInterval(() => {
-          for (let k = 0; k < 2 && currentWordIdx < tokens.length; k++) {
-            accumulated += tokens[currentWordIdx];
-            currentWordIdx++;
-          }
-
-          setChatMessages((prev) => {
-            const copy = [...prev];
-            const targetIdx = copy.length - 1;
-            if (copy[targetIdx] && copy[targetIdx].role === "assistant") {
-              copy[targetIdx] = {
-                ...copy[targetIdx],
-                content: accumulated,
-                isStreaming: currentWordIdx < tokens.length
-              };
-            }
-            return copy;
-          });
-
-          if (currentWordIdx >= tokens.length) {
-            clearInterval(intervalId);
-            resolve();
-          }
-        }, 16);
-      });
-
+      // Instant response delivery (no artificial typewriter delay)
       const finalAssistantMsg = {
         role: "assistant",
         content: fullReply,
@@ -486,14 +455,43 @@ export default function DashboardPage() {
     }
   }, [sendMessage]);
 
+  // Intelligently extract complete code or prompt block from AI response without accidental inter-block cutting
+  const extractCodeOrPrompt = (content) => {
+    if (!content || typeof content !== "string") return "";
+
+    // 1. Look for explicit ```prompt block
+    const promptMatch = content.match(/```prompt\s*\n([\s\S]*?)```/i);
+    if (promptMatch && promptMatch[1].trim()) {
+      return promptMatch[1].trim();
+    }
+
+    // 2. Extract ALL genuine markdown code blocks (e.g. ```c, ```python, ```javascript, ```)
+    const codeBlockRegex = /```(?:[a-zA-Z0-9_#-]*\s*\n)?([\s\S]*?)```/g;
+    const blocks = [];
+    let match;
+    while ((match = codeBlockRegex.exec(content)) !== null) {
+      const code = match[1].trim();
+      if (code) {
+        blocks.push(code);
+      }
+    }
+
+    if (blocks.length > 0) {
+      // Find the longest code block (which represents the complete runnable code or prompt)
+      const longest = blocks.reduce((a, b) => (b.length > a.length ? b : a), "");
+      if (longest.length > 15) {
+        return longest;
+      }
+    }
+
+    // 3. Fallback: Entire cleaned response without repo_meta
+    return content.replace(/<repo_meta>[\s\S]*?<\/repo_meta>/g, "").trim();
+  };
+
   // Open Save as Repository modal with smart repo name according to the prompt
   const openSaveAsRepoModal = (promptContent, userQuery) => {
-    // Extract actual prompt if enclosed in code blocks
-    let cleanPrompt = promptContent;
-    const codeMatch = promptContent.match(/```(?:prompt|markdown|)?\n([\s\S]*?)```/);
-    if (codeMatch) {
-      cleanPrompt = codeMatch[1].trim();
-    }
+    // Extract actual complete prompt or runnable code
+    const cleanPrompt = extractCodeOrPrompt(promptContent);
 
     // Generate intelligent kebab-case repo name according to the prompt
     const smartName = generateRepoName(cleanPrompt, userQuery);
@@ -501,7 +499,7 @@ export default function DashboardPage() {
     // Infer category
     const qLower = (userQuery + " " + cleanPrompt).toLowerCase();
     let cat = "Productivity";
-    if (qLower.includes("code") || qLower.includes("sql") || qLower.includes("python") || qLower.includes("bug")) {
+    if (qLower.includes("code") || qLower.includes("sql") || qLower.includes("python") || qLower.includes(" c ") || qLower.includes("bug") || qLower.includes("#include")) {
       cat = "Coding";
     } else if (qLower.includes("research") || qLower.includes("paper") || qLower.includes("study")) {
       cat = "Research";
@@ -635,8 +633,7 @@ export default function DashboardPage() {
 
   // Copy text to clipboard
   const handleCopy = (text, id) => {
-    const codeMatch = text.match(/```(?:prompt|markdown|)?\n([\s\S]*?)```/);
-    const toCopy = codeMatch ? codeMatch[1].trim() : text;
+    const toCopy = extractCodeOrPrompt(text);
     navigator.clipboard.writeText(toCopy);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
@@ -1662,16 +1659,16 @@ export default function DashboardPage() {
          ======================================================== */}
       {saveModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-[#161b22] border border-[#30363d] rounded-xl max-w-md w-full p-6 shadow-2xl relative">
+          <div className="bg-[#161b22] border border-[#30363d] rounded-xl max-w-lg w-full max-h-[90vh] flex flex-col p-6 shadow-2xl relative">
             <h2 className="text-base font-semibold text-[#f0f6fc] flex items-center gap-2 mb-2">
               <Save className="w-5 h-5 text-[#3fb950]" />
               Save Prompt as Repository
             </h2>
-            <p className="text-xs text-[#8b949e] mb-5">
+            <p className="text-xs text-[#8b949e] mb-4">
               Create a new repository for your prompt. You can version, refine, and compare it anytime.
             </p>
 
-            <div className="space-y-4 mb-6">
+            <div className="space-y-4 mb-5 overflow-y-auto pr-1">
               {/* Repository Name (Smart generated from prompt, user editable) */}
               <div>
                 <label className="block text-xs font-semibold text-[#c9d1d9] mb-1.5">
@@ -1687,6 +1684,32 @@ export default function DashboardPage() {
                 />
                 <span className="text-[10px] text-[#8b949e] mt-1 block">
                   Generated automatically according to prompt topic.
+                </span>
+              </div>
+
+              {/* Prompt / Code Content to be saved in system_prompt.md */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-[#c9d1d9] flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Prompt Content</span>
+                    <span className="text-[10px] text-[#8b949e] font-mono">
+                      (system_prompt.md)
+                    </span>
+                  </label>
+                  <span className="text-[10px] font-mono text-cyan-300 bg-cyan-950/60 border border-cyan-800/40 px-2 py-0.5 rounded">
+                    {saveTargetPrompt ? saveTargetPrompt.split('\n').length : 0} lines • {saveTargetPrompt ? saveTargetPrompt.length : 0} bytes
+                  </span>
+                </div>
+                <textarea
+                  rows={6}
+                  value={saveTargetPrompt}
+                  onChange={(e) => setSaveTargetPrompt(e.target.value)}
+                  placeholder="The complete prompt or code to be saved in system_prompt.md..."
+                  className="w-full bg-[#0d1117] border border-[#30363d] rounded-md p-2.5 text-xs text-[#f0f6fc] font-mono leading-relaxed focus:outline-none focus:border-[#58a6ff] resize-y"
+                />
+                <span className="text-[10px] text-[#8b949e] mt-1 block">
+                  The entire code/prompt above will be committed as v1.0. You can review or edit it before creating.
                 </span>
               </div>
 

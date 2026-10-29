@@ -48,44 +48,52 @@ You specialize in Prompt Engineering, Software Engineering, Architecture, and Cr
 
 ## Core Capabilities
 1. **Prompt Engineering & Architecture** – Craft production-grade system prompts, few-shot templates, and chain-of-thought protocols.
-2. **Code Specialization** – Write complete, runnable, production-quality code, components, scripts, algorithms, and bug fixes across all major languages (Python, TypeScript, JavaScript, Rust, Go, SQL, etc.).
+2. **Code Specialization** – Write complete, runnable, production-quality code, components, scripts, algorithms, and bug fixes across all major languages (C, Python, TypeScript, JavaScript, Rust, Go, SQL, etc.).
 3. **Creative Ideation** – Generate snappy hooks, imaginative concepts, and high-impact angles.
 4. **Repository Creation** – Generate structured repositories for reusable prompts and code snippets.
 
-## Response Guidelines
-- When code is requested (especially in Code Specialist mode), PROVIDE FULL, RUNNABLE CODE in proper code blocks (e.g. ```python, ```typescript, ```javascript). Explain edge cases, complexities, and usage clearly.
-- When a prompt is requested (especially in Prompt Architect mode), generate a complete system prompt wrapped in triple backticks with 'prompt' tag.
-- When in Fast Creative mode, be punchy, imaginative, and bold with zero fluff.
-- For normal conversations, casual questions, and greetings, be warm, concise, and helpful.
+## Response Guidelines (CRITICAL FOR SPEED & CLARITY)
+- BE DIRECT, INSTANT, AND HIGH-SIGNAL. Zero corporate filler, zero redundant preamble.
+- WHEN CODE IS REQUESTED: PROVIDE THE COMPLETE, RUNNABLE, STANDALONE CODE IN A SINGLE UNIFIED CODE BLOCK (e.g. ```c, ```python, ```typescript). Do NOT fragment or chop up the code into multiple snippets. Follow with a short, crisp explanation (2 to 4 bullet points max) covering only core logic or key edge cases. Do NOT explain standard libraries line-by-line.
+- WHEN A PROMPT IS REQUESTED: Generate a complete, production-ready system prompt enclosed in a single ```prompt code block.
+- WHEN IN FAST CREATIVE MODE: Deliver punchy, bold angles with high energy and zero fluff.
+- FOR CASUAL CHAT / GREETINGS: Respond warmly and concisely in 1 or 2 sentences max.
 
 ## Repo Creation Rules
 Only include a <repo_meta> block at the very end when generating a complete, reusable prompt template or functional code block that makes sense as a persistent repository:
 <repo_meta>
-{"repo_name": "kebab-case-name", "description": "Short description", "category": "Coding|Productivity|Education|Research|Writing|Other", "prompt_content": "The full prompt or code text"}
+{"repo_name": "kebab-case-name", "description": "Short description", "category": "Coding|Productivity|Education|Research|Writing|Other", "prompt_content": "The COMPLETE runnable code or entire prompt text"}
 </repo_meta>
 
 CRITICAL RESTRICTION:
-- NEVER EVER include <repo_meta> for normal conversation, greetings ("hi", "hello"), clarifying questions, definitions, or casual chit-chat.
+- In "prompt_content", you MUST include the FULL, COMPLETE code or prompt without truncating, omitting, or summarizing.
+- NEVER include <repo_meta> for casual chat, greetings ("hi", "hello"), or short Q&A.
 - If the response does not contain a savable prompt or code artifact, omit <repo_meta> completely.
 """
 
 
 def call_gemini_chat(messages: List[dict], system_prompt: str) -> str:
-    """Call Gemini API with chat history."""
+    """Call Gemini API with chat history using ultra-fast Flash models."""
     load_dotenv(override=True)
     gemini_key = os.getenv("GEMINI_API_KEY")
     
     if not gemini_key or not gemini_key.strip():
         return fallback_response(messages)
     
-    for model_name in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+    # Modern, fast Gemini models (gemini-2.5-flash is sub-second, gemini-3.8-flash for modern fallback)
+    for model_name in ["gemini-2.5-flash", "gemini-3.8-flash", "gemini-flash-latest"]:
         try:
             import google.generativeai as genai
             genai.configure(api_key=gemini_key)
             
             model = genai.GenerativeModel(
                 model_name,
-                system_instruction=system_prompt
+                system_instruction=system_prompt,
+                generation_config={
+                    "temperature": 0.3,
+                    "top_p": 0.95,
+                    "max_output_tokens": 2048,
+                }
             )
             
             # Convert messages to Gemini format
@@ -214,6 +222,28 @@ def clean_response(text: str) -> str:
     return re.sub(r'<repo_meta>.*?</repo_meta>', '', text, flags=re.DOTALL).strip()
 
 
+def extract_primary_content(text: str) -> str:
+    """Extract full prompt or primary runnable code block cleanly from markdown."""
+    if not text:
+        return ""
+    
+    # 1. Prefer explicit ```prompt block
+    prompt_match = re.search(r'```prompt\s*\n(.*?)```', text, re.DOTALL | re.IGNORECASE)
+    if prompt_match and prompt_match.group(1).strip():
+        return prompt_match.group(1).strip()
+    
+    # 2. Extract all code blocks (```python, ```c, ```js, etc.)
+    blocks = re.findall(r'```[a-zA-Z0-9_#-]*\s*\n([\s\S]*?)```', text)
+    if blocks:
+        # Choose the longest code block (which is the actual full program or prompt)
+        longest = max(blocks, key=len).strip()
+        if len(longest) > 20:
+            return longest
+            
+    # 3. Clean fallback
+    return clean_response(text).strip()
+
+
 def sanitize_repo_name(raw: str) -> str:
     cleaned = re.sub(r"[^a-zA-Z0-9\s-]", "", raw).strip().lower()
     cleaned = re.sub(r"[\s_]+", "-", cleaned)
@@ -236,8 +266,10 @@ def chat_with_ai(
     if not messages:
         raise HTTPException(status_code=400, detail="No messages provided")
     
-    # Fetch user's repos and their latest prompts to give AI context
-    user_repos = db.query(models.Repository).filter(models.Repository.owner_id == user_id).all()
+    # Fetch user's recent repos and their latest prompts to give AI context (limit to 5 for speed)
+    user_repos = db.query(models.Repository).filter(
+        models.Repository.owner_id == user_id
+    ).order_by(models.Repository.created_at.desc()).limit(5).all()
     user_context = "## User's Repositories Context\nThe user has the following repositories and prompts:\n"
     if user_repos:
         for repo in user_repos:
@@ -246,7 +278,7 @@ def chat_with_ai(
             ).order_by(models.PromptVersion.created_at.desc()).first()
             prompt_content = latest_version.content if latest_version else "No prompt content"
             # Truncate content to avoid token overflow
-            prompt_content = prompt_content[:800] + ("..." if len(prompt_content) > 800 else "")
+            prompt_content = prompt_content[:400] + ("..." if len(prompt_content) > 400 else "")
             user_context += f"- Repo: {repo.name} | Category: {repo.category}\n  Content: {prompt_content}\n\n"
     else:
         user_context += "The user currently has no repositories.\n"
@@ -255,7 +287,7 @@ def chat_with_ai(
         "Code Specialist": (
             "## PRIMARY ROLE: YOU ARE PRYSM (CODE SPECIALIST)\n"
             "You are an elite Senior Staff Software Engineer and Master Programmer on PromptHub.\n"
-            "MANDATORY DIRECTIVE: When the user asks for code, functions, scripts, algorithms, components, or debugging: DO NOT WRITE A META-PROMPT. YOU MUST DIRECTLY WRITE AND DELIVER THE ACTUAL RUNNABLE CODE! Write complete, production-ready code in language-tagged markdown code blocks (e.g. ```python, ```typescript, ```javascript, ```sql, etc.). Explain the code clearly. You can output a <repo_meta> tag with category 'Coding' when writing complete code files.\n"
+            "MANDATORY DIRECTIVE: Deliver the complete, production-ready, runnable code in a SINGLE clean code block. Do NOT split the code into small pieces. Keep explanations concise, crisp, and high-signal (2-4 bullet points max) without unnecessary filler or line-by-line syntax lectures.\n"
         ),
         "Fast Creative": (
             "## PRIMARY ROLE: YOU ARE PRYSM (FAST CREATIVE)\n"
@@ -265,15 +297,15 @@ def chat_with_ai(
         "Prompt Architect": (
             "## PRIMARY ROLE: YOU ARE PRYSM (PROMPT ARCHITECT)\n"
             "You are a World-Class Prompt Engineer and AI System Architect.\n"
-            "MANDATORY DIRECTIVE: Construct industrial-strength system prompts with Role, Objective, Step-by-Step Execution Protocol, Constraints, and Output Format in ```prompt code blocks.\n"
+            "MANDATORY DIRECTIVE: Construct industrial-strength system prompts with Role, Objective, Step-by-Step Execution Protocol, Constraints, and Output Format in a single ```prompt code block.\n"
         ),
         "Auto": (
             "## PRIMARY ROLE: YOU ARE PRYSM (INTELLIGENT ADAPTIVE AI)\n"
             "MANDATORY DIRECTIVE: Automatically detect what the user needs:\n"
-            "- If the user asks for CODE or technical implementation (e.g. 'write a python function...', 'create a react hook...'): DIRECTLY WRITE THE CODE in ```language code blocks! Do not write a prompt to generate code.\n"
-            "- If the user asks for a PROMPT: Construct a production-grade prompt in a ```prompt block.\n"
-            "- If the user asks for creative ideas: Be fast and creative.\n"
-            "- If the user engages in normal conversation, greetings, or casual talk: Answer naturally and concisely. NEVER include <repo_meta> for casual chat.\n"
+            "- If the user asks for CODE (e.g. 'write a code in C...', 'write a python function...'): DIRECTLY DELIVER THE COMPLETE, RUNNABLE CODE IN ONE UNIFIED CODE BLOCK! Follow with a short, high-value explanation (2 to 4 bullet points max). Do NOT break code into multiple small snippets.\n"
+            "- If the user asks for a PROMPT: Construct a production-grade prompt in a single ```prompt block.\n"
+            "- If the user asks for creative ideas: Be fast, inventive, and concise.\n"
+            "- If the user engages in normal conversation or greetings: Answer warmly and concisely (1-2 sentences). NEVER include <repo_meta> for casual chat.\n"
         )
     }
     active_mode = request.mode or "Auto"
@@ -318,8 +350,13 @@ def chat_with_ai(
             db.commit()
             db.refresh(new_repo)
             
-            # Create initial version
-            prompt_content = repo_meta.get("prompt_content", clean_reply)
+            # Create initial version - ensure full content is saved, never a 1-line fragment!
+            prompt_content = repo_meta.get("prompt_content")
+            if not prompt_content or len(prompt_content.strip()) < 40 or prompt_content.count('\n') == 0:
+                prompt_content = extract_primary_content(clean_reply)
+            else:
+                prompt_content = prompt_content.strip()
+
             first_version = models.PromptVersion(
                 repository_id=new_repo.id,
                 version="v1.0",
@@ -382,19 +419,16 @@ def quick_generate(
     repo_meta = extract_repo_meta(raw_reply)
     clean_reply = clean_response(raw_reply)
     
-    # Extract prompt content from code blocks if present
-    prompt_content = clean_reply
-    code_block_match = re.search(r'```(?:prompt|markdown|)?\n(.*?)```', clean_reply, re.DOTALL)
-    if code_block_match:
-        prompt_content = code_block_match.group(1).strip()
+    # Extract prompt content from code blocks cleanly
+    prompt_content = extract_primary_content(clean_reply)
     
-    # Use repo_meta if available, otherwise infer
+    # Use repo_meta if available and not truncated, otherwise use extracted primary content
     if repo_meta:
         repo_name = sanitize_repo_name(repo_meta.get("repo_name", payload.query))
         description = repo_meta.get("description", f"AI prompt for: {payload.query}")
         category = repo_meta.get("category", "Productivity")
-        if repo_meta.get("prompt_content"):
-            prompt_content = repo_meta["prompt_content"]
+        if repo_meta.get("prompt_content") and len(repo_meta["prompt_content"].strip()) > 40 and repo_meta["prompt_content"].count('\n') > 0:
+            prompt_content = repo_meta["prompt_content"].strip()
     else:
         repo_name = sanitize_repo_name(payload.query)
         description = f"AI prompt for: {payload.query}"
