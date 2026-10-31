@@ -891,7 +891,7 @@ export default function DashboardPage() {
             LEFT COLUMN: Chat History (Futuristic Glass, Toggleable, Searchable)
            ======================================================== */}
         {isHistoryHidden ? (
-          <aside className="shrink-0 hidden md:flex flex-col items-center z-20 pt-1">
+          <aside className="absolute left-2 sm:left-4 lg:left-6 top-1 z-30 hidden md:flex flex-col items-center">
             <button
               onClick={toggleHistoryHidden}
               title="Show Chat History"
@@ -1196,7 +1196,7 @@ export default function DashboardPage() {
                     <img 
                       src="/logo.png" 
                       alt="Prysm" 
-                      className="w-5 h-5 object-contain drop-shadow" 
+                      className="h-6 w-auto object-contain drop-shadow" 
                     />
                     <span className={`font-bold text-sm tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>Prysm</span>
                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-medium border ${
@@ -1235,11 +1235,11 @@ export default function DashboardPage() {
                   <div className="flex flex-col items-center justify-center text-center px-4 py-2 relative my-auto">
                     
                     {/* Metallic/Crystal Prysm Emblem */}
-                    <div className="relative flex items-center justify-center mb-2">
+                    <div className="relative flex items-center justify-center mb-2 sm:mb-3">
                       <img 
                         src="/logo.png" 
                         alt="Prysm" 
-                        className="w-14 h-14 sm:w-16 sm:h-16 object-contain relative z-10 select-none hover:scale-105 transition-transform duration-300 drop-shadow-[0_4px_24px_rgba(56,189,248,0.25)]" 
+                        className="h-20 sm:h-24 md:h-28 w-auto object-contain relative z-10 select-none hover:scale-105 transition-transform duration-300 drop-shadow-[0_8px_36px_rgba(56,189,248,0.35)]" 
                       />
                     </div>
 
@@ -1652,6 +1652,11 @@ export default function DashboardPage() {
             </div>
           </div>
         </main>
+
+        {/* Right balancing spacer on wide screens when history sidebar is open */}
+        {!isHistoryHidden && (
+          <div className="w-[280px] lg:w-[305px] shrink-0 hidden 2xl:block pointer-events-none" aria-hidden="true" />
+        )}
       </div>
 
       {/* ========================================================

@@ -446,21 +446,21 @@ export default function Navbar() {
             href="/dashboard"
             title="Prysm AI Studio"
             aria-label="Prysm AI Studio"
-            className="p-1 sm:p-1.5 rounded-lg transition-transform flex items-center justify-center group relative"
+            className="px-2 py-1 sm:px-2.5 sm:py-1 rounded-lg transition-transform flex items-center justify-center group relative"
           >
             <div 
-              className={`logo-flashlight-glow absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.75)_0%,rgba(255,255,255,0.25)_50%,transparent_80%)] pointer-events-none rounded-full transition-opacity ${
-                pathname === '/dashboard' ? 'blur-[9px] opacity-100' : 'blur-[7px] opacity-75 group-hover:opacity-100'
+              className={`logo-flashlight-glow absolute inset-0 -m-1 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.75)_0%,rgba(255,255,255,0.25)_50%,transparent_80%)] pointer-events-none rounded-full transition-opacity ${
+                pathname === '/dashboard' ? 'blur-[10px] opacity-100' : 'blur-[8px] opacity-75 group-hover:opacity-100'
               }`}
               aria-hidden="true" 
             />
             <img 
               src="/logo.png" 
               alt="Prysm AI Studio" 
-              className={`logo-drop-shadow w-7 h-7 sm:w-8 sm:h-8 object-contain relative z-10 transition-all ${
+              className={`logo-drop-shadow h-8 sm:h-9 md:h-10 w-auto object-contain relative z-10 transition-all ${
                 pathname === '/dashboard'
-                  ? 'scale-110 drop-shadow-[0_0_12px_rgba(255,255,255,0.95)]'
-                  : 'drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] group-hover:scale-110 group-hover:drop-shadow-[0_0_12px_rgba(255,255,255,0.95)]'
+                  ? 'scale-110 drop-shadow-[0_0_14px_rgba(255,255,255,0.95)]'
+                  : 'drop-shadow-[0_0_9px_rgba(255,255,255,0.85)] group-hover:scale-110 group-hover:drop-shadow-[0_0_14px_rgba(255,255,255,0.95)]'
               }`}
             />
           </Link>
