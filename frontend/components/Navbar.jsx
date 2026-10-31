@@ -32,6 +32,10 @@ export default function Navbar() {
   const { user, logout } = useAuth();
   const { theme, setTheme, isDark, availableThemes, currentThemeObj } = useTheme();
   
+  // Theme-aware icon colors for active & inactive states (supports both light and dark themes)
+  const activeColor = isDark ? 'text-[#f0f6fc]' : 'text-[#1f2328]';
+  const inactiveColor = isDark ? 'text-[#8b949e] group-hover:text-[#f0f6fc]' : 'text-[#656d76] group-hover:text-[#1f2328]';
+  
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isThemeOpen, setIsThemeOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -402,18 +406,18 @@ export default function Navbar() {
             href="/explore"
             title="Community Feed / Social"
             aria-label="Community Feed"
-            className="p-2 sm:p-2.5 rounded-lg transition-all flex items-center justify-center group hover:bg-[#161b22]/60"
+            className="p-2 sm:p-2.5 rounded-lg transition-transform flex items-center justify-center group"
           >
             {pathname === '/explore' ? (
               <svg 
                 viewBox="0 0 24 24" 
                 fill="currentColor" 
-                className="w-5 h-5 sm:w-[22px] sm:h-[22px] text-[#f0f6fc] transition-all transform scale-105"
+                className={`w-5 h-5 sm:w-[22px] sm:h-[22px] transition-all transform scale-105 ${activeColor}`}
               >
                 <path d="M12 2.1a1 1 0 0 1 .64.24l9 7.5a1 1 0 0 1-1.28 1.54L20 11.06V20a2 2 0 0 1-2 2h-4a1 1 0 0 1-1-1v-5a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v5a1 1 0 0 1-1 1H4a2 2 0 0 1-2-2v-8.94l-.36.32a1 1 0 0 1-1.28-1.54l9-7.5a1 1 0 0 1 .64-.24z" />
               </svg>
             ) : (
-              <Home className="w-5 h-5 sm:w-[22px] sm:h-[22px] text-[#8b949e] group-hover:text-[#f0f6fc] stroke-[1.8] transition-all group-hover:scale-105" />
+              <Home className={`w-5 h-5 sm:w-[22px] sm:h-[22px] stroke-[1.8] transition-all group-hover:scale-110 ${inactiveColor}`} />
             )}
           </Link>
 
@@ -426,13 +430,13 @@ export default function Navbar() {
             }}
             title="Search prompts or @users (Press /)"
             aria-label="Search prompts or users"
-            className="p-2 sm:p-2.5 rounded-lg transition-all flex items-center justify-center group hover:bg-[#161b22]/60"
+            className="p-2 sm:p-2.5 rounded-lg transition-transform flex items-center justify-center group"
           >
             <Search 
               className={`w-5 h-5 sm:w-[22px] sm:h-[22px] transition-all ${
                 isSearchOpen 
-                  ? 'text-[#f0f6fc] stroke-[3] scale-105' 
-                  : 'text-[#8b949e] group-hover:text-[#f0f6fc] stroke-[1.8] group-hover:scale-105'
+                  ? `${activeColor} stroke-[3] scale-105` 
+                  : `${inactiveColor} stroke-[1.8] group-hover:scale-110`
               }`} 
             />
           </button>
@@ -442,7 +446,7 @@ export default function Navbar() {
             href="/dashboard"
             title="Prysm AI Studio"
             aria-label="Prysm AI Studio"
-            className="p-1 sm:p-1.5 rounded-lg transition-all flex items-center justify-center group relative hover:bg-[#161b22]/60"
+            className="p-1 sm:p-1.5 rounded-lg transition-transform flex items-center justify-center group relative"
           >
             <div 
               className={`logo-flashlight-glow absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.75)_0%,rgba(255,255,255,0.25)_50%,transparent_80%)] pointer-events-none rounded-full transition-opacity ${
@@ -466,13 +470,13 @@ export default function Navbar() {
             href="/new"
             title="Create new repository"
             aria-label="Create new repository"
-            className="p-2 sm:p-2.5 rounded-lg transition-all flex items-center justify-center group hover:bg-[#161b22]/60"
+            className="p-2 sm:p-2.5 rounded-lg transition-transform flex items-center justify-center group"
           >
             <Plus 
               className={`w-5 h-5 sm:w-[22px] sm:h-[22px] transition-all ${
                 pathname === '/new'
-                  ? 'text-[#f0f6fc] stroke-[3] scale-105' 
-                  : 'text-[#8b949e] group-hover:text-[#f0f6fc] stroke-[1.8] group-hover:scale-105'
+                  ? `${activeColor} stroke-[3] scale-105` 
+                  : `${inactiveColor} stroke-[1.8] group-hover:scale-110`
               }`} 
             />
           </Link>
@@ -488,13 +492,13 @@ export default function Navbar() {
               }}
               title="Notifications"
               aria-label="Notifications"
-              className="p-2 sm:p-2.5 rounded-lg transition-all relative flex items-center justify-center group hover:bg-[#161b22]/60"
+              className="p-2 sm:p-2.5 rounded-lg transition-transform relative flex items-center justify-center group"
             >
               <Bell 
                 className={`w-5 h-5 sm:w-[22px] sm:h-[22px] transition-all ${
                   isNotificationsOpen 
-                    ? 'text-[#f0f6fc] fill-current stroke-[2] scale-105' 
-                    : 'text-[#8b949e] group-hover:text-[#f0f6fc] fill-none stroke-[1.8] group-hover:scale-105'
+                    ? `${activeColor} fill-current stroke-[2] scale-105` 
+                    : `${inactiveColor} fill-none stroke-[1.8] group-hover:scale-110`
                 }`} 
               />
               {unreadCount > 0 && (
