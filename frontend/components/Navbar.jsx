@@ -6,25 +6,19 @@ import {
   Menu, 
   Search, 
   Plus, 
-  ChevronDown, 
-  Inbox, 
-  Sparkles, 
   X, 
-  BookMarked, 
   Compass, 
   User as UserIcon, 
   LogOut,
   FolderGit2,
   Check,
-  Sun,
-  Moon,
   Palette,
   UserPlus,
   Star as StarIcon,
   Trash2,
   CheckCheck,
   Bell,
-  TrendingUp
+  Home
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -39,24 +33,29 @@ export default function Navbar() {
   const { theme, setTheme, isDark, availableThemes, currentThemeObj } = useTheme();
   
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isThemeOpen, setIsThemeOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // Search State
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [promptResults, setPromptResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
 
   // Notifications State
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
-  const notificationsRef = useRef(null);
 
-  // Use a ref to track the latest query for the debounced fetch,
-  // preventing stale closure issues when React batches state updates
+  const notificationsRef = useRef(null);
+  const profileRef = useRef(null);
+  const themeRef = useRef(null);
+  const searchRef = useRef(null);
+  const searchInputRef = useRef(null);
+
+  // Use a ref to track the latest query for the debounced fetch
   const searchQueryRef = useRef(searchQuery);
   const searchAbortRef = useRef(null);
   searchQueryRef.current = searchQuery;
@@ -69,7 +68,6 @@ export default function Navbar() {
     if (trimmed.length === 0) {
       setSearchResults([]);
       setPromptResults([]);
-      setShowSearchDropdown(false);
       return;
     }
 
@@ -78,7 +76,6 @@ export default function Navbar() {
       const cachedData = searchCacheRef.current.get(cacheKey);
       setSearchResults(cachedData.users || []);
       setPromptResults(cachedData.prompts || []);
-      setShowSearchDropdown(true);
       setIsSearching(false);
     }
     
@@ -114,7 +111,6 @@ export default function Navbar() {
         if (searchQueryRef.current.trim().toLowerCase() === cacheKey) {
           setSearchResults(list);
           setPromptResults(matchedPrompts);
-          setShowSearchDropdown(true);
         }
       }
     } catch (e) {
@@ -134,11 +130,9 @@ export default function Navbar() {
     if (trimmed.length === 0) {
       setSearchResults([]);
       setPromptResults([]);
-      setShowSearchDropdown(false);
       return;
     }
     
-    setShowSearchDropdown(true);
     const cacheKey = trimmed.toLowerCase();
 
     // 0ms instant pre-matching from global user and repo cache
@@ -162,33 +156,44 @@ export default function Navbar() {
     return () => clearTimeout(timer);
   }, [searchQuery, performSearch]);
 
-  const profileRef = useRef(null);
-  const createRef = useRef(null);
-  const themeRef = useRef(null);
-  const searchRef = useRef(null);
-  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
-
-  // Close dropdowns on outside click
+  // Close dropdowns & modals on outside click
   useEffect(() => {
     function handleClickOutside(event) {
       if (profileRef.current && !profileRef.current.contains(event.target)) {
         setIsProfileOpen(false);
       }
-      if (createRef.current && !createRef.current.contains(event.target)) {
-        setIsCreateOpen(false);
-      }
-      if (themeRef.current && !themeRef.current.contains(event.target)) {
-        setIsThemeOpen(false);
-      }
       if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
         setIsNotificationsOpen(false);
       }
       if (searchRef.current && !searchRef.current.contains(event.target)) {
-        setShowSearchDropdown(false);
+        setIsSearchOpen(false);
+      }
+      if (themeRef.current && !themeRef.current.contains(event.target)) {
+        setIsThemeOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Keyboard shortcut listener (/ to open search, Escape to close modals)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
+        e.preventDefault();
+        setIsSearchOpen(true);
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+      }
+      if (e.key === 'Escape') {
+        setIsSearchOpen(false);
+        setIsNotificationsOpen(false);
+        setIsProfileOpen(false);
+        setIsThemeOpen(false);
+        setIsDrawerOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   // Fetch Notifications
@@ -361,31 +366,11 @@ export default function Navbar() {
     return null; // Don't show navbar on auth/landing pages
   }
 
-  const handleSearchSubmit = (e) => {
-    if (e.key === 'Enter' && searchQuery.trim()) {
-      setShowSearchDropdown(false);
-      setSearchResults([]);
-      setIsMobileSearchOpen(false);
-      router.push(`/explore?search=${encodeURIComponent(searchQuery.trim())}`);
-    }
-  };
-
-  // When input receives focus, re-show dropdown if there's a query
-  const handleSearchFocus = () => {
-    if (searchQuery.trim().length > 0) {
-      setShowSearchDropdown(true);
-      // If we have no cached results, re-fetch
-      if (searchResults.length === 0) {
-        performSearch(searchQuery.trim());
-      }
-    }
-  };
-
   return (
     <>
-      <header className="bg-[#010409] border-b border-[#21262d] text-[#c9d1d9] h-14 sm:h-16 px-3 sm:px-6 flex items-center justify-between sticky top-0 z-40 select-none">
-        {/* Left Side: Hamburger + Octocat + Dashboard title */}
-        <div className="flex items-center gap-2.5 sm:gap-3">
+      <header className="bg-[#010409] border-b border-[#21262d] text-[#c9d1d9] h-14 sm:h-16 px-3 sm:px-6 flex items-center justify-between sticky top-0 z-40 select-none relative">
+        {/* Left Side: Hamburger Menu + PromptHub Logo (No wordmark, prominent logo) */}
+        <div className="flex items-center gap-2 sm:gap-3">
           <button 
             onClick={() => setIsDrawerOpen(true)}
             aria-label="Open navigation menu"
@@ -394,9 +379,8 @@ export default function Navbar() {
             <Menu className="w-4 h-4" />
           </button>
 
-          <Link href="/dashboard" className="flex items-center gap-3 hover:opacity-95 transition group">
-            {/* PromptHub Logo with white flashlight glow */}
-            <div className="relative flex items-center justify-center py-1">
+          <Link href="/dashboard" className="flex items-center hover:opacity-95 transition group" title="PromptHub Dashboard">
+            <div className="relative flex items-center justify-center py-0.5">
               <div 
                 className="logo-flashlight-glow absolute inset-0 -inset-x-3 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.75)_0%,rgba(255,255,255,0.25)_45%,transparent_80%)] blur-[9px] pointer-events-none rounded-full"
                 aria-hidden="true" 
@@ -404,46 +388,344 @@ export default function Navbar() {
               <img 
                 src="/logo.png" 
                 alt="PromptHub" 
-                className="logo-drop-shadow h-11 sm:h-12 w-auto object-contain shrink-0 relative z-10 transition-transform group-hover:scale-105" 
+                className="logo-drop-shadow h-12 sm:h-14 w-auto object-contain shrink-0 relative z-10 transition-transform group-hover:scale-105" 
                 style={{ filter: "drop-shadow(0 0 10px rgba(255, 255, 255, 0.75)) drop-shadow(0 0 20px rgba(255, 255, 255, 0.35))" }}
               />
             </div>
-            <PromptHubWordmark height="h-5 sm:h-6" className="inline-flex" />
           </Link>
         </div>
 
-        {/* Right Side: Search bar, Copilot icon, +, Issues, Pull Requests, Inbox, Avatar */}
-        <div className="flex items-center gap-1.5 sm:gap-3">
-          {/* Mobile search toggle button */}
-          <button
-            onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
-            className="md:hidden p-1.5 text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] rounded-md transition"
-            title="Search"
+        {/* Center: Social Media/Home, Search Icon, New Repo (+), Notifications (Bell) */}
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1 sm:gap-2">
+          {/* 1. Social Media / Home Icon */}
+          <Link
+            href="/explore"
+            title="Community Feed / Social"
+            aria-label="Community Feed"
+            className={`p-2 rounded-lg transition-all flex items-center justify-center group ${
+              pathname === '/explore'
+                ? 'text-[#58a6ff] bg-[#1f6feb]/15 border border-[#1f6feb]/30 shadow-xs'
+                : 'text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#161b22] border border-transparent'
+            }`}
           >
-            <Search className="w-4 h-4" />
+            <Home className="w-4 h-4 sm:w-5 sm:h-5 transition-transform group-hover:scale-110" />
+          </Link>
+
+          {/* 2. Search Icon (Magnifying Glass) */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsSearchOpen(true);
+              setTimeout(() => searchInputRef.current?.focus(), 50);
+            }}
+            title="Search prompts or @users (Press /)"
+            aria-label="Search prompts or users"
+            className={`p-2 rounded-lg transition-all flex items-center justify-center group ${
+              isSearchOpen
+                ? 'text-[#58a6ff] bg-[#1f6feb]/15 border border-[#1f6feb]/30 shadow-xs'
+                : 'text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#161b22] border border-transparent'
+            }`}
+          >
+            <Search className="w-4 h-4 sm:w-5 sm:h-5 transition-transform group-hover:scale-110" />
           </button>
 
-          {/* GitHub style search input */}
-          <div ref={searchRef} className={`relative items-center transition-all ${isMobileSearchOpen ? 'flex absolute inset-x-2 top-2 z-50 bg-[#161b22] p-1 rounded-lg border border-[#30363d]' : 'hidden md:flex w-52 lg:w-72'}`}>
-            <Search className="absolute left-2.5 top-2.5 md:top-2 w-3.5 h-3.5 text-[#8b949e]" />
-            <input 
-              type="text" 
-              placeholder="Search prompts or @users..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={handleSearchSubmit}
-              onFocus={handleSearchFocus}
-              autoFocus={isMobileSearchOpen}
-              className="w-full bg-[#0d1117] border border-[#30363d] rounded-md pl-8 pr-7 py-1.5 md:py-1 text-xs focus:outline-none focus:border-[#58a6ff] focus:ring-1 focus:ring-[#58a6ff] transition-colors placeholder:text-[#8b949e] text-[#c9d1d9]"
-            />
-            {isMobileSearchOpen && (
-              <button onClick={() => { setIsMobileSearchOpen(false); setShowSearchDropdown(false); setSearchResults([]); }} className="p-1 ml-1 text-[#8b949e] hover:text-[#f0f6fc]">
-                <X className="w-3.5 h-3.5" />
-              </button>
+          {/* 3. New Repo (+) Icon */}
+          <Link
+            href="/new"
+            title="Create new repository"
+            aria-label="Create new repository"
+            className={`p-2 rounded-lg transition-all flex items-center justify-center group ${
+              pathname === '/new'
+                ? 'text-[#58a6ff] bg-[#1f6feb]/15 border border-[#1f6feb]/30 shadow-xs'
+                : 'text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#161b22] border border-transparent'
+            }`}
+          >
+            <Plus className="w-4 h-4 sm:w-5 sm:h-5 transition-transform group-hover:scale-110" />
+          </Link>
+
+          {/* 4. Bell Icon (Notifications) */}
+          <div className="relative" ref={notificationsRef}>
+            <button 
+              type="button"
+              onClick={() => {
+                const nextState = !isNotificationsOpen;
+                setIsNotificationsOpen(nextState);
+                if (nextState) fetchNotifications();
+              }}
+              title="Notifications"
+              aria-label="Notifications"
+              className={`p-2 rounded-lg transition-all relative flex items-center justify-center group ${
+                isNotificationsOpen 
+                  ? 'text-[#f0f6fc] bg-[#161b22] border border-[#30363d]' 
+                  : 'text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#161b22] border border-transparent'
+              }`}
+            >
+              <Bell className="w-4 h-4 sm:w-5 sm:h-5 transition-transform group-hover:scale-110" />
+              {unreadCount > 0 && (
+                <span className="absolute top-0 right-0 sm:-top-0.5 sm:-right-0.5 min-w-[16px] h-4 px-1 bg-[#1f6feb] text-white text-[10px] font-bold rounded-full ring-2 ring-[#010409] flex items-center justify-center leading-none">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {/* Notifications Interactive Dropdown */}
+            {isNotificationsOpen && (
+              <div className="absolute left-1/2 -translate-x-1/2 mt-2 w-[calc(100vw-32px)] max-w-sm sm:w-96 bg-[#161b22] border border-[#30363d] rounded-xl shadow-2xl overflow-hidden z-50 text-xs text-[#c9d1d9] animate-scaleUp">
+                {/* Dropdown Header */}
+                <div className="px-4 py-3 border-b border-[#30363d] bg-[#0d1117] flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm text-[#f0f6fc]">Notifications</span>
+                    {unreadCount > 0 && (
+                      <span className="bg-[#1f6feb]/20 text-[#58a6ff] text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#1f6feb]/30">
+                        {unreadCount} new
+                      </span>
+                    )}
+                  </div>
+                  {notifications.length > 0 && (
+                    <button
+                      onClick={handleMarkAllRead}
+                      className="text-[11px] text-[#58a6ff] hover:underline flex items-center gap-1 font-medium"
+                      title="Mark all as read"
+                    >
+                      <CheckCheck className="w-3.5 h-3.5" />
+                      Mark all read
+                    </button>
+                  )}
+                </div>
+
+                {/* Notifications List */}
+                <div className="max-h-96 overflow-y-auto divide-y divide-[#21262d]">
+                  {isLoadingNotifications && notifications.length === 0 ? (
+                    <div className="py-10 text-center text-[#8b949e] flex items-center justify-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-[#58a6ff] animate-ping" />
+                      Loading notifications...
+                    </div>
+                  ) : notifications.length === 0 ? (
+                    <div className="py-12 px-4 text-center text-[#8b949e] flex flex-col items-center justify-center">
+                      <Bell className="w-8 h-8 text-[#484f58] mb-2 stroke-[1.5]" />
+                      <p className="text-xs font-semibold text-[#c9d1d9] mb-0.5">All caught up!</p>
+                      <p className="text-[11px] text-[#8b949e] max-w-[220px]">
+                        When someone follows you or stars your prompts, updates will appear here.
+                      </p>
+                    </div>
+                  ) : (
+                    notifications.map((n) => (
+                      <div
+                        key={n.id}
+                        onClick={() => handleNotificationClick(n)}
+                        className={`p-3.5 flex items-start gap-3 hover:bg-[#1f6feb]/10 transition cursor-pointer group relative ${
+                          !n.is_read ? 'bg-[#1f6feb]/5' : ''
+                        }`}
+                      >
+                        {/* Avatar with type badge */}
+                        <div className="relative shrink-0 mt-0.5">
+                          <img
+                            src={n.sender_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${n.sender_username || 'user'}`}
+                            alt={n.sender_name || 'User'}
+                            className="w-8 h-8 rounded-full border border-[#30363d] object-cover"
+                          />
+                          <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center border border-[#161b22] ${
+                            n.type === 'star' ? 'bg-[#d29922] text-black' : 'bg-[#238636] text-white'
+                          }`}>
+                            {n.type === 'star' ? (
+                              <StarIcon className="w-2.5 h-2.5 fill-current" />
+                            ) : (
+                              <UserPlus className="w-2.5 h-2.5" />
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Message and time */}
+                        <div className="flex-1 min-w-0 pr-6">
+                          <p className="text-xs text-[#c9d1d9] leading-snug group-hover:text-[#f0f6fc]">
+                            {n.message}
+                          </p>
+                          <span className="text-[10px] text-[#8b949e] mt-1 block">
+                            {formatNotifTime(n.created_at)}
+                          </span>
+                        </div>
+
+                        {/* Unread dot & Delete button */}
+                        <div className="absolute right-3 top-3.5 flex items-center gap-1.5">
+                          {!n.is_read && (
+                            <span className="w-2 h-2 rounded-full bg-[#1f6feb] shrink-0" title="Unread" />
+                          )}
+                          <button
+                            onClick={(e) => handleDeleteNotification(e, n.id)}
+                            className="opacity-0 group-hover:opacity-100 p-1 text-[#8b949e] hover:text-red-400 hover:bg-[#21262d] rounded transition"
+                            title="Delete notification"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Dropdown Footer */}
+                {notifications.length > 0 && (
+                  <div className="p-2 border-t border-[#30363d] bg-[#0d1117] flex items-center justify-between text-[11px]">
+                    <span className="text-[#8b949e]">
+                      {notifications.length} notification{notifications.length > 1 ? 's' : ''}
+                    </span>
+                    <button
+                      onClick={handleClearAllNotifications}
+                      className="text-[#8b949e] hover:text-red-400 transition"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
-            {showSearchDropdown && searchQuery.trim().length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-[#161b22] border border-[#30363d] rounded-xl shadow-2xl py-1.5 z-50 overflow-hidden">
-                <div className="px-3 py-1.5 text-[10px] uppercase font-bold tracking-wider text-[#8b949e] border-b border-[#21262d] flex items-center justify-between">
+          </div>
+        </div>
+
+        {/* Right Side: Profile Avatar / Dropdown */}
+        <div className="flex items-center gap-2">
+          {user ? (
+            <div className="relative" ref={profileRef}>
+              <button 
+                onClick={() => setIsProfileOpen(!isProfileOpen)} 
+                className="flex items-center gap-1 hover:opacity-80 transition cursor-pointer"
+                aria-label="User navigation"
+              >
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden border border-[#30363d] bg-[#21262d] flex items-center justify-center text-xs font-semibold text-white">
+                  {user?.avatar ? (
+                    <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <span>{user?.username?.charAt(0)?.toUpperCase() || 'U'}</span>
+                  )}
+                </div>
+              </button>
+              
+              {isProfileOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-[#161b22] border border-[#30363d] rounded-md shadow-xl py-1 z-50 text-xs">
+                  <div className="px-3 py-2 border-b border-[#30363d] text-[#8b949e]">
+                    Signed in as <br />
+                    <span className="font-semibold text-sm text-[#f0f6fc]">{user?.username || 'user'}</span>
+                    <span className="block text-[10px] text-[#8b949e] font-mono mt-0.5">ID: {user?.id}</span>
+                  </div>
+                  <Link 
+                    href="/profile" 
+                    className="flex items-center gap-2 px-3 py-2 text-[#c9d1d9] hover:bg-[#1f6feb] hover:text-white transition"
+                    onClick={() => setIsProfileOpen(false)}
+                  >
+                    <UserIcon className="w-3.5 h-3.5" />
+                    <span>Your profile</span>
+                  </Link>
+                  <Link 
+                    href="/dashboard" 
+                    className="flex items-center gap-2 px-3 py-2 text-[#c9d1d9] hover:bg-[#1f6feb] hover:text-white transition"
+                    onClick={() => setIsProfileOpen(false)}
+                  >
+                    <FolderGit2 className="w-3.5 h-3.5" />
+                    <span>Your repositories</span>
+                  </Link>
+                  <Link 
+                    href="/explore" 
+                    className="flex items-center gap-2 px-3 py-2 text-[#c9d1d9] hover:bg-[#1f6feb] hover:text-white transition"
+                    onClick={() => setIsProfileOpen(false)}
+                  >
+                    <Compass className="w-3.5 h-3.5" />
+                    <span>Explore</span>
+                  </Link>
+                  <div className="border-t border-[#30363d] my-1"></div>
+                  <button 
+                    onClick={() => {
+                      setIsProfileOpen(false);
+                      setIsThemeOpen(true);
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 text-[#c9d1d9] hover:bg-[#1f6feb] hover:text-white transition text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Palette className="w-3.5 h-3.5" />
+                      <span>Theme / Settings</span>
+                    </div>
+                    <span className="text-[10px] text-[#8b949e] font-medium">{currentThemeObj?.name}</span>
+                  </button>
+                  <div className="border-t border-[#30363d] my-1"></div>
+                  <button 
+                    onClick={() => {
+                      logout();
+                      setIsProfileOpen(false);
+                      router.push('/login');
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-[#da3633] hover:bg-[#da3633] hover:text-white transition text-left"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign out</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Link 
+                href="/login" 
+                className="text-xs font-semibold text-[#c9d1d9] hover:text-[#f0f6fc] px-2.5 py-1.5 rounded-md hover:bg-[#21262d] transition"
+              >
+                Sign in
+              </Link>
+              <Link 
+                href="/join" 
+                className="text-xs font-semibold text-white bg-[#238636] hover:bg-[#2ea043] px-2.5 py-1.5 rounded-md transition"
+              >
+                Sign up
+              </Link>
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* Centered Search Palette Modal (opens via search icon or pressing /) */}
+      {isSearchOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 px-4 bg-black/60 backdrop-blur-xs">
+          <div 
+            ref={searchRef}
+            className="w-full max-w-xl bg-[#161b22] border border-[#30363d] rounded-2xl shadow-2xl overflow-hidden animate-scaleUp"
+          >
+            <div className="flex items-center px-4 py-3.5 border-b border-[#30363d] gap-3 bg-[#0d1117]">
+              <Search className="w-4 h-4 text-[#8b949e] shrink-0" />
+              <input 
+                ref={searchInputRef}
+                type="text" 
+                placeholder="Search prompts or @users..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && searchQuery.trim()) {
+                    setIsSearchOpen(false);
+                    setSearchResults([]);
+                    router.push(`/explore?search=${encodeURIComponent(searchQuery.trim())}`);
+                  }
+                }}
+                className="w-full bg-transparent text-sm text-[#f0f6fc] placeholder:text-[#8b949e] focus:outline-none"
+              />
+              {searchQuery ? (
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSearchResults([]);
+                    setPromptResults([]);
+                  }}
+                  className="p-1 text-[#8b949e] hover:text-[#f0f6fc] rounded transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              ) : (
+                <kbd className="hidden sm:inline-block border border-[#30363d] bg-[#161b22] text-[#8b949e] text-[10px] px-1.5 py-0.5 rounded font-mono">
+                  ESC
+                </kbd>
+              )}
+            </div>
+
+            {/* Live Search Results or Quick Navigation */}
+            {searchQuery.trim().length > 0 ? (
+              <div className="max-h-[60vh] overflow-y-auto divide-y divide-[#21262d]">
+                <div className="px-4 py-2 text-[10px] uppercase font-bold tracking-wider text-[#8b949e] bg-[#161b22] flex items-center justify-between">
                   <span>Creators & Users</span>
                   <div className="flex items-center gap-1.5">
                     {isSearching && (
@@ -455,7 +737,7 @@ export default function Navbar() {
                   </div>
                 </div>
                 {searchResults.length > 0 ? (
-                  <div className="max-h-64 overflow-y-auto divide-y divide-[#21262d]">
+                  <div className="divide-y divide-[#21262d]">
                     {searchResults.map(u => (
                       <Link
                         key={u.id}
@@ -464,10 +746,9 @@ export default function Navbar() {
                           cacheUser(u);
                           setSearchQuery('');
                           setSearchResults([]);
-                          setShowSearchDropdown(false);
-                          setIsMobileSearchOpen(false);
+                          setIsSearchOpen(false);
                         }}
-                        className="flex items-center gap-3 px-3 py-2.5 hover:bg-[#1f6feb]/20 hover:border-[#1f6feb]/40 transition group"
+                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#1f6feb]/20 hover:border-[#1f6feb]/40 transition group"
                       >
                         <img 
                           src={u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`} 
@@ -485,26 +766,27 @@ export default function Navbar() {
                     ))}
                   </div>
                 ) : isSearching ? (
-                  <div className="px-3 py-3 text-xs text-[#8b949e] flex items-center gap-2">
+                  <div className="px-4 py-3 text-xs text-[#8b949e] flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-[#58a6ff] animate-ping"></span>
                     Searching creators...
                   </div>
                 ) : (
-                  <div className="px-3 py-3 text-xs text-[#8b949e]">No users found for &quot;{searchQuery}&quot;</div>
+                  <div className="px-4 py-3 text-xs text-[#8b949e]">No users found for &quot;{searchQuery}&quot;</div>
                 )}
+
                 {promptResults.length > 0 && (
                   <>
-                    <div className="px-3 py-1.5 text-[10px] uppercase font-bold tracking-wider text-[#8b949e] border-t border-b border-[#21262d] flex items-center justify-between bg-[#161b22]">
+                    <div className="px-4 py-2 text-[10px] uppercase font-bold tracking-wider text-[#8b949e] bg-[#161b22] flex items-center justify-between border-t border-[#21262d]">
                       <span>Matching Prompts</span>
                       <span className="text-[9px] text-[#3fb950]">Instant</span>
                     </div>
-                    <div className="max-h-44 overflow-y-auto divide-y divide-[#21262d]">
+                    <div className="divide-y divide-[#21262d]">
                       {promptResults.map(p => (
                         <Link
                           key={p.id}
                           href={`/repo/${p.id}`}
-                          onClick={() => { setSearchQuery(''); setSearchResults([]); setPromptResults([]); setShowSearchDropdown(false); setIsMobileSearchOpen(false); }}
-                          className="flex items-center gap-2.5 px-3 py-2 hover:bg-[#238636]/20 transition group"
+                          onClick={() => { setSearchQuery(''); setSearchResults([]); setPromptResults([]); setIsSearchOpen(false); }}
+                          className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-[#238636]/20 transition group"
                         >
                           <FolderGit2 className="w-3.5 h-3.5 text-[#58a6ff] shrink-0" />
                           <div className="flex flex-col min-w-0">
@@ -516,462 +798,161 @@ export default function Navbar() {
                     </div>
                   </>
                 )}
-                <div className="border-t border-[#30363d]"></div>
+
                 <Link
                   href={`/explore?search=${encodeURIComponent(searchQuery.trim())}`}
-                  onClick={() => { setSearchQuery(''); setSearchResults([]); setPromptResults([]); setShowSearchDropdown(false); setIsMobileSearchOpen(false); }}
-                  className="block px-3 py-2 text-xs font-semibold text-[#58a6ff] hover:bg-[#161b22] transition text-center"
+                  onClick={() => { setSearchQuery(''); setSearchResults([]); setPromptResults([]); setIsSearchOpen(false); }}
+                  className="block px-4 py-3 text-xs font-semibold text-[#58a6ff] hover:bg-[#0d1117] transition text-center"
                 >
-                  Search all prompts for &quot;{searchQuery}&quot; →
+                  Search all community prompts for &quot;{searchQuery}&quot; →
                 </Link>
-              </div>
-            )}
-
-            {!isMobileSearchOpen && (
-              <div className="absolute right-2 top-1.5 flex items-center">
-                <span className="border border-[#30363d] rounded px-1 text-[10px] text-[#8b949e] font-mono leading-tight">/</span>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-1 sm:gap-2">
-            {/* Trending in Community icon button */}
-            <Link
-              href="/explore"
-              title="Trending in Community"
-              aria-label="Trending in Community"
-              className="p-1.5 text-[#8b949e] hover:text-[#58a6ff] hover:bg-[#21262d] rounded-md transition flex items-center justify-center group"
-            >
-              <TrendingUp className="w-4 h-4 text-[#8b949e] group-hover:text-[#58a6ff] transition-transform group-hover:scale-110" />
-            </Link>
-
-            {/* Prysm AI button */}
-            <Link 
-              href="/dashboard"
-              title="Prysm"
-              aria-label="Prysm"
-              className="p-1.5 text-[#8b949e] hover:text-[#58a6ff] hover:bg-[#21262d] rounded-md transition flex items-center justify-center group relative"
-            >
-              <div 
-                className="logo-flashlight-glow absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.7)_0%,rgba(255,255,255,0.25)_50%,transparent_80%)] blur-[6px] pointer-events-none rounded-full"
-                aria-hidden="true"
-              />
-              <img 
-                src="/prysm.png" 
-                alt="Prysm" 
-                className="logo-drop-shadow w-5 h-5 object-contain relative z-10 group-hover:scale-110 transition-transform" 
-                style={{ filter: "drop-shadow(0 0 6px rgba(255, 255, 255, 0.8))" }}
-              />
-            </Link>
-
-            {/* Create (+) dropdown */}
-            <div className="relative" ref={createRef}>
-              <button 
-                onClick={() => setIsCreateOpen(!isCreateOpen)}
-                className="flex items-center gap-0.5 p-1.5 text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] rounded-md transition"
-                title="Create new..."
-              >
-                <Plus className="w-4 h-4" />
-                <ChevronDown className="w-3 h-3 text-[#8b949e]" />
-              </button>
-
-              {isCreateOpen && (
-                <div className="absolute right-0 mt-2 w-52 bg-[#161b22] border border-[#30363d] rounded-md shadow-xl py-1.5 z-50 text-xs text-[#c9d1d9]">
-                  <Link 
-                    href="/new" 
-                    onClick={() => setIsCreateOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 hover:bg-[#1f6feb] hover:text-white transition"
-                  >
-                    <BookMarked className="w-3.5 h-3.5" />
-                    <span>New repository</span>
-                  </Link>
-                  <Link 
-                    href="/new" 
-                    onClick={() => setIsCreateOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 hover:bg-[#1f6feb] hover:text-white transition"
-                  >
-                    <FolderGit2 className="w-3.5 h-3.5" />
-                    <span>New prompt repository</span>
-                  </Link>
-                  <div className="border-t border-[#30363d] my-1"></div>
-                  <Link 
-                    href="/explore" 
-                    onClick={() => setIsCreateOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 hover:bg-[#1f6feb] hover:text-white transition"
-                  >
-                    <Compass className="w-3.5 h-3.5" />
-                    <span>Explore community prompts</span>
-                  </Link>
-                </div>
-              )}
-            </div>
-
-            {/* Notifications Inbox icon & Interactive Dropdown */}
-            <div className="relative" ref={notificationsRef}>
-              <button 
-                onClick={() => {
-                  const nextState = !isNotificationsOpen;
-                  setIsNotificationsOpen(nextState);
-                  if (nextState) fetchNotifications();
-                }}
-                title="Notifications"
-                aria-label="Notifications"
-                className={`p-1.5 rounded-md transition relative flex items-center justify-center ${
-                  isNotificationsOpen 
-                    ? 'text-[#f0f6fc] bg-[#21262d]' 
-                    : 'text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d]'
-                }`}
-              >
-                <Inbox className="w-4 h-4" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[17px] h-4 px-1 bg-[#1f6feb] text-white text-[10px] font-bold rounded-full ring-2 ring-[#010409] flex items-center justify-center leading-none">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
-              </button>
-
-              {isNotificationsOpen && (
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-[#161b22] border border-[#30363d] rounded-xl shadow-2xl overflow-hidden z-50 text-xs text-[#c9d1d9] animate-scaleUp">
-                  {/* Dropdown Header */}
-                  <div className="px-4 py-3 border-b border-[#30363d] bg-[#0d1117] flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm text-[#f0f6fc]">Notifications</span>
-                      {unreadCount > 0 && (
-                        <span className="bg-[#1f6feb]/20 text-[#58a6ff] text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#1f6feb]/30">
-                          {unreadCount} new
-                        </span>
-                      )}
-                    </div>
-                    {notifications.length > 0 && (
-                      <button
-                        onClick={handleMarkAllRead}
-                        className="text-[11px] text-[#58a6ff] hover:underline flex items-center gap-1 font-medium"
-                        title="Mark all as read"
-                      >
-                        <CheckCheck className="w-3.5 h-3.5" />
-                        Mark all read
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Notifications List */}
-                  <div className="max-h-96 overflow-y-auto divide-y divide-[#21262d]">
-                    {isLoadingNotifications && notifications.length === 0 ? (
-                      <div className="py-10 text-center text-[#8b949e] flex items-center justify-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-[#58a6ff] animate-ping" />
-                        Loading notifications...
-                      </div>
-                    ) : notifications.length === 0 ? (
-                      <div className="py-12 px-4 text-center text-[#8b949e] flex flex-col items-center justify-center">
-                        <Inbox className="w-8 h-8 text-[#484f58] mb-2 stroke-[1.5]" />
-                        <p className="text-xs font-semibold text-[#c9d1d9] mb-0.5">All caught up!</p>
-                        <p className="text-[11px] text-[#8b949e] max-w-[220px]">
-                          When someone follows you or stars your prompts, updates will appear here.
-                        </p>
-                      </div>
-                    ) : (
-                      notifications.map((n) => (
-                        <div
-                          key={n.id}
-                          onClick={() => handleNotificationClick(n)}
-                          className={`p-3.5 flex items-start gap-3 hover:bg-[#1f6feb]/10 transition cursor-pointer group relative ${
-                            !n.is_read ? 'bg-[#1f6feb]/5' : ''
-                          }`}
-                        >
-                          {/* Avatar with type badge */}
-                          <div className="relative shrink-0 mt-0.5">
-                            <img
-                              src={n.sender_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${n.sender_username || 'user'}`}
-                              alt={n.sender_name || 'User'}
-                              className="w-8 h-8 rounded-full border border-[#30363d] object-cover"
-                            />
-                            <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center border border-[#161b22] ${
-                              n.type === 'star' ? 'bg-[#d29922] text-black' : 'bg-[#238636] text-white'
-                            }`}>
-                              {n.type === 'star' ? (
-                                <StarIcon className="w-2.5 h-2.5 fill-current" />
-                              ) : (
-                                <UserPlus className="w-2.5 h-2.5" />
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Message and time */}
-                          <div className="flex-1 min-w-0 pr-6">
-                            <p className="text-xs text-[#c9d1d9] leading-snug group-hover:text-[#f0f6fc]">
-                              {n.message}
-                            </p>
-                            <span className="text-[10px] text-[#8b949e] mt-1 block">
-                              {formatNotifTime(n.created_at)}
-                            </span>
-                          </div>
-
-                          {/* Unread dot & Delete button */}
-                          <div className="absolute right-3 top-3.5 flex items-center gap-1.5">
-                            {!n.is_read && (
-                              <span className="w-2 h-2 rounded-full bg-[#1f6feb] shrink-0" title="Unread" />
-                            )}
-                            <button
-                              onClick={(e) => handleDeleteNotification(e, n.id)}
-                              className="opacity-0 group-hover:opacity-100 p-1 text-[#8b949e] hover:text-red-400 hover:bg-[#21262d] rounded transition"
-                              title="Delete notification"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-
-                  {/* Dropdown Footer */}
-                  {notifications.length > 0 && (
-                    <div className="p-2 border-t border-[#30363d] bg-[#0d1117] flex items-center justify-between text-[11px]">
-                      <span className="text-[#8b949e]">
-                        {notifications.length} notification{notifications.length > 1 ? 's' : ''}
-                      </span>
-                      <button
-                        onClick={handleClearAllNotifications}
-                        className="text-[#8b949e] hover:text-red-400 transition"
-                      >
-                        Clear all
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Color Theme Switcher */}
-            <div className="relative flex items-center" ref={themeRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  console.log('[Navbar] Clicked toggle theme button, isDark is:', isDark);
-                  setTheme(isDark ? 'light_default' : 'dark_default');
-                }}
-                className="p-1.5 text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] rounded-l-md transition flex items-center gap-1"
-                title={`Toggle theme (Currently ${currentThemeObj?.name || (isDark ? 'Dark' : 'Light')})`}
-                aria-label="Toggle light or dark theme"
-              >
-                {isDark ? (
-                  <Moon className="w-4 h-4 text-[#58a6ff]" />
-                ) : (
-                  <Sun className="w-4 h-4 text-[#d97706]" />
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsThemeOpen(!isThemeOpen)}
-                className="p-1 text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] rounded-r-md transition"
-                title="Choose theme appearance"
-                aria-label="Theme options"
-              >
-                <ChevronDown className="w-3 h-3 text-[#8b949e]" />
-              </button>
-
-              {isThemeOpen && (
-                <div className={`absolute right-0 mt-2 top-full w-80 sm:w-96 rounded-xl border shadow-2xl py-2 z-50 text-xs max-h-[85vh] overflow-y-auto ${
-                  isDark ? "bg-[#161b22] border-[#30363d] text-[#c9d1d9]" : "bg-white border-[#d0d7de] text-[#1f2328]"
-                }`}>
-                  <div className={`px-3.5 py-2 border-b flex items-center justify-between ${
-                    isDark ? "border-[#30363d]" : "border-[#d0d7de]"
-                  }`}>
-                    <div>
-                      <div className={`font-semibold text-sm flex items-center gap-2 ${isDark ? "text-[#f0f6fc]" : "text-[#1f2328]"}`}>
-                        <Palette className="w-4 h-4 text-[#58a6ff]" />
-                        <span>Color theme</span>
-                      </div>
-                      <p className={`text-[11px] mt-0.5 ${isDark ? "text-[#8b949e]" : "text-[#57606a]"}`}>
-                        Choose your preferred theme appearance
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setIsThemeOpen(false)}
-                      className={`p-1 rounded-md transition ${isDark ? "text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d]" : "text-[#57606a] hover:text-[#1f2328] hover:bg-[#eaeef2]"}`}
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  {/* Light Themes */}
-                  <div className="p-2 border-b border-[#30363d]">
-                    <div className="px-2 py-1 text-[11px] font-bold text-[#8b949e] uppercase tracking-wider flex items-center gap-1.5">
-                      <span>☀️ Light Themes</span>
-                    </div>
-                    <div className="space-y-1 mt-1">
-                      {availableThemes.filter(t => !t.isDark).map((t) => {
-                        const isActive = theme === t.id;
-                        return (
-                          <button
-                            key={t.id}
-                            onClick={() => {
-                              setTheme(t.id);
-                              setIsThemeOpen(false);
-                            }}
-                            className={`w-full text-left px-2.5 py-2 rounded-lg flex items-start gap-2.5 transition ${
-                              isActive 
-                                ? 'bg-[#1f6feb]/15 border border-[#1f6feb]/40 text-[#f0f6fc]' 
-                                : 'hover:bg-[#21262d] border border-transparent text-[#c9d1d9]'
-                            }`}
-                          >
-                            <div 
-                              className="w-5 h-5 rounded-md border shrink-0 mt-0.5 shadow-xs flex items-center justify-center overflow-hidden"
-                              style={{ backgroundColor: t.bg, borderColor: t.border }}
-                            >
-                              <div className="w-2.5 h-2.5 rounded-xs" style={{ backgroundColor: t.accent }}></div>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between">
-                                <span className="font-semibold text-xs text-[#f0f6fc]">{t.name}</span>
-                                {isActive && <Check className="w-3.5 h-3.5 text-[#58a6ff] shrink-0" />}
-                              </div>
-                              <p className="text-[11px] text-[#8b949e] leading-snug mt-0.5">{t.description}</p>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Dark Themes */}
-                  <div className="p-2">
-                    <div className="px-2 py-1 text-[11px] font-bold text-[#8b949e] uppercase tracking-wider flex items-center gap-1.5">
-                      <span>🟣 Dark Themes</span>
-                    </div>
-                    <div className="space-y-1 mt-1">
-                      {availableThemes.filter(t => t.isDark).map((t) => {
-                        const isActive = theme === t.id;
-                        return (
-                          <button
-                            key={t.id}
-                            onClick={() => {
-                              setTheme(t.id);
-                              setIsThemeOpen(false);
-                            }}
-                            className={`w-full text-left px-2.5 py-2 rounded-lg flex items-start gap-2.5 transition ${
-                              isActive 
-                                ? 'bg-[#1f6feb]/15 border border-[#1f6feb]/40 text-[#f0f6fc]' 
-                                : 'hover:bg-[#21262d] border border-transparent text-[#c9d1d9]'
-                            }`}
-                          >
-                            <div 
-                              className="w-5 h-5 rounded-md border shrink-0 mt-0.5 shadow-xs flex items-center justify-center overflow-hidden"
-                              style={{ backgroundColor: t.bg, borderColor: t.border }}
-                            >
-                              <div className="w-2.5 h-2.5 rounded-xs" style={{ backgroundColor: t.accent }}></div>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between">
-                                <span className="font-semibold text-xs text-[#f0f6fc]">{t.name}</span>
-                                {isActive && <Check className="w-3.5 h-3.5 text-[#58a6ff] shrink-0" />}
-                              </div>
-                              <p className="text-[11px] text-[#8b949e] leading-snug mt-0.5">{t.description}</p>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Profile Avatar or Auth Buttons */}
-            {user ? (
-              <div className="relative ml-1" ref={profileRef}>
-                <button 
-                  onClick={() => setIsProfileOpen(!isProfileOpen)} 
-                  className="flex items-center gap-1 hover:opacity-80 transition cursor-pointer"
-                  aria-label="User navigation"
-                >
-                  <div className="w-7 h-7 rounded-full overflow-hidden border border-[#30363d] bg-[#21262d] flex items-center justify-center text-xs font-semibold text-white">
-                    {user?.avatar ? (
-                      <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
-                    ) : (
-                      <span>{user?.username?.charAt(0)?.toUpperCase() || 'U'}</span>
-                    )}
-                  </div>
-                </button>
-                
-                {isProfileOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-[#161b22] border border-[#30363d] rounded-md shadow-xl py-1 z-50 text-xs">
-                    <div className="px-3 py-2 border-b border-[#30363d] text-[#8b949e]">
-                      Signed in as <br />
-                      <span className="font-semibold text-sm text-[#f0f6fc]">{user?.username || 'user'}</span>
-                      <span className="block text-[10px] text-[#8b949e] font-mono mt-0.5">ID: {user?.id}</span>
-                    </div>
-                    <Link 
-                      href="/profile" 
-                      className="flex items-center gap-2 px-3 py-2 text-[#c9d1d9] hover:bg-[#1f6feb] hover:text-white transition"
-                      onClick={() => setIsProfileOpen(false)}
-                    >
-                      <UserIcon className="w-3.5 h-3.5" />
-                      <span>Your profile</span>
-                    </Link>
-                    <Link 
-                      href="/dashboard" 
-                      className="flex items-center gap-2 px-3 py-2 text-[#c9d1d9] hover:bg-[#1f6feb] hover:text-white transition"
-                      onClick={() => setIsProfileOpen(false)}
-                    >
-                      <FolderGit2 className="w-3.5 h-3.5" />
-                      <span>Your repositories</span>
-                    </Link>
-                    <Link 
-                      href="/explore" 
-                      className="flex items-center gap-2 px-3 py-2 text-[#c9d1d9] hover:bg-[#1f6feb] hover:text-white transition"
-                      onClick={() => setIsProfileOpen(false)}
-                    >
-                      <Compass className="w-3.5 h-3.5" />
-                      <span>Explore</span>
-                    </Link>
-                    <button 
-                      onClick={() => {
-                        setIsProfileOpen(false);
-                        setIsThemeOpen(true);
-                      }}
-                      className="w-full flex items-center justify-between px-3 py-2 text-[#c9d1d9] hover:bg-[#1f6feb] hover:text-white transition text-left"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Palette className="w-3.5 h-3.5" />
-                        <span>Theme</span>
-                      </div>
-                      <span className="text-[10px] text-[#8b949e]">{currentThemeObj?.name}</span>
-                    </button>
-                    <div className="border-t border-[#30363d] my-1"></div>
-                    <button 
-                      onClick={() => {
-                        logout();
-                        setIsProfileOpen(false);
-                        router.push('/login');
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-[#da3633] hover:bg-[#da3633] hover:text-white transition text-left"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                      <span>Sign out</span>
-                    </button>
-                  </div>
-                )}
               </div>
             ) : (
-              <div className="flex items-center gap-2 ml-1">
-                <Link 
-                  href="/login" 
-                  className="text-xs font-semibold text-[#c9d1d9] hover:text-[#f0f6fc] px-2.5 py-1.5 rounded-md hover:bg-[#21262d] transition"
-                >
-                  Sign in
-                </Link>
-                <Link 
-                  href="/join" 
-                  className="text-xs font-semibold text-white bg-[#238636] hover:bg-[#2ea043] px-2.5 py-1.5 rounded-md transition"
-                >
-                  Sign up
-                </Link>
+              <div className="p-4 text-xs text-[#8b949e] space-y-2">
+                <p className="font-semibold text-[#c9d1d9] mb-2">Quick Navigation</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Link
+                    href="/explore"
+                    onClick={() => setIsSearchOpen(false)}
+                    className="flex items-center gap-2.5 p-2.5 rounded-lg border border-[#30363d] hover:bg-[#21262d] text-[#c9d1d9] hover:text-white transition"
+                  >
+                    <Compass className="w-4 h-4 text-[#58a6ff]" />
+                    <div>
+                      <span className="font-medium text-xs block">Explore Prompts</span>
+                      <span className="text-[10px] text-[#8b949e]">Trending community creations</span>
+                    </div>
+                  </Link>
+                  <Link
+                    href="/new"
+                    onClick={() => setIsSearchOpen(false)}
+                    className="flex items-center gap-2.5 p-2.5 rounded-lg border border-[#30363d] hover:bg-[#21262d] text-[#c9d1d9] hover:text-white transition"
+                  >
+                    <Plus className="w-4 h-4 text-[#3fb950]" />
+                    <div>
+                      <span className="font-medium text-xs block">New Repository</span>
+                      <span className="text-[10px] text-[#8b949e]">Create a prompt repository</span>
+                    </div>
+                  </Link>
+                </div>
               </div>
             )}
           </div>
         </div>
-      </header>
+      )}
+
+      {/* Settings Theme Modal (Accessible via Settings / Profile dropdown) */}
+      {isThemeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div 
+            ref={themeRef}
+            className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden text-xs max-h-[85vh] flex flex-col ${
+              isDark ? "bg-[#161b22] border-[#30363d] text-[#c9d1d9]" : "bg-white border-[#d0d7de] text-[#1f2328]"
+            }`}
+          >
+            <div className={`px-4 py-3.5 border-b flex items-center justify-between shrink-0 ${
+              isDark ? "border-[#30363d] bg-[#0d1117]" : "border-[#d0d7de] bg-[#f6f8fa]"
+            }`}>
+              <div>
+                <div className={`font-semibold text-sm flex items-center gap-2 ${isDark ? "text-[#f0f6fc]" : "text-[#1f2328]"}`}>
+                  <Palette className="w-4 h-4 text-[#58a6ff]" />
+                  <span>Color Theme Settings</span>
+                </div>
+                <p className={`text-[11px] mt-0.5 ${isDark ? "text-[#8b949e]" : "text-[#57606a]"}`}>
+                  Choose your preferred appearance
+                </p>
+              </div>
+              <button
+                onClick={() => setIsThemeOpen(false)}
+                className={`p-1.5 rounded-md transition ${isDark ? "text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d]" : "text-[#57606a] hover:text-[#1f2328] hover:bg-[#eaeef2]"}`}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto p-3 space-y-3">
+              {/* Light Themes */}
+              <div className="p-1">
+                <div className="px-2 py-1 text-[11px] font-bold text-[#8b949e] uppercase tracking-wider flex items-center gap-1.5">
+                  <span>☀️ Light Themes</span>
+                </div>
+                <div className="space-y-1 mt-1">
+                  {availableThemes.filter(t => !t.isDark).map((t) => {
+                    const isActive = theme === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => {
+                          setTheme(t.id);
+                          setIsThemeOpen(false);
+                        }}
+                        className={`w-full text-left px-2.5 py-2 rounded-lg flex items-start gap-2.5 transition ${
+                          isActive 
+                            ? 'bg-[#1f6feb]/15 border border-[#1f6feb]/40 text-[#f0f6fc]' 
+                            : 'hover:bg-[#21262d] border border-transparent text-[#c9d1d9]'
+                        }`}
+                      >
+                        <div 
+                          className="w-5 h-5 rounded-md border shrink-0 mt-0.5 shadow-xs flex items-center justify-center overflow-hidden"
+                          style={{ backgroundColor: t.bg, borderColor: t.border }}
+                        >
+                          <div className="w-2.5 h-2.5 rounded-xs" style={{ backgroundColor: t.accent }}></div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-xs text-[#f0f6fc]">{t.name}</span>
+                            {isActive && <Check className="w-3.5 h-3.5 text-[#58a6ff] shrink-0" />}
+                          </div>
+                          <p className="text-[11px] text-[#8b949e] leading-snug mt-0.5">{t.description}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Dark Themes */}
+              <div className="p-1">
+                <div className="px-2 py-1 text-[11px] font-bold text-[#8b949e] uppercase tracking-wider flex items-center gap-1.5">
+                  <span>🟣 Dark Themes</span>
+                </div>
+                <div className="space-y-1 mt-1">
+                  {availableThemes.filter(t => t.isDark).map((t) => {
+                    const isActive = theme === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => {
+                          setTheme(t.id);
+                          setIsThemeOpen(false);
+                        }}
+                        className={`w-full text-left px-2.5 py-2 rounded-lg flex items-start gap-2.5 transition ${
+                          isActive 
+                            ? 'bg-[#1f6feb]/15 border border-[#1f6feb]/40 text-[#f0f6fc]' 
+                            : 'hover:bg-[#21262d] border border-transparent text-[#c9d1d9]'
+                        }`}
+                      >
+                        <div 
+                          className="w-5 h-5 rounded-md border shrink-0 mt-0.5 shadow-xs flex items-center justify-center overflow-hidden"
+                          style={{ backgroundColor: t.bg, borderColor: t.border }}
+                        >
+                          <div className="w-2.5 h-2.5 rounded-xs" style={{ backgroundColor: t.accent }}></div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-xs text-[#f0f6fc]">{t.name}</span>
+                            {isActive && <Check className="w-3.5 h-3.5 text-[#58a6ff] shrink-0" />}
+                          </div>
+                          <p className="text-[11px] text-[#8b949e] leading-snug mt-0.5">{t.description}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Hamburger Drawer Menu */}
       {isDrawerOpen && (
@@ -999,7 +980,7 @@ export default function Navbar() {
               </div>
               <button 
                 onClick={() => setIsDrawerOpen(false)}
-                className="text-[#8b949e] hover:text-foreground p-1 rounded-md hover:bg-[#21262d]"
+                className="text-[#8b949e] hover:text-[#f0f6fc] p-1 rounded-md hover:bg-[#21262d]"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1018,7 +999,6 @@ export default function Navbar() {
                     if (e.key === 'Enter' && searchQuery.trim()) {
                       setIsDrawerOpen(false);
                       setSearchResults([]);
-                      setShowSearchDropdown(false);
                       router.push(`/explore?search=${encodeURIComponent(searchQuery.trim())}`);
                     }
                   }}
@@ -1036,7 +1016,6 @@ export default function Navbar() {
                         setIsDrawerOpen(false);
                         setSearchQuery('');
                         setSearchResults([]);
-                        setShowSearchDropdown(false);
                       }}
                       className="flex items-center gap-2.5 p-2 hover:bg-[#21262d] transition"
                     >
@@ -1070,7 +1049,7 @@ export default function Navbar() {
                 className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-[#21262d] hover:text-white transition"
               >
                 <Compass className="w-4 h-4 text-[#8b949e]" />
-                Explore
+                Explore Community
               </Link>
               <Link 
                 href="/new" 
@@ -1096,7 +1075,7 @@ export default function Navbar() {
                 className="w-full flex items-center justify-between px-3 py-2 rounded-md hover:bg-[#21262d] hover:text-white transition text-left"
               >
                 <div className="flex items-center gap-3">
-                  <Inbox className="w-4 h-4 text-[#8b949e]" />
+                  <Bell className="w-4 h-4 text-[#8b949e]" />
                   <span>Notifications</span>
                 </div>
                 {unreadCount > 0 && (
@@ -1105,7 +1084,6 @@ export default function Navbar() {
                   </span>
                 )}
               </button>
-
 
               {/* Theme section inside drawer */}
               <div className="pt-3 mt-3 border-t border-[#30363d]">
