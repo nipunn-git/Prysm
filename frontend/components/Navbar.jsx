@@ -373,40 +373,25 @@ export default function Navbar() {
   return (
     <>
       <header className="bg-[#010409] border-b border-[#21262d] text-[#c9d1d9] h-14 sm:h-16 px-3 sm:px-6 flex items-center justify-between sticky top-0 z-40 select-none relative">
-        {/* Left Side: Hamburger Menu + PromptHub Logo (No wordmark, prominent logo) */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        {/* Left Side: Hamburger Menu */}
+        <div className="flex items-center">
           <button 
             onClick={() => setIsDrawerOpen(true)}
             aria-label="Open navigation menu"
-            className="p-1.5 text-[#8b949e] hover:text-[#f0f6fc] border border-[#30363d] hover:border-[#8b949e] hover:bg-[#161b22] rounded-md transition"
+            className="p-1.5 text-[#8b949e] hover:text-[#f0f6fc] border border-[#30363d] hover:border-[#8b949e] hover:bg-[#161b22] rounded-md transition cursor-pointer"
           >
             <Menu className="w-4 h-4" />
           </button>
-
-          <Link href="/explore" className="flex items-center hover:opacity-95 transition group" title="Prysm Feed">
-            <div className="relative flex items-center justify-center py-0.5">
-              <div 
-                className="logo-flashlight-glow absolute inset-0 -inset-x-3 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.75)_0%,rgba(255,255,255,0.25)_45%,transparent_80%)] blur-[9px] pointer-events-none rounded-full"
-                aria-hidden="true" 
-              />
-              <img 
-                src="/logo.png" 
-                alt="Prysm" 
-                className="logo-drop-shadow h-12 sm:h-14 w-auto object-contain shrink-0 relative z-10 transition-transform group-hover:scale-105" 
-                style={{ filter: "drop-shadow(0 0 10px rgba(255, 255, 255, 0.75)) drop-shadow(0 0 20px rgba(255, 255, 255, 0.35))" }}
-              />
-            </div>
-          </Link>
         </div>
 
-        {/* Center: Social Media/Home, Search Icon, Prysm AI, New Repo (+), Notifications (Bell) */}
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1 sm:gap-2">
+        {/* Center: Social Media/Home, Search Icon, Prysm AI, New Repo (+), Notifications (Bell) - Perfectly Centered */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-1 sm:gap-2">
           {/* 1. Social Media / Home Icon (Filled when active, like Instagram) */}
           <Link
             href="/explore"
             title="Community Feed / Social"
             aria-label="Community Feed"
-            className="p-2 sm:p-2.5 rounded-lg transition-transform flex items-center justify-center group"
+            className="p-2 sm:p-2.5 rounded-lg transition-transform flex items-center justify-center group shrink-0"
           >
             {pathname === '/explore' ? (
               <svg 
@@ -430,7 +415,7 @@ export default function Navbar() {
             }}
             title="Search prompts or @users (Press /)"
             aria-label="Search prompts or users"
-            className="p-2 sm:p-2.5 rounded-lg transition-transform flex items-center justify-center group"
+            className="p-2 sm:p-2.5 rounded-lg transition-transform flex items-center justify-center group shrink-0"
           >
             <Search 
               className={`w-5 h-5 sm:w-[22px] sm:h-[22px] transition-all ${
@@ -441,26 +426,26 @@ export default function Navbar() {
             />
           </button>
 
-          {/* 3. Prysm AI Logo (After Magnifying Glass, Before +) */}
+          {/* 3. Prysm AI Logo (After Magnifying Glass, Before +) - Singular Brand Emblem */}
           <Link
             href="/dashboard"
             title="Prysm AI Studio"
             aria-label="Prysm AI Studio"
-            className="px-2 py-1 sm:px-2.5 sm:py-1 rounded-lg transition-transform flex items-center justify-center group relative"
+            className="px-2 py-0.5 sm:px-2.5 sm:py-0.5 rounded-lg transition-transform flex items-center justify-center group relative shrink-0"
           >
             <div 
-              className={`logo-flashlight-glow absolute inset-0 -m-1 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.75)_0%,rgba(255,255,255,0.25)_50%,transparent_80%)] pointer-events-none rounded-full transition-opacity ${
-                pathname === '/dashboard' ? 'blur-[10px] opacity-100' : 'blur-[8px] opacity-75 group-hover:opacity-100'
+              className={`logo-flashlight-glow absolute inset-0 -m-1.5 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.85)_0%,rgba(255,255,255,0.3)_50%,transparent_80%)] pointer-events-none rounded-full transition-opacity ${
+                pathname === '/dashboard' ? 'blur-[12px] opacity-100' : 'blur-[9px] opacity-75 group-hover:opacity-100'
               }`}
               aria-hidden="true" 
             />
             <img 
               src="/logo.png" 
               alt="Prysm AI Studio" 
-              className={`logo-drop-shadow h-8 sm:h-9 md:h-10 w-auto object-contain relative z-10 transition-all ${
+              className={`logo-drop-shadow h-10 sm:h-11 md:h-12 w-auto object-contain relative z-10 transition-all ${
                 pathname === '/dashboard'
-                  ? 'scale-110 drop-shadow-[0_0_14px_rgba(255,255,255,0.95)]'
-                  : 'drop-shadow-[0_0_9px_rgba(255,255,255,0.85)] group-hover:scale-110 group-hover:drop-shadow-[0_0_14px_rgba(255,255,255,0.95)]'
+                  ? 'scale-110 drop-shadow-[0_0_16px_rgba(255,255,255,0.95)]'
+                  : 'drop-shadow-[0_0_10px_rgba(255,255,255,0.85)] group-hover:scale-110 group-hover:drop-shadow-[0_0_16px_rgba(255,255,255,0.95)]'
               }`}
             />
           </Link>
@@ -470,7 +455,7 @@ export default function Navbar() {
             href="/new"
             title="Create new repository"
             aria-label="Create new repository"
-            className="p-2 sm:p-2.5 rounded-lg transition-transform flex items-center justify-center group"
+            className="p-2 sm:p-2.5 rounded-lg transition-transform flex items-center justify-center group shrink-0"
           >
             <Plus 
               className={`w-5 h-5 sm:w-[22px] sm:h-[22px] transition-all ${
@@ -482,7 +467,7 @@ export default function Navbar() {
           </Link>
 
           {/* 5. Bell Icon (Notifications - Filled when active) */}
-          <div className="relative" ref={notificationsRef}>
+          <div className="relative shrink-0" ref={notificationsRef}>
             <button 
               type="button"
               onClick={() => {

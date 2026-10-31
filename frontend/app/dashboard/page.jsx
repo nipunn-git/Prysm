@@ -1234,17 +1234,8 @@ export default function DashboardPage() {
                      ======================================================== */
                   <div className="flex flex-col items-center justify-center text-center px-4 py-2 relative my-auto">
                     
-                    {/* Metallic/Crystal Prysm Emblem */}
-                    <div className="relative flex items-center justify-center mb-2 sm:mb-3">
-                      <img 
-                        src="/logo.png" 
-                        alt="Prysm" 
-                        className="h-20 sm:h-24 md:h-28 w-auto object-contain relative z-10 select-none hover:scale-105 transition-transform duration-300 drop-shadow-[0_8px_36px_rgba(56,189,248,0.35)]" 
-                      />
-                    </div>
-
                     {/* Brand Wordmark Title */}
-                    <h1 className={`text-3xl sm:text-4xl font-extrabold tracking-tight mb-6 ${
+                    <h1 className={`text-4xl sm:text-5xl font-extrabold tracking-tight mb-6 sm:mb-8 ${
                       isDark 
                         ? "bg-gradient-to-b from-white via-slate-100 to-slate-400 bg-clip-text text-transparent drop-shadow-[0_2px_14px_rgba(255,255,255,0.15)]" 
                         : "text-slate-900"
