@@ -397,21 +397,27 @@ export default function Navbar() {
 
         {/* Center: Social Media/Home, Search Icon, Prysm AI, New Repo (+), Notifications (Bell) */}
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1 sm:gap-2">
-          {/* 1. Social Media / Home Icon */}
+          {/* 1. Social Media / Home Icon (Filled when active, like Instagram) */}
           <Link
             href="/explore"
             title="Community Feed / Social"
             aria-label="Community Feed"
-            className={`p-2 rounded-lg transition-all flex items-center justify-center group ${
-              pathname === '/explore'
-                ? 'text-[#58a6ff] bg-[#1f6feb]/15 border border-[#1f6feb]/30 shadow-xs'
-                : 'text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#161b22] border border-transparent'
-            }`}
+            className="p-2 sm:p-2.5 rounded-lg transition-all flex items-center justify-center group hover:bg-[#161b22]/60"
           >
-            <Home className="w-4 h-4 sm:w-5 sm:h-5 transition-transform group-hover:scale-110" />
+            {pathname === '/explore' ? (
+              <svg 
+                viewBox="0 0 24 24" 
+                fill="currentColor" 
+                className="w-5 h-5 sm:w-[22px] sm:h-[22px] text-[#f0f6fc] transition-all transform scale-105"
+              >
+                <path d="M12 2.1a1 1 0 0 1 .64.24l9 7.5a1 1 0 0 1-1.28 1.54L20 11.06V20a2 2 0 0 1-2 2h-4a1 1 0 0 1-1-1v-5a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v5a1 1 0 0 1-1 1H4a2 2 0 0 1-2-2v-8.94l-.36.32a1 1 0 0 1-1.28-1.54l9-7.5a1 1 0 0 1 .64-.24z" />
+              </svg>
+            ) : (
+              <Home className="w-5 h-5 sm:w-[22px] sm:h-[22px] text-[#8b949e] group-hover:text-[#f0f6fc] stroke-[1.8] transition-all group-hover:scale-105" />
+            )}
           </Link>
 
-          {/* 2. Search Icon (Magnifying Glass) */}
+          {/* 2. Search Icon (Magnifying Glass - Bold when active) */}
           <button
             type="button"
             onClick={() => {
@@ -420,13 +426,15 @@ export default function Navbar() {
             }}
             title="Search prompts or @users (Press /)"
             aria-label="Search prompts or users"
-            className={`p-2 rounded-lg transition-all flex items-center justify-center group ${
-              isSearchOpen
-                ? 'text-[#58a6ff] bg-[#1f6feb]/15 border border-[#1f6feb]/30 shadow-xs'
-                : 'text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#161b22] border border-transparent'
-            }`}
+            className="p-2 sm:p-2.5 rounded-lg transition-all flex items-center justify-center group hover:bg-[#161b22]/60"
           >
-            <Search className="w-4 h-4 sm:w-5 sm:h-5 transition-transform group-hover:scale-110" />
+            <Search 
+              className={`w-5 h-5 sm:w-[22px] sm:h-[22px] transition-all ${
+                isSearchOpen 
+                  ? 'text-[#f0f6fc] stroke-[3] scale-105' 
+                  : 'text-[#8b949e] group-hover:text-[#f0f6fc] stroke-[1.8] group-hover:scale-105'
+              }`} 
+            />
           </button>
 
           {/* 3. Prysm AI Logo (After Magnifying Glass, Before +) */}
@@ -434,39 +442,42 @@ export default function Navbar() {
             href="/dashboard"
             title="Prysm AI Studio"
             aria-label="Prysm AI Studio"
-            className={`p-1 sm:p-1.5 rounded-lg transition-all flex items-center justify-center group relative ${
-              pathname === '/dashboard'
-                ? 'bg-[#1f6feb]/15 border border-[#1f6feb]/30 shadow-xs'
-                : 'hover:bg-[#161b22] border border-transparent'
-            }`}
+            className="p-1 sm:p-1.5 rounded-lg transition-all flex items-center justify-center group relative hover:bg-[#161b22]/60"
           >
             <div 
-              className="logo-flashlight-glow absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.75)_0%,rgba(255,255,255,0.25)_50%,transparent_80%)] blur-[8px] pointer-events-none rounded-full"
+              className={`logo-flashlight-glow absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.75)_0%,rgba(255,255,255,0.25)_50%,transparent_80%)] pointer-events-none rounded-full transition-opacity ${
+                pathname === '/dashboard' ? 'blur-[9px] opacity-100' : 'blur-[7px] opacity-75 group-hover:opacity-100'
+              }`}
               aria-hidden="true" 
             />
             <img 
               src="/prysm.png" 
               alt="Prysm AI" 
-              className="logo-drop-shadow w-7 h-7 sm:w-8 sm:h-8 object-contain relative z-10 group-hover:scale-110 transition-transform" 
-              style={{ filter: "drop-shadow(0 0 8px rgba(255, 255, 255, 0.85)) drop-shadow(0 0 16px rgba(255, 255, 255, 0.4))" }}
+              className={`logo-drop-shadow w-7 h-7 sm:w-8 sm:h-8 object-contain relative z-10 transition-all ${
+                pathname === '/dashboard'
+                  ? 'scale-110 drop-shadow-[0_0_12px_rgba(255,255,255,0.95)]'
+                  : 'drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] group-hover:scale-110 group-hover:drop-shadow-[0_0_12px_rgba(255,255,255,0.95)]'
+              }`}
             />
           </Link>
 
-          {/* 4. New Repo (+) Icon */}
+          {/* 4. New Repo (+) Icon - Bold when active */}
           <Link
             href="/new"
             title="Create new repository"
             aria-label="Create new repository"
-            className={`p-2 rounded-lg transition-all flex items-center justify-center group ${
-              pathname === '/new'
-                ? 'text-[#58a6ff] bg-[#1f6feb]/15 border border-[#1f6feb]/30 shadow-xs'
-                : 'text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#161b22] border border-transparent'
-            }`}
+            className="p-2 sm:p-2.5 rounded-lg transition-all flex items-center justify-center group hover:bg-[#161b22]/60"
           >
-            <Plus className="w-4 h-4 sm:w-5 sm:h-5 transition-transform group-hover:scale-110" />
+            <Plus 
+              className={`w-5 h-5 sm:w-[22px] sm:h-[22px] transition-all ${
+                pathname === '/new'
+                  ? 'text-[#f0f6fc] stroke-[3] scale-105' 
+                  : 'text-[#8b949e] group-hover:text-[#f0f6fc] stroke-[1.8] group-hover:scale-105'
+              }`} 
+            />
           </Link>
 
-          {/* 5. Bell Icon (Notifications) */}
+          {/* 5. Bell Icon (Notifications - Filled when active) */}
           <div className="relative" ref={notificationsRef}>
             <button 
               type="button"
@@ -477,15 +488,17 @@ export default function Navbar() {
               }}
               title="Notifications"
               aria-label="Notifications"
-              className={`p-2 rounded-lg transition-all relative flex items-center justify-center group ${
-                isNotificationsOpen 
-                  ? 'text-[#f0f6fc] bg-[#161b22] border border-[#30363d]' 
-                  : 'text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#161b22] border border-transparent'
-              }`}
+              className="p-2 sm:p-2.5 rounded-lg transition-all relative flex items-center justify-center group hover:bg-[#161b22]/60"
             >
-              <Bell className="w-4 h-4 sm:w-5 sm:h-5 transition-transform group-hover:scale-110" />
+              <Bell 
+                className={`w-5 h-5 sm:w-[22px] sm:h-[22px] transition-all ${
+                  isNotificationsOpen 
+                    ? 'text-[#f0f6fc] fill-current stroke-[2] scale-105' 
+                    : 'text-[#8b949e] group-hover:text-[#f0f6fc] fill-none stroke-[1.8] group-hover:scale-105'
+                }`} 
+              />
               {unreadCount > 0 && (
-                <span className="absolute top-0 right-0 sm:-top-0.5 sm:-right-0.5 min-w-[16px] h-4 px-1 bg-[#1f6feb] text-white text-[10px] font-bold rounded-full ring-2 ring-[#010409] flex items-center justify-center leading-none">
+                <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 bg-[#1f6feb] text-white text-[10px] font-bold rounded-full ring-2 ring-[#010409] flex items-center justify-center leading-none">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
