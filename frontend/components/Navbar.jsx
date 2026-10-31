@@ -91,7 +91,7 @@ export default function Navbar() {
     searchAbortRef.current = controller;
     
     try {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
       const res = await fetch(
         `${API_URL}/api/auth/users/search?q=${encodeURIComponent(trimmed)}${storedToken ? `&token=${encodeURIComponent(storedToken)}` : ''}`,
         { signal: controller.signal }
@@ -203,8 +203,8 @@ export default function Navbar() {
   // Fetch Notifications
   const fetchNotifications = useCallback(async () => {
     try {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-      const storedUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prompthub_user') || 'null') : null;
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
+      const storedUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || 'null') : null;
       const candidateId = user?.id || storedUser?.id;
       if (!storedToken && !candidateId) return;
 
@@ -240,8 +240,8 @@ export default function Navbar() {
 
   const handleMarkAllRead = async () => {
     try {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-      const storedUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prompthub_user') || 'null') : null;
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
+      const storedUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || 'null') : null;
       const candidateId = user?.id || storedUser?.id;
 
       const queryParams = new URLSearchParams();
@@ -267,8 +267,8 @@ export default function Navbar() {
   const handleNotificationClick = async (notif) => {
     try {
       if (!notif.is_read) {
-        const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-        const storedUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prompthub_user') || 'null') : null;
+        const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
+        const storedUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || 'null') : null;
         const candidateId = user?.id || storedUser?.id;
 
         const queryParams = new URLSearchParams();
@@ -300,8 +300,8 @@ export default function Navbar() {
   const handleDeleteNotification = async (e, id) => {
     e.stopPropagation();
     try {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-      const storedUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prompthub_user') || 'null') : null;
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
+      const storedUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || 'null') : null;
       const candidateId = user?.id || storedUser?.id;
 
       const queryParams = new URLSearchParams();
@@ -329,8 +329,8 @@ export default function Navbar() {
 
   const handleClearAllNotifications = async () => {
     try {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-      const storedUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prompthub_user') || 'null') : null;
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
+      const storedUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || 'null') : null;
       const candidateId = user?.id || storedUser?.id;
 
       const queryParams = new URLSearchParams();
@@ -383,7 +383,7 @@ export default function Navbar() {
             <Menu className="w-4 h-4" />
           </button>
 
-          <Link href="/explore" className="flex items-center hover:opacity-95 transition group" title="PromptHub Feed">
+          <Link href="/explore" className="flex items-center hover:opacity-95 transition group" title="Prysm Feed">
             <div className="relative flex items-center justify-center py-0.5">
               <div 
                 className="logo-flashlight-glow absolute inset-0 -inset-x-3 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.75)_0%,rgba(255,255,255,0.25)_45%,transparent_80%)] blur-[9px] pointer-events-none rounded-full"
@@ -391,7 +391,7 @@ export default function Navbar() {
               />
               <img 
                 src="/logo.png" 
-                alt="PromptHub" 
+                alt="Prysm" 
                 className="logo-drop-shadow h-12 sm:h-14 w-auto object-contain shrink-0 relative z-10 transition-transform group-hover:scale-105" 
                 style={{ filter: "drop-shadow(0 0 10px rgba(255, 255, 255, 0.75)) drop-shadow(0 0 20px rgba(255, 255, 255, 0.35))" }}
               />
@@ -455,8 +455,8 @@ export default function Navbar() {
               aria-hidden="true" 
             />
             <img 
-              src="/prysm.png" 
-              alt="Prysm AI" 
+              src="/logo.png" 
+              alt="Prysm AI Studio" 
               className={`logo-drop-shadow w-7 h-7 sm:w-8 sm:h-8 object-contain relative z-10 transition-all ${
                 pathname === '/dashboard'
                   ? 'scale-110 drop-shadow-[0_0_12px_rgba(255,255,255,0.95)]'
@@ -1011,12 +1011,12 @@ export default function Navbar() {
                   />
                   <img 
                     src="/logo.png" 
-                    alt="PromptHub" 
+                    alt="Prysm" 
                     className="logo-drop-shadow h-9 w-auto object-contain shrink-0 relative z-10" 
                     style={{ filter: "drop-shadow(0 0 8px rgba(255, 255, 255, 0.7))" }}
                   />
                 </div>
-                <PromptHubWordmark height="h-5" />
+                <span className="font-bold text-lg text-[#f0f6fc] tracking-tight">Prysm</span>
               </div>
               <button 
                 onClick={() => setIsDrawerOpen(false)}
@@ -1154,7 +1154,7 @@ export default function Navbar() {
             </nav>
 
             <div className="pt-3 border-t border-[#30363d] text-xs text-[#8b949e]">
-              <p>© 2026 PromptHub, Inc.</p>
+              <p>© 2026 Prysm, Inc.</p>
             </div>
           </div>
         </div>

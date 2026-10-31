@@ -70,8 +70,8 @@ export default function ProfilePage() {
 
   const fetchRepos = useCallback(async () => {
     try {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
+      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || '{}')?.id) : null);
       if (!effectiveUserId) return;
       
       const headers = storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {};
@@ -114,8 +114,8 @@ export default function ProfilePage() {
       e.stopPropagation();
     }
     try {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
+      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || '{}')?.id) : null);
       const queryParams = new URLSearchParams();
       if (storedToken) queryParams.set('token', storedToken);
       if (effectiveUserId) queryParams.set('user_id', effectiveUserId);
@@ -329,8 +329,8 @@ export default function ProfilePage() {
   const confirmCreateSpecialRepo = async () => {
     setIsCreatingSpecial(true);
     try {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
+      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || '{}')?.id) : null);
       
       const queryParams = new URLSearchParams();
       if (effectiveUserId) queryParams.append('user_id', effectiveUserId);
@@ -341,7 +341,7 @@ export default function ProfilePage() {
       if (effectiveUserId) headers['X-User-Id'] = effectiveUserId;
 
       // Always use the freshest username for the special repo name
-      const freshUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prompthub_user') || '{}') : {};
+      const freshUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || '{}') : {};
       const specialRepoName = user?.username || freshUser?.username || 'profile';
       
       const res = await fetch(`${API_URL}/api/repositories?${queryParams.toString()}`, {

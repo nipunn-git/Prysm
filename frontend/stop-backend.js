@@ -1,6 +1,6 @@
 const { execSync } = require('child_process');
 
-console.log('[PromptHub] Stopping any running backend processes on port 8000...');
+console.log('[Prysm] Stopping any running backend processes on port 8000...');
 
 try {
   if (process.platform === 'win32') {
@@ -18,13 +18,13 @@ try {
     for (const pid of pids) {
       try {
         execSync(`taskkill /F /PID ${pid}`);
-        console.log(`[PromptHub] Terminated process ${pid}`);
+        console.log(`[Prysm] Terminated process ${pid}`);
       } catch (e) {}
     }
   } else {
     execSync('fuser -k 8000/tcp || lsof -ti:8000 | xargs kill -9', { stdio: 'ignore' });
   }
-  console.log('[PromptHub] Backend stopped successfully.');
+  console.log('[Prysm] Backend stopped successfully.');
 } catch (e) {
-  console.log('[PromptHub] No active backend process found on port 8000.');
+  console.log('[Prysm] No active backend process found on port 8000.');
 }

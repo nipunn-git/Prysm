@@ -51,11 +51,11 @@ function findPython() {
 async function main() {
   const isAlreadyRunning = await checkBackendHealth();
   if (isAlreadyRunning) {
-    console.log('\x1b[32m%s\x1b[0m', '⚡ [PromptHub] FastAPI Backend is already running on http://127.0.0.1:8000');
+    console.log('\x1b[32m%s\x1b[0m', '⚡ [Prysm] FastAPI Backend is already running on http://127.0.0.1:8000');
     return;
   }
 
-  console.log('\x1b[36m%s\x1b[0m', '🚀 [PromptHub] Backend is not running. Starting FastAPI server on http://127.0.0.1:8000...');
+  console.log('\x1b[36m%s\x1b[0m', '🚀 [Prysm] Backend is not running. Starting FastAPI server on http://127.0.0.1:8000...');
 
   const pythonCmd = findPython();
   const outLog = fs.openSync(logFile, 'a');
@@ -86,12 +86,12 @@ async function main() {
   }
 
   if (ready) {
-    console.log('\x1b[32m%s\x1b[0m', `✓ [PromptHub] FastAPI Backend started successfully (PID: ${child.pid}) on http://127.0.0.1:8000`);
+    console.log('\x1b[32m%s\x1b[0m', `✓ [Prysm] FastAPI Backend started successfully (PID: ${child.pid}) on http://127.0.0.1:8000`);
   } else {
-    console.warn('\x1b[33m%s\x1b[0m', `⚠️ [PromptHub] Backend was launched, but port ${BACKEND_PORT} has not responded yet. Check ${logFile} for details.`);
+    console.warn('\x1b[33m%s\x1b[0m', `⚠️ [Prysm] Backend was launched, but port ${BACKEND_PORT} has not responded yet. Check ${logFile} for details.`);
   }
 }
 
 main().catch((err) => {
-  console.error('[PromptHub] Error ensuring backend:', err);
+  console.error('[Prysm] Error ensuring backend:', err);
 });

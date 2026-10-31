@@ -123,7 +123,7 @@ export const PrompthubBigAnimatedLogo = () => {
       <div className="relative flex items-center justify-center w-28 sm:w-32 aspect-[1024/682]">
         <img
           src="/logo.png"
-          alt="PromptHub"
+          alt="Prysm"
           className="w-full h-full object-contain pointer-events-none select-none relative z-10 drop-shadow-[0_8px_20px_rgba(56,189,248,0.4)]"
         />
 
@@ -143,9 +143,11 @@ export const PrompthubBigAnimatedLogo = () => {
         </div>
       </div>
 
-      {/* Official PromptHub Wordmark Image */}
-      <div className="mt-1 flex items-center justify-center">
-        <PromptHubWordmark variant="dark" height="h-6 sm:h-7" />
+      {/* Official Prysm Title */}
+      <div className="mt-2 flex items-center justify-center">
+        <span className="font-extrabold text-2xl sm:text-3xl tracking-tight text-white drop-shadow-[0_2px_12px_rgba(255,255,255,0.2)]">
+          Prysm
+        </span>
       </div>
     </div>
   );
@@ -153,8 +155,8 @@ export const PrompthubBigAnimatedLogo = () => {
 
 export const DefaultPromptHubLogo = () => (
   <div className="flex items-center gap-2">
-    <img src="/logo.png" alt="PromptHub" className="w-7 h-7 object-contain" />
-    <PromptHubWordmark height="h-5" />
+    <img src="/logo.png" alt="Prysm" className="w-7 h-7 object-contain" />
+    <span className="font-bold text-lg text-white tracking-tight">Prysm</span>
   </div>
 );
 

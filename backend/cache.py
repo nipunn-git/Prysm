@@ -2,7 +2,7 @@ import time
 import logging
 from typing import Any, Optional, Dict, Tuple
 
-logger = logging.getLogger("prompthub.cache")
+logger = logging.getLogger("prysm.cache")
 
 class FastMemoryCache:
     """

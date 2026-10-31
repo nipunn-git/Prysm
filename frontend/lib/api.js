@@ -1,5 +1,5 @@
 /**
- * Central API URL configuration for PromptHub
+ * Central API URL configuration for Prysm
  * Fallback to production backend on Vercel if NEXT_PUBLIC_API_URL is unset
  */
 const configuredUrl = process.env.NEXT_PUBLIC_API_URL;

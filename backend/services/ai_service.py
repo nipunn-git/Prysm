@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-SYSTEM_INSTRUCTION = """You are Prysm, a world-class Prompt Engineer and Architect on PromptHub.
+SYSTEM_INSTRUCTION = """You are Prysm, a world-class Prompt Engineer and Architect on Prysm.
 Given a user's prompt idea or request, you must synthesize a production-ready, highly effective AI system prompt and generate repository metadata.
 
 You must respond ONLY with valid JSON in this exact structure:
@@ -42,10 +42,10 @@ def generate_prompt_and_repo_metadata(query: str, action_type: str = "custom") -
                 res = model.generate_content(prompt)
                 parsed = clean_and_parse_json(res.text, query)
                 if parsed and parsed.get("prompt_content"):
-                    print(f"[PromptHub AI] Successfully synthesized prompt using {model_name}")
+                    print(f"[Prysm AI] Successfully synthesized prompt using {model_name}")
                     return parsed
             except Exception as e:
-                print(f"[PromptHub AI] Gemini {model_name} error: {e}")
+                print(f"[Prysm AI] Gemini {model_name} error: {e}")
 
     # 2. Try Groq (Fast & Free)
     if groq_key and groq_key != "your_groq_api_key_here":
@@ -64,7 +64,7 @@ def generate_prompt_and_repo_metadata(query: str, action_type: str = "custom") -
             content = completion.choices[0].message.content
             return clean_and_parse_json(content, query)
         except Exception as e:
-            print(f"[PromptHub AI] Groq API error: {e}")
+            print(f"[Prysm AI] Groq API error: {e}")
 
     # 3. Try OpenAI
     if openai_key and openai_key != "your_openai_api_key_here":
@@ -83,7 +83,7 @@ def generate_prompt_and_repo_metadata(query: str, action_type: str = "custom") -
             content = completion.choices[0].message.content
             return clean_and_parse_json(content, query)
         except Exception as e:
-            print(f"[PromptHub AI] OpenAI API error: {e}")
+            print(f"[Prysm AI] OpenAI API error: {e}")
 
     # 4. Fallback Rule-Based Intelligent Prompt Architect
     return fallback_prompt_generator(query, action_type)

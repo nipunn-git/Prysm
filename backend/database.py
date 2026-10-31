@@ -8,21 +8,25 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
 
-logger = logging.getLogger("prompthub.database")
+logger = logging.getLogger("prysm.database")
 
 # Persistent local SQLite DB file (only used if no DATABASE_URL is configured)
-REPO_DB_FILE = Path(__file__).resolve().parent / "prompthub.db"
+REPO_DB_FILE = Path(__file__).resolve().parent / "prysm.db"
+if not REPO_DB_FILE.exists():
+    OLD_DB_FILE = Path(__file__).resolve().parent / "prompthub.db"
+    if OLD_DB_FILE.exists():
+        REPO_DB_FILE = OLD_DB_FILE
 DB_FILE = REPO_DB_FILE
 
 # Only fall back to /tmp SQLite on Vercel if there is NO DATABASE_URL set.
 _db_url_env = os.environ.get("DATABASE_URL", "").strip()
 if os.environ.get("VERCEL") and not _db_url_env:
     import shutil
-    TMP_DB_FILE = Path("/tmp/prompthub.db")
+    TMP_DB_FILE = Path("/tmp/prysm.db")
     if not TMP_DB_FILE.exists() and REPO_DB_FILE.exists():
         try:
             shutil.copy2(REPO_DB_FILE, TMP_DB_FILE)
-            logger.info("Copied initial bundled prompthub.db to /tmp/prompthub.db")
+            logger.info("Copied initial bundled prysm.db to /tmp/prysm.db")
         except Exception as copy_err:
             logger.warning(f"Failed to copy initial DB to /tmp: {copy_err}")
     DB_FILE = TMP_DB_FILE

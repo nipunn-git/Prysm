@@ -169,7 +169,7 @@ export default function AppLoader() {
         {/* The PromptHub Metallic Infinity Logo */}
         <img
           src="/logo.png"
-          alt="PromptHub"
+          alt="Prysm"
           className="w-full h-full object-contain pointer-events-none select-none relative z-10 drop-shadow-[0_12px_36px_rgba(0,0,0,0.08)]"
         />
 

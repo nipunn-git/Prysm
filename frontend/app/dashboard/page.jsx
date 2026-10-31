@@ -138,8 +138,8 @@ export default function DashboardPage() {
   // Fetch repositories from API - uses owner_id from DB so repos survive logout/login
   const fetchRepos = useCallback(async () => {
     try {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-      const targetUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
+      const targetUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || '{}')?.id) : null);
       if (!targetUserId) {
         setLoading(false);
         return;
@@ -179,7 +179,7 @@ export default function DashboardPage() {
   const [editTitleInput, setEditTitleInput] = useState("");
 
   const getStorageKey = useCallback(() => {
-    const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+    const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || '{}')?.id) : null);
     return effectiveUserId ? `prompthub_chat_sessions_${effectiveUserId}` : 'prompthub_chat_sessions_guest';
   }, [user?.id]);
 
@@ -417,7 +417,7 @@ export default function DashboardPage() {
 
   // Fetch repositories immediately on mount — load local cache first, then fetch
   useEffect(() => {
-    const targetUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+    const targetUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || '{}')?.id) : null);
     if (targetUserId) {
       const cached = getCachedData(`dashboard_repos_${targetUserId}`, []);
       if (cached && cached.length > 0) {
@@ -522,8 +522,8 @@ export default function DashboardPage() {
     if (!saveTargetPrompt.trim() || !saveRepoName.trim()) return;
     setIsCreatingRepo(true);
     try {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
+      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || '{}')?.id) : null);
       
       const queryParams = new URLSearchParams();
       if (effectiveUserId) queryParams.append('user_id', effectiveUserId);
@@ -588,8 +588,8 @@ export default function DashboardPage() {
     if (!forkModalRepo) return;
     setIsForking(true);
     try {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
+      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || '{}')?.id) : null);
       
       const queryParams = new URLSearchParams();
       if (effectiveUserId) queryParams.append('user_id', effectiveUserId);
@@ -1194,7 +1194,7 @@ export default function DashboardPage() {
                 }`}>
                   <div className="flex items-center gap-2.5">
                     <img 
-                      src="/prysm.png" 
+                      src="/logo.png" 
                       alt="Prysm" 
                       className="w-5 h-5 object-contain drop-shadow" 
                     />
@@ -1237,7 +1237,7 @@ export default function DashboardPage() {
                     {/* Metallic/Crystal Prysm Emblem */}
                     <div className="relative flex items-center justify-center mb-2">
                       <img 
-                        src="/prysm.png" 
+                        src="/logo.png" 
                         alt="Prysm" 
                         className="w-14 h-14 sm:w-16 sm:h-16 object-contain relative z-10 select-none hover:scale-105 transition-transform duration-300 drop-shadow-[0_4px_24px_rgba(56,189,248,0.25)]" 
                       />
@@ -1433,7 +1433,7 @@ export default function DashboardPage() {
                               : "bg-white border-slate-200 shadow-sm ring-1 ring-slate-100"
                           }`}>
                             <img 
-                              src="/prysm.png" 
+                              src="/logo.png" 
                               alt="Prysm" 
                               className="w-full h-full object-contain" 
                             />

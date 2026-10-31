@@ -1,5 +1,5 @@
 """
-PromptHub AI Chatbot API – Powered by Gemini
+Prysm AI Chatbot API – Powered by Gemini
 Supports multi-turn conversation with tool-calling semantics:
  - answer prompt engineering questions
  - generate new prompts & create repos
@@ -43,7 +43,7 @@ class ChatResponse(BaseModel):
 
 
 # ─── System Prompt for the Chatbot ──────────────────────────────────────
-CHATBOT_SYSTEM_PROMPT = """You are **Prysm**, the elite AI Assistant on PromptHub.
+CHATBOT_SYSTEM_PROMPT = """You are **Prysm**, the elite AI Assistant on Prysm.
 You specialize in Prompt Engineering, Software Engineering, Architecture, and Creative Ideation.
 
 ## Core Capabilities
@@ -108,11 +108,11 @@ def call_gemini_chat(messages: List[dict], system_prompt: str) -> str:
             last_msg = messages[-1]["content"] if messages else "Hello"
             response = chat.send_message(last_msg)
             
-            print(f"[PromptHub AI Chat] Successfully got response from {model_name}")
+            print(f"[Prysm AI Chat] Successfully got response from {model_name}")
             return response.text
             
         except Exception as e:
-            print(f"[PromptHub AI Chat] {model_name} error: {e}")
+            print(f"[Prysm AI Chat] {model_name} error: {e}")
             continue
     
     return fallback_response(messages)
@@ -286,7 +286,7 @@ def chat_with_ai(
     mode_instructions = {
         "Code Specialist": (
             "## PRIMARY ROLE: YOU ARE PRYSM (CODE SPECIALIST)\n"
-            "You are an elite Senior Staff Software Engineer and Master Programmer on PromptHub.\n"
+            "You are an elite Senior Staff Software Engineer and Master Programmer on Prysm.\n"
             "MANDATORY DIRECTIVE: Deliver the complete, production-ready, runnable code in a SINGLE clean code block. Do NOT split the code into small pieces. Keep explanations concise, crisp, and high-signal (2-4 bullet points max) without unnecessary filler or line-by-line syntax lectures.\n"
         ),
         "Fast Creative": (
@@ -361,7 +361,7 @@ def chat_with_ai(
                 repository_id=new_repo.id,
                 version="v1.0",
                 content=prompt_content,
-                change_description="Initial prompt created by PromptHub AI Chat"
+                change_description="Initial prompt created by Prysm AI Chat"
             )
             db.add(first_version)
             db.commit()
@@ -381,10 +381,10 @@ def chat_with_ai(
                 "latest_version": "v1.0"
             }
             
-            print(f"[PromptHub AI Chat] Created repo '{final_name}' for user {user_id}")
+            print(f"[Prysm AI Chat] Created repo '{final_name}' for user {user_id}")
             
         except Exception as e:
-            print(f"[PromptHub AI Chat] Failed to create repo: {e}")
+            print(f"[Prysm AI Chat] Failed to create repo: {e}")
     
     # Suggest follow-up actions
     suggested = []
@@ -475,7 +475,7 @@ def quick_generate(
         repository_id=new_repo.id,
         version="v1.0",
         content=prompt_content,
-        change_description=f"Initial prompt created by PromptHub AI ({payload.action_type or 'custom'})"
+        change_description=f"Initial prompt created by Prysm AI ({payload.action_type or 'custom'})"
     )
     db.add(first_version)
     db.commit()

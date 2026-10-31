@@ -1,5 +1,5 @@
 /**
- * PromptHub Fast Client Cache
+ * Prysm Fast Client Cache
  * Provides instant in-memory and persistent localStorage caching for true 0ms screen switching.
  * Stale-while-revalidate pattern: renders cached data immediately, fetches real-time updates in background.
  */

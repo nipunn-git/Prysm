@@ -16,6 +16,8 @@ export function AuthProvider({ children }) {
   // Persist user data to localStorage whenever it changes
   const persistUser = (userData, authToken) => {
     if (userData && authToken) {
+      localStorage.setItem('prysm_token', authToken);
+      localStorage.setItem('prysm_user', JSON.stringify(userData));
       localStorage.setItem('prompthub_token', authToken);
       localStorage.setItem('prompthub_user', JSON.stringify(userData));
     }
@@ -56,8 +58,8 @@ export function AuthProvider({ children }) {
         console.error("Redirect login failed:", error);
       }
 
-      const storedToken = localStorage.getItem('prompthub_token');
-      const storedUser = localStorage.getItem('prompthub_user');
+      const storedToken = localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token');
+      const storedUser = localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user');
       
       if (!storedToken) {
         setIsLoading(false);
@@ -134,7 +136,7 @@ export function AuthProvider({ children }) {
 
   const fetchUser = async (authToken) => {
     try {
-      const storedUser = typeof window !== 'undefined' ? localStorage.getItem('prompthub_user') : null;
+      const storedUser = typeof window !== 'undefined' ? (localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user')) : null;
       const cachedUser = storedUser ? JSON.parse(storedUser) : null;
       const candidateId = cachedUser?.id;
       
@@ -214,8 +216,8 @@ export function AuthProvider({ children }) {
 
 
   const updateProfile = async (updates) => {
-    const currentToken = token || (typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null);
-    const currentUser = user || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prompthub_user') || 'null') : null);
+    const currentToken = token || (typeof window !== 'undefined' ? (localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token')) : null);
+    const currentUser = user || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || 'null') : null);
     const currentUserId = currentUser?.id;
     
     if (!currentToken && !currentUserId) return { success: false, error: 'Not logged in' };
@@ -302,6 +304,8 @@ export function AuthProvider({ children }) {
   const logout = () => {
     setUser(null);
     setToken(null);
+    localStorage.removeItem('prysm_token');
+    localStorage.removeItem('prysm_user');
     localStorage.removeItem('prompthub_token');
     localStorage.removeItem('prompthub_user');
     // NOTE: We do NOT clear repo data from localStorage here.

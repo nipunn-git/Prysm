@@ -11,8 +11,8 @@ export default function Home() {
   useEffect(() => {
     // Fast path: immediately check localStorage if available -> default to feed (/explore)
     if (typeof window !== 'undefined') {
-      const storedToken = localStorage.getItem('prompthub_token');
-      const storedUser = localStorage.getItem('prompthub_user');
+      const storedToken = localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token');
+      const storedUser = localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user');
       if (storedToken && storedUser) {
         router.replace('/explore');
         return;

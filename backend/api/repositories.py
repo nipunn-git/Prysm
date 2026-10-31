@@ -57,7 +57,7 @@ def ai_generate_repository(
         repository_id=new_repo.id,
         version="v1.0",
         content=ai_meta["prompt_content"],
-        change_description=f"Initial prompt synthesized by PromptHub AI ({payload.action_type or 'draft'})"
+        change_description=f"Initial prompt synthesized by Prysm AI ({payload.action_type or 'draft'})"
     )
     db.add(first_version)
     db.commit()

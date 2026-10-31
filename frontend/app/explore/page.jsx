@@ -71,7 +71,7 @@ function ExploreContent() {
   useEffect(() => {
     async function fetchSuggested() {
       try {
-        const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+        const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
         const res = await fetch(`${API_URL}/api/auth/users/suggested${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`);
         if (res.ok) {
           const data = await res.json();
@@ -109,7 +109,7 @@ function ExploreContent() {
       // Don't show blocking loading state if we already have cached repos
       if (repos.length === 0) setLoading(true);
       try {
-        const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+        const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
         const queryParams = new URLSearchParams();
         if (category !== "All") queryParams.append("category", category);
         if (search) queryParams.append("search", search);
@@ -175,7 +175,7 @@ function ExploreContent() {
       return;
     }
     try {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
       const res = await fetch(`${API_URL}/api/repositories/${repoId}/star${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`, {
         method: 'POST',
         headers: storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {}
@@ -197,7 +197,7 @@ function ExploreContent() {
       return;
     }
     try {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
       const headers = {
         ...(storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {}),
         ...(user?.id ? { 'X-User-Id': user.id } : {})
@@ -234,8 +234,8 @@ function ExploreContent() {
     if (!forkModalRepo) return;
     setForkingId(forkModalRepo.id);
     try {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
+      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || '{}')?.id) : null);
       const queryParams = new URLSearchParams();
       if (effectiveUserId) queryParams.append('user_id', effectiveUserId);
       if (storedToken) queryParams.append('token', storedToken);
@@ -709,7 +709,7 @@ function ExploreContent() {
           <div className="bg-[#0d1117] border border-[#30363d] rounded-2xl p-5 text-xs text-[#8b949e] space-y-3">
             <div className="font-semibold text-[#f0f6fc] flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#e3b341]" />
-              PromptHub Network
+              Prysm Network
             </div>
             <p className="leading-relaxed">
               Star your favorite prompts, follow prompt engineers, and fork prompts to build your personal library.

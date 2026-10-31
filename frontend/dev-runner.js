@@ -70,7 +70,7 @@ let isShuttingDown = false;
 function cleanup() {
   if (isShuttingDown) return;
   isShuttingDown = true;
-  console.log(`\n${YELLOW}[PromptHub] Shutting down all servers...${RESET}`);
+  console.log(`\n${YELLOW}[Prysm] Shutting down all servers...${RESET}`);
 
   if (backendProcess && backendProcess.pid) {
     try {
@@ -110,15 +110,15 @@ process.on('exit', cleanup);
 
 async function start() {
   console.log(`${BOLD}${GREEN}==============================================${RESET}`);
-  console.log(`${BOLD}${GREEN}       PromptHub Unified Development Server    ${RESET}`);
+  console.log(`${BOLD}${GREEN}       Prysm Unified Development Server    ${RESET}`);
   console.log(`${BOLD}${GREEN}==============================================${RESET}\n`);
 
   // Step 1: Check if backend is already running
   const backendRunning = await checkBackend();
   if (backendRunning) {
-    console.log(`${GREEN}✓ [PromptHub] FastAPI Backend is already active on http://127.0.0.1:${BACKEND_PORT}${RESET}`);
+    console.log(`${GREEN}✓ [Prysm] FastAPI Backend is already active on http://127.0.0.1:${BACKEND_PORT}${RESET}`);
   } else {
-    console.log(`${CYAN}🚀 [PromptHub] Starting FastAPI Backend on http://127.0.0.1:${BACKEND_PORT}...${RESET}`);
+    console.log(`${CYAN}🚀 [Prysm] Starting FastAPI Backend on http://127.0.0.1:${BACKEND_PORT}...${RESET}`);
     const pythonCmd = findPython();
     backendProcess = spawn(
       pythonCmd,
@@ -134,7 +134,7 @@ async function start() {
 
     backendProcess.on('close', (code) => {
       if (!isShuttingDown && code !== 0) {
-        console.error(`${YELLOW}[PromptHub] Backend exited with code ${code}${RESET}`);
+        console.error(`${YELLOW}[Prysm] Backend exited with code ${code}${RESET}`);
       }
     });
 
@@ -148,14 +148,14 @@ async function start() {
     }
 
     if (ready) {
-      console.log(`${GREEN}✓ [PromptHub] FastAPI Backend is ready!${RESET}\n`);
+      console.log(`${GREEN}✓ [Prysm] FastAPI Backend is ready!${RESET}\n`);
     } else {
-      console.warn(`${YELLOW}⚠️ [PromptHub] Backend starting slower than usual, proceeding with Frontend...${RESET}\n`);
+      console.warn(`${YELLOW}⚠️ [Prysm] Backend starting slower than usual, proceeding with Frontend...${RESET}\n`);
     }
   }
 
   // Step 2: Start Next.js Frontend
-  console.log(`${CYAN}⚡ [PromptHub] Starting Next.js Frontend on http://localhost:3000...${RESET}\n`);
+  console.log(`${CYAN}⚡ [Prysm] Starting Next.js Frontend on http://localhost:3000...${RESET}\n`);
   const isWindows = process.platform === 'win32';
   const npxCmd = isWindows ? 'npx.cmd' : 'npx';
 
@@ -173,6 +173,6 @@ async function start() {
 }
 
 start().catch((err) => {
-  console.error('[PromptHub] Failed to start:', err);
+  console.error('[Prysm] Failed to start:', err);
   cleanup();
 });

@@ -4,7 +4,7 @@ import Navbar from '../components/Navbar'
 import AppLoader from '../components/AppLoader'
 
 export const metadata = {
-  title: 'PromptHub',
+  title: 'Prysm',
   description: 'A GitHub-inspired workspace for creating, versioning, and improving AI prompts.',
   icons: {
     icon: '/logo.png',
@@ -22,7 +22,7 @@ export default function RootLayout({ children }) {
             __html: `
               (function() {
                 try {
-                  var t = localStorage.getItem('prompthub_theme') || 'dark_default';
+                  var t = localStorage.getItem('prysm_theme') || localStorage.getItem('prompthub_theme') || 'dark_default';
                   document.documentElement.setAttribute('data-theme', t);
                 } catch(e) {
                   document.documentElement.setAttribute('data-theme', 'dark_default');

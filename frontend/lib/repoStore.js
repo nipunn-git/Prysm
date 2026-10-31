@@ -1,9 +1,12 @@
-// Client-side repository and user data store for PromptHub
+// Client-side repository and user data store for Prysm
 // Ensures no demo data is shown to the user and tracks user-created / user-forked repos
 
-const USER_REPOS_KEY = "prompthub_my_repo_ids";
-const FORK_METADATA_KEY = "prompthub_forks_map";
-const STARRED_REPOS_KEY = "prompthub_starred_repos";
+const USER_REPOS_KEY = "prysm_my_repo_ids";
+const OLD_USER_REPOS_KEY = "prompthub_my_repo_ids";
+const FORK_METADATA_KEY = "prysm_forks_map";
+const OLD_FORK_METADATA_KEY = "prompthub_forks_map";
+const STARRED_REPOS_KEY = "prysm_starred_repos";
+const OLD_STARRED_REPOS_KEY = "prompthub_starred_repos";
 
 // Known demo repository IDs and demo names from the initial backend seed
 export const DEMO_REPO_IDS = new Set([
@@ -35,7 +38,7 @@ export const DEMO_REPO_NAMES = new Set([
 export function getUserRepoIds() {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(USER_REPOS_KEY);
+    const raw = localStorage.getItem(USER_REPOS_KEY) || localStorage.getItem(OLD_USER_REPOS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -55,6 +58,7 @@ export function addCreatedRepoId(id) {
     if (!current.includes(id)) {
       const updated = [id, ...current];
       localStorage.setItem(USER_REPOS_KEY, JSON.stringify(updated));
+      localStorage.setItem(OLD_USER_REPOS_KEY, JSON.stringify(updated));
     }
   } catch (e) {
     console.error("Error adding created repo id:", e);
@@ -70,6 +74,7 @@ export function removeCreatedRepoId(id) {
     const current = getUserRepoIds();
     const updated = current.filter(item => item !== id);
     localStorage.setItem(USER_REPOS_KEY, JSON.stringify(updated));
+    localStorage.setItem(OLD_USER_REPOS_KEY, JSON.stringify(updated));
   } catch (e) {
     console.error("Error removing repo id:", e);
   }
@@ -113,7 +118,7 @@ export function filterUserRepos(allRepos = []) {
 export function saveForkInfo(forkedRepoId, originalRepo) {
   if (typeof window === "undefined" || !forkedRepoId || !originalRepo) return;
   try {
-    const raw = localStorage.getItem(FORK_METADATA_KEY);
+    const raw = localStorage.getItem(FORK_METADATA_KEY) || localStorage.getItem(OLD_FORK_METADATA_KEY);
     const map = raw ? JSON.parse(raw) : {};
     map[forkedRepoId] = {
       id: originalRepo.id,
@@ -122,6 +127,7 @@ export function saveForkInfo(forkedRepoId, originalRepo) {
       category: originalRepo.category
     };
     localStorage.setItem(FORK_METADATA_KEY, JSON.stringify(map));
+    localStorage.setItem(OLD_FORK_METADATA_KEY, JSON.stringify(map));
   } catch (e) {
     console.error("Error saving fork info:", e);
   }
@@ -133,7 +139,7 @@ export function saveForkInfo(forkedRepoId, originalRepo) {
 export function getForkInfo(repoId) {
   if (typeof window === "undefined" || !repoId) return null;
   try {
-    const raw = localStorage.getItem(FORK_METADATA_KEY);
+    const raw = localStorage.getItem(FORK_METADATA_KEY) || localStorage.getItem(OLD_FORK_METADATA_KEY);
     if (!raw) return null;
     const map = JSON.parse(raw);
     return map[repoId] || null;
@@ -148,7 +154,7 @@ export function getForkInfo(repoId) {
 export function getStarredRepoIds() {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STARRED_REPOS_KEY);
+    const raw = localStorage.getItem(STARRED_REPOS_KEY) || localStorage.getItem(OLD_STARRED_REPOS_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch (e) {
     return [];
@@ -173,6 +179,7 @@ export function toggleStarRepo(id) {
       nowStarred = true;
     }
     localStorage.setItem(STARRED_REPOS_KEY, JSON.stringify(updated));
+    localStorage.setItem(OLD_STARRED_REPOS_KEY, JSON.stringify(updated));
     return nowStarred;
   } catch (e) {
     return false;

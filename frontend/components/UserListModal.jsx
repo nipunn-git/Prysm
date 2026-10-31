@@ -29,7 +29,7 @@ export default function UserListModal({
     if (!targetUser?.id && !targetUser?.username) return;
     setLoading(true);
     try {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
       const headers = storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {};
       const queryParams = new URLSearchParams();
       if (storedToken) queryParams.set('token', storedToken);
@@ -78,7 +78,7 @@ export default function UserListModal({
 
     setActionLoading(prev => ({ ...prev, [targetUserId]: true }));
     try {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
       const headers = storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {};
       const queryParams = new URLSearchParams();
       if (storedToken) queryParams.set('token', storedToken);
@@ -174,7 +174,7 @@ export default function UserListModal({
               <p className="text-xs text-[#8b949e] max-w-xs">
                 {activeTab === 'followers' 
                   ? 'When other users follow this account, they will appear here.'
-                  : 'Follow other creators in the PromptHub community to see them here.'}
+                  : 'Follow other creators in the Prysm community to see them here.'}
               </p>
             </div>
           ) : (

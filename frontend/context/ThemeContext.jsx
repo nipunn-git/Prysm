@@ -97,7 +97,7 @@ export function ThemeProvider({ children }) {
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem('prompthub_theme');
+      const stored = localStorage.getItem('prysm_theme') || localStorage.getItem('prompthub_theme');
       if (stored && THEMES.some(t => t.id === stored)) {
         setThemeState(stored);
         document.documentElement.setAttribute('data-theme', stored);
@@ -105,6 +105,7 @@ export function ThemeProvider({ children }) {
         // Default to Dark default
         setThemeState('dark_default');
         document.documentElement.setAttribute('data-theme', 'dark_default');
+        localStorage.setItem('prysm_theme', 'dark_default');
         localStorage.setItem('prompthub_theme', 'dark_default');
       }
     } catch (e) {
@@ -117,6 +118,7 @@ export function ThemeProvider({ children }) {
     if (THEMES.some(t => t.id === newTheme)) {
       setThemeState(newTheme);
       try {
+        localStorage.setItem('prysm_theme', newTheme);
         localStorage.setItem('prompthub_theme', newTheme);
         document.documentElement.setAttribute('data-theme', newTheme);
         console.log('[ThemeContext] document data-theme set to:', newTheme);

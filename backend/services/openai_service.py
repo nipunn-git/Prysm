@@ -46,13 +46,13 @@ Do NOT include any markdown code block wrap outside the JSON object. Output raw 
                     cleaned = re.sub(r"^```[a-zA-Z]*\n", "", cleaned)
                     cleaned = re.sub(r"\n```$", "", cleaned)
                 parsed = json.loads(cleaned)
-                print(f"[PromptHub Optimizer] Successfully optimized using {model_name}")
+                print(f"[Prysm Optimizer] Successfully optimized using {model_name}")
                 return {
                     "improved_prompt": parsed.get("improved_prompt", prompt_text),
                     "changes": parsed.get("changes", ["Enhanced prompt structure and clarity"])
                 }
             except Exception as e:
-                print(f"[PromptHub Optimizer] Gemini {model_name} error: {e}")
+                print(f"[Prysm Optimizer] Gemini {model_name} error: {e}")
 
     # 2. Try OpenAI (fallback)
     if openai_key and openai_key != "your_openai_api_key_here":
@@ -75,7 +75,7 @@ Do NOT include any markdown code block wrap outside the JSON object. Output raw 
                 "changes": parsed.get("changes", ["Enhanced prompt structure and clarity"])
             }
         except Exception as e:
-            print(f"[PromptHub Optimizer] OpenAI error, falling back to built-in: {e}")
+            print(f"[Prysm Optimizer] OpenAI error, falling back to built-in: {e}")
 
     # 3. High-quality fallback prompt optimization engine
     lines = [line.strip() for line in prompt_text.split('\n') if line.strip()]

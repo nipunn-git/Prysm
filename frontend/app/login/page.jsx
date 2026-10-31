@@ -16,8 +16,8 @@ export default function LoginPage() {
   // If already authenticated, skip login page and go straight to feed
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const storedToken = localStorage.getItem('prompthub_token');
-      const storedUser = localStorage.getItem('prompthub_user');
+      const storedToken = localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token');
+      const storedUser = localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user');
       if (storedToken && storedUser) {
         router.replace('/explore');
         return;
@@ -60,7 +60,7 @@ export default function LoginPage() {
   return (
     <AuthComponent
       mode="login"
-      brandName="PromptHub"
+      brandName="Prysm"
       logo={<DefaultPromptHubLogo />}
       onGoogleLogin={() => handleProviderLogin('google')}
       onAppleLogin={() => handleProviderLogin('apple')}

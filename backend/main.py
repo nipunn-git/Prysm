@@ -46,8 +46,8 @@ except Exception:
     pass
 
 app = FastAPI(
-    title="PromptHub API",
-    description="Backend API for PromptHub - GitHub for AI Prompts",
+    title="Prysm API",
+    description="Backend API for Prysm - GitHub for AI Prompts",
     version="1.0.0"
 )
 
@@ -71,7 +71,7 @@ app.include_router(notifications.router)
 @app.get("/")
 def root():
     return {
-        "app": "PromptHub API",
+        "app": "Prysm API",
         "tagline": "Version. Improve. Ship better prompts.",
         "status": "healthy"
     }
