@@ -13,18 +13,18 @@ function JoinContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingProvider, setLoadingProvider] = useState('');
 
-  // If already authenticated, skip join page
+  // If already authenticated, skip join page and go straight to feed
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedToken = localStorage.getItem('prompthub_token');
       const storedUser = localStorage.getItem('prompthub_user');
       if (storedToken && storedUser) {
-        router.replace('/dashboard');
+        router.replace('/explore');
         return;
       }
     }
     if (!authLoading && user) {
-      router.replace('/dashboard');
+      router.replace('/explore');
     }
   }, [user, authLoading, router]);
 
@@ -34,7 +34,7 @@ function JoinContent() {
     try {
       const chosenUname = (username || email.split('@')[0]).trim().toLowerCase().replace(/\s+/g, '-');
       await register(chosenUname, email.trim(), password, chosenUname);
-      router.push('/dashboard');
+      router.push('/explore');
     } catch (err) {
       setError(err.message || 'Registration failed');
       setIsSubmitting(false);
@@ -49,7 +49,7 @@ function JoinContent() {
     setLoadingProvider(provider);
     try {
       await loginWithProvider(provider);
-      router.push('/dashboard');
+      router.push('/explore');
     } catch (err) {
       setError(err.message || `${provider} signup failed`);
       setIsSubmitting(false);

@@ -3,26 +3,25 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
-import { Terminal, Loader2 } from 'lucide-react';
 
 export default function Home() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    // Fast path: immediately check localStorage if available
+    // Fast path: immediately check localStorage if available -> default to feed (/explore)
     if (typeof window !== 'undefined') {
       const storedToken = localStorage.getItem('prompthub_token');
       const storedUser = localStorage.getItem('prompthub_user');
       if (storedToken && storedUser) {
-        router.replace('/dashboard');
+        router.replace('/explore');
         return;
       }
     }
 
     if (!isLoading) {
       if (user) {
-        router.replace('/dashboard');
+        router.replace('/explore');
       } else {
         router.replace('/login');
       }

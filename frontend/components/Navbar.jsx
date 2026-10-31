@@ -379,7 +379,7 @@ export default function Navbar() {
             <Menu className="w-4 h-4" />
           </button>
 
-          <Link href="/dashboard" className="flex items-center hover:opacity-95 transition group" title="PromptHub Dashboard">
+          <Link href="/explore" className="flex items-center hover:opacity-95 transition group" title="PromptHub Feed">
             <div className="relative flex items-center justify-center py-0.5">
               <div 
                 className="logo-flashlight-glow absolute inset-0 -inset-x-3 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.75)_0%,rgba(255,255,255,0.25)_45%,transparent_80%)] blur-[9px] pointer-events-none rounded-full"
@@ -395,7 +395,7 @@ export default function Navbar() {
           </Link>
         </div>
 
-        {/* Center: Social Media/Home, Search Icon, New Repo (+), Notifications (Bell) */}
+        {/* Center: Social Media/Home, Search Icon, Prysm AI, New Repo (+), Notifications (Bell) */}
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1 sm:gap-2">
           {/* 1. Social Media / Home Icon */}
           <Link
@@ -429,7 +429,30 @@ export default function Navbar() {
             <Search className="w-4 h-4 sm:w-5 sm:h-5 transition-transform group-hover:scale-110" />
           </button>
 
-          {/* 3. New Repo (+) Icon */}
+          {/* 3. Prysm AI Logo (After Magnifying Glass, Before +) */}
+          <Link
+            href="/dashboard"
+            title="Prysm AI Studio"
+            aria-label="Prysm AI Studio"
+            className={`p-1 sm:p-1.5 rounded-lg transition-all flex items-center justify-center group relative ${
+              pathname === '/dashboard'
+                ? 'bg-[#1f6feb]/15 border border-[#1f6feb]/30 shadow-xs'
+                : 'hover:bg-[#161b22] border border-transparent'
+            }`}
+          >
+            <div 
+              className="logo-flashlight-glow absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.75)_0%,rgba(255,255,255,0.25)_50%,transparent_80%)] blur-[8px] pointer-events-none rounded-full"
+              aria-hidden="true" 
+            />
+            <img 
+              src="/prysm.png" 
+              alt="Prysm AI" 
+              className="logo-drop-shadow w-7 h-7 sm:w-8 sm:h-8 object-contain relative z-10 group-hover:scale-110 transition-transform" 
+              style={{ filter: "drop-shadow(0 0 8px rgba(255, 255, 255, 0.85)) drop-shadow(0 0 16px rgba(255, 255, 255, 0.4))" }}
+            />
+          </Link>
+
+          {/* 4. New Repo (+) Icon */}
           <Link
             href="/new"
             title="Create new repository"
@@ -443,7 +466,7 @@ export default function Navbar() {
             <Plus className="w-4 h-4 sm:w-5 sm:h-5 transition-transform group-hover:scale-110" />
           </Link>
 
-          {/* 4. Bell Icon (Notifications) */}
+          {/* 5. Bell Icon (Notifications) */}
           <div className="relative" ref={notificationsRef}>
             <button 
               type="button"

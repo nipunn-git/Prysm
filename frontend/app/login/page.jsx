@@ -13,18 +13,18 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingProvider, setLoadingProvider] = useState('');
 
-  // If already authenticated, skip login page and go straight to dashboard
+  // If already authenticated, skip login page and go straight to feed
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedToken = localStorage.getItem('prompthub_token');
       const storedUser = localStorage.getItem('prompthub_user');
       if (storedToken && storedUser) {
-        router.replace('/dashboard');
+        router.replace('/explore');
         return;
       }
     }
     if (!authLoading && user) {
-      router.replace('/dashboard');
+      router.replace('/explore');
     }
   }, [user, authLoading, router]);
 
@@ -33,7 +33,7 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await login(email.trim(), password);
-      router.push('/dashboard');
+      router.push('/explore');
     } catch (err) {
       const msg = err.message || 'Login failed';
       setError(msg);
@@ -49,7 +49,7 @@ export default function LoginPage() {
     setLoadingProvider(provider);
     try {
       await loginWithProvider(provider);
-      router.push('/dashboard');
+      router.push('/explore');
     } catch (err) {
       setError(err.message || `${provider} login failed`);
       setIsLoading(false);
