@@ -65,6 +65,7 @@ def ai_generate_repository(
 
     fast_cache.invalidate("explore_repos")
     fast_cache.invalidate("user_repos")
+    fast_cache.invalidate("repo_detail")
 
     owner = db.query(models.User).filter(models.User.id == user_id).first()
 
@@ -248,7 +249,7 @@ def explore_public_repositories(
         )
     repos = query.order_by(desc(models.Repository.updated_at)).limit(60).all()
     res = build_repo_responses_batch(repos, db, current_user_id)
-    fast_cache.set(cache_key, res, ttl=20)
+    fast_cache.set(cache_key, res, ttl=120)
     return res
 
 @router.get("/user/{username}", response_model=List[schemas.RepositoryResponse])
@@ -419,6 +420,7 @@ def create_repository(
 
     fast_cache.invalidate("explore_repos")
     fast_cache.invalidate("user_repos")
+    fast_cache.invalidate("repo_detail")
     fast_cache.invalidate("public_repos_user")
 
     return build_repo_response(new_repo, db, actual_user_id)
@@ -485,6 +487,7 @@ def toggle_star_repository(
 
     fast_cache.invalidate("explore_repos")
     fast_cache.invalidate("user_repos")
+    fast_cache.invalidate("repo_detail")
         
     stars_count = db.query(models.RepositoryStar).filter(models.RepositoryStar.repository_id == repo.id).count()
     return {
@@ -504,13 +507,6 @@ def get_repository_by_id(
     user_id: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    repo = db.query(models.Repository).filter(models.Repository.id == repo_id).first()
-    if not repo:
-        # Try finding by name if not UUID
-        repo = db.query(models.Repository).filter(models.Repository.name == repo_id).first()
-    if not repo:
-        raise HTTPException(status_code=404, detail="Repository not found")
-
     current_user_id = resolve_user_id_from_token(token or authorization, db) or user_id or x_user_id
     if current_user_id:
         matched_user = db.query(models.User).filter(
@@ -518,6 +514,34 @@ def get_repository_by_id(
         ).first()
         if matched_user:
             current_user_id = matched_user.id
+
+    cache_key = f"repo_detail:{repo_id}:{current_user_id or 'anon'}"
+    cached = fast_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    repo = (
+        db.query(models.Repository)
+        .options(
+            joinedload(models.Repository.owner),
+            joinedload(models.Repository.versions)
+        )
+        .filter(models.Repository.id == repo_id)
+        .first()
+    )
+    if not repo:
+        # Try finding by name if not UUID
+        repo = (
+            db.query(models.Repository)
+            .options(
+                joinedload(models.Repository.owner),
+                joinedload(models.Repository.versions)
+            )
+            .filter(models.Repository.name == repo_id)
+            .first()
+        )
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
 
     stars_count = db.query(models.RepositoryStar).filter(models.RepositoryStar.repository_id == repo.id).count()
     is_starred = False
@@ -530,7 +554,7 @@ def get_repository_by_id(
     sorted_versions = sorted(repo.versions, key=lambda v: v.created_at, reverse=True)
     latest = sorted_versions[0] if sorted_versions else None
 
-    return schemas.RepositoryDetailResponse(
+    detail_res = schemas.RepositoryDetailResponse(
         id=repo.id,
         owner_id=repo.owner_id,
         owner_username=repo.owner.username if repo.owner else "user",
@@ -559,6 +583,8 @@ def get_repository_by_id(
             ) for v in sorted_versions
         ]
     )
+    fast_cache.set(cache_key, detail_res, ttl=60)
+    return detail_res
 
 @router.patch("/{repo_id}", response_model=schemas.RepositoryResponse)
 def update_repository(

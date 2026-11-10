@@ -85,19 +85,66 @@ export default function RepositoryPage() {
   const router = useRouter();
   const { user } = useAuth();
 
-  // Repository state - clean SSR baseline to prevent hydration mismatch
-  const [repo, setRepo] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Repository state - clean instant SSR & cache baseline
+  const [repo, setRepo] = useState(() => {
+    if (typeof window !== 'undefined' && id) {
+      try {
+        const direct = getCachedData(`repo_detail_${id}`, null);
+        if (direct) return direct;
+        const exploreList = getCachedData('explore_all_repos', []);
+        if (Array.isArray(exploreList)) {
+          const found = exploreList.find(r => r.id === id);
+          if (found) return found;
+        }
+      } catch {}
+    }
+    return null;
+  });
+
+  const [loading, setLoading] = useState(() => {
+    if (typeof window !== 'undefined' && id) {
+      try {
+        const direct = getCachedData(`repo_detail_${id}`, null);
+        if (direct) return false;
+        const exploreList = getCachedData('explore_all_repos', []);
+        if (Array.isArray(exploreList) && exploreList.some(r => r.id === id)) return false;
+      } catch {}
+    }
+    return true;
+  });
+
   const [activeTab, setActiveTab] = useState("Code"); // Code, Commits, Compare, Settings
   const [viewMode, setViewMode] = useState("raw"); // raw, preview
 
-  const [currentPrompt, setCurrentPrompt] = useState("");
+  const [currentPrompt, setCurrentPrompt] = useState(() => {
+    if (typeof window !== 'undefined' && id) {
+      try {
+        const direct = getCachedData(`repo_detail_${id}`, null);
+        if (direct) return direct.latest_prompt || direct.versions?.[0]?.content || "";
+        const exploreList = getCachedData('explore_all_repos', []);
+        if (Array.isArray(exploreList)) {
+          const found = exploreList.find(r => r.id === id);
+          if (found) return found.latest_prompt || "";
+        }
+      } catch {}
+    }
+    return "";
+  });
+
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
   const [commitTitle, setCommitTitle] = useState("");
   const [commitDesc, setCommitDesc] = useState("");
   const [versionBump, setVersionBump] = useState("patch");
-  const [activeVersion, setActiveVersion] = useState(null);
+  const [activeVersion, setActiveVersion] = useState(() => {
+    if (typeof window !== 'undefined' && id) {
+      try {
+        const direct = getCachedData(`repo_detail_${id}`, null);
+        if (direct && direct.versions?.length > 0) return direct.versions[0];
+      } catch {}
+    }
+    return null;
+  });
   const [copied, setCopied] = useState(false);
   const [copiedSha, setCopiedSha] = useState(null);
   const [optimizing, setOptimizing] = useState(false);
@@ -133,8 +180,8 @@ export default function RepositoryPage() {
 
   const fetchRepo = useCallback(async () => {
     try {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prompthub_token') : null;
-      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+      const storedToken = typeof window !== 'undefined' ? (localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token')) : null;
+      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || '{}')?.id) : null);
       
       const queryParams = new URLSearchParams();
       if (storedToken) queryParams.set('token', storedToken);
@@ -150,6 +197,7 @@ export default function RepositoryPage() {
         const data = await res.json();
         setRepo(data);
         setCachedData(`repo_detail_${id}`, data);
+        setLoading(false);
         if (data.owner) {
           cacheUser(data.owner);
         } else if (data.owner_username) {
