@@ -502,15 +502,27 @@ export default function Navbar() {
               )}
             </button>
 
-            {/* Notifications Interactive Dropdown */}
+            {/* Notifications Interactive Dropdown (Apple Frosted Glassmorphism) */}
             {isNotificationsOpen && (
-              <div className="absolute left-1/2 -translate-x-1/2 mt-2 w-[calc(100vw-32px)] max-w-sm sm:w-96 bg-[#161b22] border border-[#30363d] rounded-xl shadow-2xl overflow-hidden z-50 text-xs text-[#c9d1d9] animate-scaleUp">
+              <div className={`absolute left-1/2 -translate-x-1/2 mt-2 w-[calc(100vw-32px)] max-w-sm sm:w-96 rounded-2xl shadow-2xl overflow-hidden z-50 text-xs backdrop-blur-3xl border transition-all animate-scaleUp font-apple ${
+                isDark 
+                  ? "bg-[#0c0e14]/85 border-white/[0.12] text-[#f5f5f7] shadow-[0_25px_70px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.08)]"
+                  : "bg-white/85 border-black/[0.08] text-[#1d1d1f] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.12),0_0_0_1px_rgba(0,0,0,0.04),inset_0_1px_2px_rgba(255,255,255,0.9)]"
+              }`}>
                 {/* Dropdown Header */}
-                <div className="px-4 py-3 border-b border-[#30363d] bg-[#0d1117] flex items-center justify-between">
+                <div className={`px-4 py-3 border-b flex items-center justify-between transition-colors ${
+                  isDark ? "border-white/[0.08] bg-white/[0.02]" : "border-black/[0.05] bg-black/[0.01]"
+                }`}>
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm text-[#f0f6fc]">Notifications</span>
+                    <span className={`font-semibold text-sm tracking-tight ${isDark ? 'text-[#f5f5f7]' : 'text-[#1d1d1f]'}`}>
+                      Notifications
+                    </span>
                     {unreadCount > 0 && (
-                      <span className="bg-[#1f6feb]/20 text-[#58a6ff] text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#1f6feb]/30">
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                        isDark 
+                          ? 'bg-[#2997ff]/15 text-[#2997ff] border-[#2997ff]/30' 
+                          : 'bg-blue-50 text-[#0071e3] border-[#0071e3]/20'
+                      }`}>
                         {unreadCount} new
                       </span>
                     )}
@@ -518,7 +530,9 @@ export default function Navbar() {
                   {notifications.length > 0 && (
                     <button
                       onClick={handleMarkAllRead}
-                      className="text-[11px] text-[#58a6ff] hover:underline flex items-center gap-1 font-medium"
+                      className={`text-[11px] font-medium flex items-center gap-1 transition cursor-pointer ${
+                        isDark ? 'text-[#2997ff] hover:text-[#67b5ff]' : 'text-[#0071e3] hover:text-[#005bb5]'
+                      }`}
                       title="Mark all as read"
                     >
                       <CheckCheck className="w-3.5 h-3.5" />
@@ -528,18 +542,26 @@ export default function Navbar() {
                 </div>
 
                 {/* Notifications List */}
-                <div className="max-h-96 overflow-y-auto divide-y divide-[#21262d]">
+                <div className={`max-h-96 overflow-y-auto divide-y ${
+                  isDark ? "divide-white/[0.05]" : "divide-black/[0.04]"
+                }`}>
                   {isLoadingNotifications && notifications.length === 0 ? (
-                    <div className="py-10 text-center text-[#8b949e] flex items-center justify-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-[#58a6ff] animate-ping" />
-                      Loading notifications...
+                    <div className="py-10 text-center text-[#86868b] flex items-center justify-center gap-2">
+                      <span className={`w-2 h-2 rounded-full animate-ping ${isDark ? 'bg-[#2997ff]' : 'bg-[#0071e3]'}`} />
+                      <span>Loading notifications...</span>
                     </div>
                   ) : notifications.length === 0 ? (
-                    <div className="py-12 px-4 text-center text-[#8b949e] flex flex-col items-center justify-center">
-                      <Bell className="w-8 h-8 text-[#484f58] mb-2 stroke-[1.5]" />
-                      <p className="text-xs font-semibold text-[#c9d1d9] mb-0.5">All caught up!</p>
-                      <p className="text-[11px] text-[#8b949e] max-w-[220px]">
-                        When someone follows you or stars your prompts, updates will appear here.
+                    <div className="py-12 px-4 text-center text-[#86868b] flex flex-col items-center justify-center">
+                      <div className={`w-10 h-10 rounded-full border flex items-center justify-center mb-2.5 ${
+                        isDark ? 'bg-white/[0.04] border-white/[0.08]' : 'bg-black/[0.02] border-black/[0.06]'
+                      }`}>
+                        <Bell className="w-5 h-5 text-[#86868b] stroke-[1.5]" />
+                      </div>
+                      <p className={`text-xs font-semibold mb-0.5 tracking-tight ${isDark ? 'text-[#f5f5f7]' : 'text-[#1d1d1f]'}`}>
+                        All caught up!
+                      </p>
+                      <p className="text-[11px] text-[#86868b] max-w-[220px]">
+                        When someone follows you or likes your prompts, updates will appear here.
                       </p>
                     </div>
                   ) : (
@@ -547,8 +569,10 @@ export default function Navbar() {
                       <div
                         key={n.id}
                         onClick={() => handleNotificationClick(n)}
-                        className={`p-3.5 flex items-start gap-3 hover:bg-[#1f6feb]/10 transition cursor-pointer group relative ${
-                          !n.is_read ? 'bg-[#1f6feb]/5' : ''
+                        className={`p-3.5 flex items-start gap-3 transition cursor-pointer group relative ${
+                          !n.is_read 
+                            ? isDark ? 'bg-[#2997ff]/[0.08] hover:bg-[#2997ff]/[0.12]' : 'bg-blue-50/70 hover:bg-blue-100/60'
+                            : isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-black/[0.02]'
                         }`}
                       >
                         {/* Avatar with type badge */}
@@ -556,10 +580,14 @@ export default function Navbar() {
                           <img
                             src={n.sender_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${n.sender_username || 'user'}`}
                             alt={n.sender_name || 'User'}
-                            className="w-8 h-8 rounded-full border border-[#30363d] object-cover"
+                            className={`w-8 h-8 rounded-full border object-cover ${
+                              isDark ? 'border-white/15' : 'border-black/[0.08]'
+                            }`}
                           />
-                          <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center border border-[#161b22] ${
-                            (n.type === 'star' || n.type === 'like') ? 'bg-[#ff2d55] text-white' : 'bg-[#238636] text-white'
+                          <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center border ${
+                            isDark ? 'border-[#0c0e14]' : 'border-white'
+                          } ${
+                            (n.type === 'star' || n.type === 'like') ? 'bg-[#ff2d55] text-white shadow-sm' : 'bg-[#0071e3] dark:bg-[#2997ff] text-white shadow-sm'
                           }`}>
                             {(n.type === 'star' || n.type === 'like') ? (
                               <Heart className="w-2.5 h-2.5 fill-current" />
@@ -571,10 +599,12 @@ export default function Navbar() {
 
                         {/* Message and time */}
                         <div className="flex-1 min-w-0 pr-6">
-                          <p className="text-xs text-[#c9d1d9] leading-snug group-hover:text-[#f0f6fc]">
+                          <p className={`text-xs leading-snug tracking-tight transition ${
+                            isDark ? 'text-[#f5f5f7] group-hover:text-white' : 'text-[#1d1d1f] group-hover:text-black'
+                          }`}>
                             {n.message}
                           </p>
-                          <span className="text-[10px] text-[#8b949e] mt-1 block">
+                          <span className="text-[10px] text-[#86868b] mt-1 block">
                             {formatNotifTime(n.created_at)}
                           </span>
                         </div>
@@ -582,11 +612,15 @@ export default function Navbar() {
                         {/* Unread dot & Delete button */}
                         <div className="absolute right-3 top-3.5 flex items-center gap-1.5">
                           {!n.is_read && (
-                            <span className="w-2 h-2 rounded-full bg-[#1f6feb] shrink-0" title="Unread" />
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${
+                              isDark ? 'bg-[#2997ff] shadow-[0_0_6px_#2997ff]' : 'bg-[#0071e3] shadow-[0_0_6px_#0071e3]'
+                            }`} title="Unread" />
                           )}
                           <button
                             onClick={(e) => handleDeleteNotification(e, n.id)}
-                            className="opacity-0 group-hover:opacity-100 p-1 text-[#8b949e] hover:text-red-400 hover:bg-[#21262d] rounded transition"
+                            className={`opacity-0 group-hover:opacity-100 p-1 text-[#86868b] hover:text-red-500 rounded-lg transition ${
+                              isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'
+                            }`}
                             title="Delete notification"
                           >
                             <Trash2 className="w-3 h-3" />
@@ -599,13 +633,15 @@ export default function Navbar() {
 
                 {/* Dropdown Footer */}
                 {notifications.length > 0 && (
-                  <div className="p-2 border-t border-[#30363d] bg-[#0d1117] flex items-center justify-between text-[11px]">
-                    <span className="text-[#8b949e]">
+                  <div className={`p-2.5 border-t flex items-center justify-between text-[11px] ${
+                    isDark ? 'border-white/[0.08] bg-white/[0.02]' : 'border-black/[0.05] bg-black/[0.01]'
+                  }`}>
+                    <span className="text-[#86868b]">
                       {notifications.length} notification{notifications.length > 1 ? 's' : ''}
                     </span>
                     <button
                       onClick={handleClearAllNotifications}
-                      className="text-[#8b949e] hover:text-red-400 transition"
+                      className="text-[#86868b] hover:text-red-500 transition cursor-pointer font-medium"
                     >
                       Clear all
                     </button>
@@ -715,17 +751,24 @@ export default function Navbar() {
 
       {/* Centered Search Palette Modal (opens via search icon or pressing /) */}
       {isSearchOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 px-4 bg-black/60 backdrop-blur-xs">
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 px-4 bg-black/60 backdrop-blur-sm">
           <div 
             ref={searchRef}
-            className="w-full max-w-xl bg-[#161b22] border border-[#30363d] rounded-2xl shadow-2xl overflow-hidden animate-scaleUp"
+            className={`w-full max-w-xl rounded-2xl border shadow-2xl overflow-hidden animate-scaleUp backdrop-blur-3xl font-apple ${
+              isDark 
+                ? "bg-[#0d1017]/85 border-white/[0.12] text-[#f5f5f7] shadow-[0_25px_70px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(255,255,255,0.08)]"
+                : "bg-white/85 border-black/[0.08] text-[#1d1d1f] shadow-[0_25px_70px_rgba(0,0,0,0.15),0_0_0_1px_rgba(0,0,0,0.04),inset_0_1px_2px_rgba(255,255,255,0.9)]"
+            }`}
           >
-            <div className="flex items-center px-4 py-3.5 border-b border-[#30363d] gap-3 bg-[#0d1117]">
-              <Search className="w-4 h-4 text-[#8b949e] shrink-0" />
+            {/* Search Input Bar */}
+            <div className={`flex items-center px-4 py-3.5 border-b gap-3 transition-colors ${
+              isDark ? "border-white/[0.08] bg-white/[0.02]" : "border-black/[0.05] bg-black/[0.01]"
+            }`}>
+              <Search className="w-4 h-4 text-[#86868b] shrink-0" />
               <input 
                 ref={searchInputRef}
                 type="text" 
-                placeholder="Search prompts or @users..." 
+                placeholder="Search prompts, categories, or @creators..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
@@ -735,7 +778,9 @@ export default function Navbar() {
                     router.push(`/explore?search=${encodeURIComponent(searchQuery.trim())}`);
                   }
                 }}
-                className="w-full bg-transparent text-sm text-[#f0f6fc] placeholder:text-[#8b949e] focus:outline-none"
+                className={`w-full bg-transparent text-sm focus:outline-none tracking-tight ${
+                  isDark ? 'text-[#f5f5f7] placeholder:text-[#86868b]' : 'text-[#1d1d1f] placeholder:text-[#86868b]'
+                }`}
               />
               {searchQuery ? (
                 <button 
@@ -745,33 +790,43 @@ export default function Navbar() {
                     setSearchResults([]);
                     setPromptResults([]);
                   }}
-                  className="p-1 text-[#8b949e] hover:text-[#f0f6fc] rounded transition"
+                  className={`p-1 rounded-lg text-[#86868b] transition ${
+                    isDark ? 'hover:text-white hover:bg-white/10' : 'hover:text-black hover:bg-black/5'
+                  }`}
                 >
                   <X className="w-4 h-4" />
                 </button>
               ) : (
-                <kbd className="hidden sm:inline-block border border-[#30363d] bg-[#161b22] text-[#8b949e] text-[10px] px-1.5 py-0.5 rounded font-mono">
+                <kbd className={`hidden sm:inline-block border text-[10px] px-1.5 py-0.5 rounded-md font-mono select-none ${
+                  isDark ? 'border-white/[0.12] bg-white/[0.04] text-[#86868b]' : 'border-black/[0.08] bg-black/[0.03] text-[#86868b]'
+                }`}>
                   ESC
                 </kbd>
               )}
             </div>
 
-            {/* Live Search Results or Quick Navigation */}
+            {/* Results or Clean Minimal Hint (NO Explore or New Repo boxes!) */}
             {searchQuery.trim().length > 0 ? (
-              <div className="max-h-[60vh] overflow-y-auto divide-y divide-[#21262d]">
-                <div className="px-4 py-2 text-[10px] uppercase font-bold tracking-wider text-[#8b949e] bg-[#161b22] flex items-center justify-between">
-                  <span>Creators & Users</span>
+              <div className={`max-h-[60vh] overflow-y-auto divide-y ${
+                isDark ? "divide-white/[0.06]" : "divide-black/[0.05]"
+              }`}>
+                {/* Creators Section */}
+                <div className={`px-4 py-2 text-[10px] uppercase font-bold tracking-wider flex items-center justify-between ${
+                  isDark ? "bg-white/[0.02] text-[#86868b]" : "bg-black/[0.015] text-[#86868b]"
+                }`}>
+                  <span>Creators</span>
                   <div className="flex items-center gap-1.5">
                     {isSearching && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#58a6ff] animate-ping"></span>
+                      <span className={`w-1.5 h-1.5 rounded-full animate-ping ${isDark ? 'bg-[#2997ff]' : 'bg-[#0071e3]'}`} />
                     )}
-                    <span className="text-[9px] text-[#58a6ff]">
-                      {searchResults.length > 0 ? `${searchResults.length} Found` : isSearching ? "Searching..." : "Live Search"}
+                    <span className={`text-[10px] font-medium ${isDark ? 'text-[#2997ff]' : 'text-[#0071e3]'}`}>
+                      {searchResults.length > 0 ? `${searchResults.length} Found` : isSearching ? "Searching..." : "Live"}
                     </span>
                   </div>
                 </div>
+
                 {searchResults.length > 0 ? (
-                  <div className="divide-y divide-[#21262d]">
+                  <div className={`divide-y ${isDark ? "divide-white/[0.04]" : "divide-black/[0.03]"}`}>
                     {searchResults.map(u => (
                       <Link
                         key={u.id}
@@ -782,17 +837,25 @@ export default function Navbar() {
                           setSearchResults([]);
                           setIsSearchOpen(false);
                         }}
-                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#1f6feb]/20 hover:border-[#1f6feb]/40 transition group"
+                        className={`flex items-center gap-3 px-4 py-2.5 transition group ${
+                          isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-black/[0.025]'
+                        }`}
                       >
                         <img 
                           src={u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`} 
                           alt={u.username}
-                          className="w-8 h-8 rounded-full border border-[#30363d] object-cover shrink-0"
+                          className={`w-8 h-8 rounded-full border object-cover shrink-0 ${
+                            isDark ? 'border-white/15' : 'border-black/[0.08]'
+                          }`}
                         />
                         <div className="flex flex-col min-w-0">
-                          <span className="text-xs font-semibold text-[#f0f6fc] group-hover:text-[#58a6ff] truncate">{u.name}</span>
-                          <span className="text-[11px] text-[#8b949e] truncate">@{u.username}</span>
-                          <span className="text-[10px] text-[#484f58]">
+                          <span className={`text-xs font-semibold tracking-tight transition truncate ${
+                            isDark ? 'text-[#f5f5f7] group-hover:text-[#2997ff]' : 'text-[#1d1d1f] group-hover:text-[#0071e3]'
+                          }`}>
+                            {u.name}
+                          </span>
+                          <span className="text-[11px] text-[#86868b] truncate">@{u.username}</span>
+                          <span className="text-[10px] text-[#86868b]/75">
                             {u.repos_count || 0} prompts · {u.followers_count || 0} followers
                           </span>
                         </div>
@@ -800,32 +863,41 @@ export default function Navbar() {
                     ))}
                   </div>
                 ) : isSearching ? (
-                  <div className="px-4 py-3 text-xs text-[#8b949e] flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-[#58a6ff] animate-ping"></span>
+                  <div className="px-4 py-3 text-xs text-[#86868b] flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full animate-ping ${isDark ? 'bg-[#2997ff]' : 'bg-[#0071e3]'}`} />
                     Searching creators...
                   </div>
                 ) : (
-                  <div className="px-4 py-3 text-xs text-[#8b949e]">No users found for &quot;{searchQuery}&quot;</div>
+                  <div className="px-4 py-3 text-xs text-[#86868b]">No creators matching &quot;{searchQuery}&quot;</div>
                 )}
 
+                {/* Matching Prompts Section */}
                 {promptResults.length > 0 && (
                   <>
-                    <div className="px-4 py-2 text-[10px] uppercase font-bold tracking-wider text-[#8b949e] bg-[#161b22] flex items-center justify-between border-t border-[#21262d]">
+                    <div className={`px-4 py-2 text-[10px] uppercase font-bold tracking-wider flex items-center justify-between border-t ${
+                      isDark ? "bg-white/[0.02] border-white/[0.06] text-[#86868b]" : "bg-black/[0.015] border-black/[0.05] text-[#86868b]"
+                    }`}>
                       <span>Matching Prompts</span>
-                      <span className="text-[9px] text-[#3fb950]">Instant</span>
+                      <span className="text-[10px] text-emerald-500 font-medium">Instant</span>
                     </div>
-                    <div className="divide-y divide-[#21262d]">
+                    <div className={`divide-y ${isDark ? "divide-white/[0.04]" : "divide-black/[0.03]"}`}>
                       {promptResults.map(p => (
                         <Link
                           key={p.id}
                           href={`/repo/${p.id}`}
                           onClick={() => { setSearchQuery(''); setSearchResults([]); setPromptResults([]); setIsSearchOpen(false); }}
-                          className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-[#238636]/20 transition group"
+                          className={`flex items-center gap-2.5 px-4 py-2.5 transition group ${
+                            isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-black/[0.025]'
+                          }`}
                         >
-                          <FolderGit2 className="w-3.5 h-3.5 text-[#58a6ff] shrink-0" />
+                          <FolderGit2 className={`w-3.5 h-3.5 shrink-0 ${isDark ? 'text-[#2997ff]' : 'text-[#0071e3]'}`} />
                           <div className="flex flex-col min-w-0">
-                            <span className="text-xs font-semibold text-[#f0f6fc] group-hover:text-[#58a6ff] truncate">{p.name}</span>
-                            <span className="text-[10px] text-[#8b949e] truncate">{p.description || p.category}</span>
+                            <span className={`text-xs font-semibold tracking-tight transition truncate ${
+                              isDark ? 'text-[#f5f5f7] group-hover:text-[#2997ff]' : 'text-[#1d1d1f] group-hover:text-[#0071e3]'
+                            }`}>
+                              {p.name}
+                            </span>
+                            <span className="text-[10px] text-[#86868b] truncate">{p.description || p.category}</span>
                           </div>
                         </Link>
                       ))}
@@ -833,41 +905,46 @@ export default function Navbar() {
                   </>
                 )}
 
+                {/* Search all prompt results link */}
                 <Link
                   href={`/explore?search=${encodeURIComponent(searchQuery.trim())}`}
                   onClick={() => { setSearchQuery(''); setSearchResults([]); setPromptResults([]); setIsSearchOpen(false); }}
-                  className="block px-4 py-3 text-xs font-semibold text-[#58a6ff] hover:bg-[#0d1117] transition text-center"
+                  className={`block px-4 py-3 text-xs font-semibold transition text-center ${
+                    isDark ? 'text-[#2997ff] hover:bg-white/[0.03]' : 'text-[#0071e3] hover:bg-black/[0.02]'
+                  }`}
                 >
                   Search all community prompts for &quot;{searchQuery}&quot; →
                 </Link>
               </div>
             ) : (
-              <div className="p-4 text-xs text-[#8b949e] space-y-2">
-                <p className="font-semibold text-[#c9d1d9] mb-2">Quick Navigation</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <Link
-                    href="/explore"
-                    onClick={() => setIsSearchOpen(false)}
-                    className="flex items-center gap-2.5 p-2.5 rounded-lg border border-[#30363d] hover:bg-[#21262d] text-[#c9d1d9] hover:text-white transition"
-                  >
-                    <Compass className="w-4 h-4 text-[#58a6ff]" />
-                    <div>
-                      <span className="font-medium text-xs block">Explore Prompts</span>
-                      <span className="text-[10px] text-[#8b949e]">Trending community creations</span>
-                    </div>
-                  </Link>
-                  <Link
-                    href="/new"
-                    onClick={() => setIsSearchOpen(false)}
-                    className="flex items-center gap-2.5 p-2.5 rounded-lg border border-[#30363d] hover:bg-[#21262d] text-[#c9d1d9] hover:text-white transition"
-                  >
-                    <Plus className="w-4 h-4 text-[#3fb950]" />
-                    <div>
-                      <span className="font-medium text-xs block">New Repository</span>
-                      <span className="text-[10px] text-[#8b949e]">Create a prompt repository</span>
-                    </div>
-                  </Link>
+              /* Clean Minimal Empty Hint (NO Explore or New Repo boxes!) */
+              <div className="p-5 text-xs space-y-3">
+                <div className="flex items-center gap-1.5 text-[#86868b]">
+                  <Sparkles className={`w-3.5 h-3.5 ${isDark ? 'text-[#2997ff]' : 'text-[#0071e3]'}`} />
+                  <span className="font-medium text-xs">Search categories</span>
                 </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {["Coding", "Research", "Education", "Writing", "Productivity"].map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => {
+                        setIsSearchOpen(false);
+                        router.push(`/explore?category=${encodeURIComponent(cat)}`);
+                      }}
+                      className={`text-xs font-medium px-2.5 py-1 rounded-lg border transition cursor-pointer ${
+                        isDark 
+                          ? 'border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.08] text-[#f5f5f7]' 
+                          : 'border-black/[0.06] bg-black/[0.03] hover:bg-black/[0.06] text-[#1d1d1f]'
+                      }`}
+                    >
+                      #{cat}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-[#86868b] pt-1">
+                  Tip: Type <span className={`font-mono px-1 py-0.5 rounded border ${isDark ? 'border-white/10 bg-white/5 text-[#f5f5f7]' : 'border-black/10 bg-black/5 text-[#1d1d1f]'}`}>@username</span> to search creators directly.
+                </p>
               </div>
             )}
           </div>
