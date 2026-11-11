@@ -30,7 +30,7 @@ def generate_prompt_and_repo_metadata(query: str, action_type: str = "custom") -
 
     # 1. Try Google Gemini (User's primary AI provider)
     if gemini_key and gemini_key.strip():
-        for model_name in ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-pro"]:
+        for model_name in ["gemini-1.5-flash", "gemini-2.0-flash-exp", "gemini-1.5-pro"]:
             try:
                 import google.generativeai as genai
                 genai.configure(api_key=gemini_key)

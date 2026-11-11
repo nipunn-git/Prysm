@@ -73,9 +73,10 @@ export default function ProfilePage() {
     avatar: ''
   });
 
-  // Profile repos and contributions state
-  const [repos, setRepos] = useState([]);
-  const [contributions, setContributions] = useState(null);
+  // Profile repos, starred repos, and contributions state - 0ms instant hydration baseline!
+  const [repos, setRepos] = useState(() => getCachedData('profile_my_repos', []));
+  const [starredRepos, setStarredRepos] = useState(() => getCachedData('profile_my_starred', []));
+  const [contributions, setContributions] = useState(() => getCachedData('profile_my_contributions', null));
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'repositories' | 'stars'
   const [repoSearchQuery, setRepoSearchQuery] = useState('');
   const [isCreatingSpecial, setIsCreatingSpecial] = useState(false);
@@ -112,7 +113,7 @@ export default function ProfilePage() {
       if (!effectiveUserId) return;
       
       const headers = storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {};
-      const res = await fetch(`${API_URL}/api/repositories?user_id=${encodeURIComponent(effectiveUserId)}&_t=${Date.now()}`, { headers, cache: 'no-store' });
+      const res = await fetch(`${API_URL}/api/repositories?user_id=${encodeURIComponent(effectiveUserId)}`, { headers });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -129,10 +130,30 @@ export default function ProfilePage() {
     }
   }, [user?.id, user?.username]);
 
+  const fetchStarredRepos = useCallback(async () => {
+    try {
+      const storedToken = typeof window !== 'undefined' ? (localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token')) : null;
+      const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || '{}')?.id) : null);
+      if (!effectiveUserId) return;
+
+      const headers = storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {};
+      const res = await fetch(`${API_URL}/api/repositories/starred?user_id=${encodeURIComponent(effectiveUserId)}`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setStarredRepos(data);
+          setCachedData('profile_my_starred', data);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, [user?.id]);
+
   const fetchContributions = useCallback(async () => {
     try {
       const userId = user?.id || user?.username || 'default';
-      const res = await fetch(`${API_URL}/api/auth/users/${encodeURIComponent(userId)}/contributions`, { cache: 'no-store' });
+      const res = await fetch(`${API_URL}/api/auth/users/${encodeURIComponent(userId)}/contributions`);
       if (res.ok) {
         const data = await res.json();
         setContributions(data);
@@ -148,15 +169,39 @@ export default function ProfilePage() {
       e.preventDefault();
       e.stopPropagation();
     }
-    // Optimistic toggle
-    setRepos(prev => prev.map(r => {
-      if (r.id === repoId) {
-        const nextStarred = !r.is_starred;
-        const nextCount = Math.max(0, (r.stars_count || 0) + (nextStarred ? 1 : -1));
-        return { ...r, is_starred: nextStarred, stars_count: nextCount };
+    // Optimistic toggle for repos
+    let toggledRepo = null;
+    setRepos(prev => {
+      const updated = prev.map(r => {
+        if (r.id === repoId) {
+          const nextStarred = !r.is_starred;
+          const nextCount = Math.max(0, (r.stars_count || 0) + (nextStarred ? 1 : -1));
+          toggledRepo = { ...r, is_starred: nextStarred, stars_count: nextCount };
+          return toggledRepo;
+        }
+        return r;
+      });
+      setCachedData('profile_my_repos', updated);
+      return updated;
+    });
+
+    // Optimistic toggle for starredRepos
+    setStarredRepos(prev => {
+      const exists = prev.some(r => r.id === repoId);
+      if (exists) {
+        const filtered = prev.filter(r => r.id !== repoId);
+        setCachedData('profile_my_starred', filtered);
+        return filtered;
+      } else {
+        const target = toggledRepo || repos.find(r => r.id === repoId);
+        if (target) {
+          const updated = [{ ...target, is_starred: true, stars_count: (target.stars_count || 0) + 1 }, ...prev];
+          setCachedData('profile_my_starred', updated);
+          return updated;
+        }
+        return prev;
       }
-      return r;
-    }));
+    });
 
     try {
       const storedToken = typeof window !== 'undefined' ? (localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token')) : null;
@@ -174,7 +219,18 @@ export default function ProfilePage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setRepos(prev => prev.map(r => r.id === repoId ? { ...r, is_starred: data.starred, stars_count: data.stars_count } : r));
+        setRepos(prev => {
+          const updated = prev.map(r => r.id === repoId ? { ...r, is_starred: data.starred, stars_count: data.stars_count } : r);
+          setCachedData('profile_my_repos', updated);
+          return updated;
+        });
+        if (!data.starred) {
+          setStarredRepos(prev => {
+            const filtered = prev.filter(r => r.id !== repoId);
+            setCachedData('profile_my_starred', filtered);
+            return filtered;
+          });
+        }
       }
     } catch (e) {
       console.error("Star toggle error:", e);
@@ -198,14 +254,11 @@ export default function ProfilePage() {
       avatar: user.avatar || ''
     });
 
-    const cachedR = getCachedData('profile_my_repos', []);
-    if (cachedR && cachedR.length > 0) setRepos(cachedR);
-    const cachedC = getCachedData('profile_my_contributions', null);
-    if (cachedC) setContributions(cachedC);
-
+    // Background SWR fetch
     fetchRepos();
+    fetchStarredRepos();
     fetchContributions();
-  }, [user, router, isLoading, fetchRepos, fetchContributions]);
+  }, [user, router, isLoading, fetchRepos, fetchStarredRepos, fetchContributions]);
 
   const checkUsername = async (uname) => {
     if (!uname || uname === user?.username) return true;
@@ -375,9 +428,6 @@ export default function ProfilePage() {
     (r.name && r.name.toLowerCase().includes(repoSearchQuery.toLowerCase())) ||
     (r.description && r.description.toLowerCase().includes(repoSearchQuery.toLowerCase()))
   );
-
-  const starredRepos = repos.filter(r => r.is_starred);
-  const totalStarsCount = repos.reduce((acc, r) => acc + (r.stars_count || 0), 0);
 
   return (
     <div className={`min-h-screen font-apple relative transition-colors duration-200 ${isDark ? "bg-[#05070c] text-[#f5f5f7]" : "bg-[#f8fafc] text-[#1d1d1f]"}`}>
@@ -733,7 +783,7 @@ export default function ProfilePage() {
                     ? "bg-neutral-100 dark:bg-white/20 text-neutral-800 dark:text-white" 
                     : "bg-neutral-200 dark:bg-white/10 text-neutral-500 dark:text-neutral-400"
                 }`}>
-                  {totalStarsCount}
+                  {starredRepos.length}
                 </span>
               </button>
             </div>
@@ -1082,23 +1132,49 @@ export default function ProfilePage() {
                       <div key={repo.id} className="p-4 hover:bg-neutral-50 dark:hover:bg-white/[0.04] transition">
                         <div className="flex items-start justify-between gap-4">
                           <div className="min-w-0 flex-1">
-                            <Link href={`/repo/${repo.id}`} className="text-sm font-semibold text-neutral-900 dark:text-white hover:text-blue-500 transition truncate block mb-1">
-                              {repo.name}
-                            </Link>
-                            <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-2">{repo.description || "Prompt repository"}</p>
-                            <div className="flex items-center gap-2 text-[11px] text-neutral-400">
-                              <span>{repo.category || 'Other'}</span>
-                              <span>·</span>
-                              <span>{repo.stars_count || 0} stars</span>
+                            <div className="flex items-center gap-2 mb-1">
+                              <Link href={`/repo/${repo.id}`} className="text-sm font-semibold text-neutral-900 dark:text-white hover:text-blue-500 transition truncate">
+                                {repo.owner_username ? `${repo.owner_username} / ` : ''}{repo.name}
+                              </Link>
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-white/10 border border-neutral-200/70 dark:border-white/10 text-neutral-500 dark:text-neutral-400">
+                                {repo.visibility || 'Public'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-3 line-clamp-2">{repo.description || "Prompt repository"}</p>
+                            <div className="flex items-center gap-4 text-[11px] text-neutral-400">
+                              <div className="flex items-center gap-1.5">
+                                <span className={`w-2 h-2 rounded-full ${
+                                  repo.category === 'Coding' ? 'bg-blue-500' :
+                                  repo.category === 'Research' ? 'bg-emerald-500' :
+                                  repo.category === 'Writing' ? 'bg-purple-500' :
+                                  repo.category === 'Education' ? 'bg-amber-500' :
+                                  'bg-neutral-400'
+                                }`} />
+                                <span>{repo.category || 'Other'}</span>
+                              </div>
+                              <span className="font-mono bg-neutral-100 dark:bg-white/10 px-1.5 py-0.5 rounded text-[10px] text-neutral-600 dark:text-neutral-300">
+                                {repo.latest_version || 'v1.0'}
+                              </span>
+                              <span>{repo.stars_count || 1} star{(repo.stars_count || 1) !== 1 ? 's' : ''}</span>
                             </div>
                           </div>
-                          <button 
-                            onClick={(e) => handleToggleStar(e, repo.id)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-400 shrink-0"
-                          >
-                            <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" />
-                            <span>Starred</span>
-                          </button>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button 
+                              onClick={(e) => handleToggleStar(e, repo.id)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-400 transition"
+                              title="Unlike this prompt"
+                            >
+                              <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" />
+                              <span>Starred</span>
+                            </button>
+                            <Link 
+                              href={`/repo/${repo.id}`}
+                              className="text-xs font-medium text-neutral-500 hover:text-blue-500 flex items-center gap-1 transition px-2 py-1"
+                            >
+                              Open <ArrowUpRight className="w-3 h-3" />
+                            </Link>
+                          </div>
                         </div>
                       </div>
                     ))}

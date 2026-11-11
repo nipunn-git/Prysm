@@ -57,14 +57,14 @@ export default function PublicProfilePage() {
   const { user: currentUser } = useAuth();
   const { isDark } = useTheme();
 
-  const [profileUser, setProfileUser] = useState(null);
-  const [repos, setRepos] = useState([]);
-  const [contributions, setContributions] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [profileUser, setProfileUser] = useState(() => findUserInCache(username));
+  const [repos, setRepos] = useState(() => getCachedData(`public_repos_${username}`, []));
+  const [contributions, setContributions] = useState(() => getCachedData(`public_contrib_${username}`, null));
+  const [loading, setLoading] = useState(() => !findUserInCache(username));
   const [error, setError] = useState(null);
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [followersCount, setFollowersCount] = useState(0);
-  const [followingCount, setFollowingCount] = useState(0);
+  const [isFollowing, setIsFollowing] = useState(() => Boolean(findUserInCache(username)?.is_following));
+  const [followersCount, setFollowersCount] = useState(() => findUserInCache(username)?.followers_count || 0);
+  const [followingCount, setFollowingCount] = useState(() => findUserInCache(username)?.following_count || 0);
   const [isFollowLoading, setIsFollowLoading] = useState(false);
   const [copiedShare, setCopiedShare] = useState(false);
   const [activeTab, setActiveTab] = useState("prompts"); // "prompts" | "activity"

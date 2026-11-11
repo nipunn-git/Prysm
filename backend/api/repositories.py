@@ -256,6 +256,46 @@ def explore_public_repositories(
     fast_cache.set(cache_key, res, ttl=120)
     return res
 
+@router.get("/starred", response_model=List[schemas.RepositoryResponse])
+def list_starred_repositories(
+    user_id: Optional[str] = Query(None),
+    token: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    db: Session = Depends(get_db)
+):
+    current_user_id = resolve_user_id_from_token(token or authorization, db) or user_id or x_user_id
+    if not current_user_id or not isinstance(current_user_id, str):
+        return []
+        
+    matched_user = db.query(models.User).filter(
+        or_(models.User.id == current_user_id.strip(), models.User.username.ilike(current_user_id.strip()))
+    ).first()
+    target_uid = matched_user.id if matched_user else current_user_id.strip()
+
+    star_rows = (
+        db.query(models.RepositoryStar.repository_id)
+        .filter(models.RepositoryStar.user_id == target_uid)
+        .order_by(desc(models.RepositoryStar.created_at))
+        .all()
+    )
+    repo_ids = [r[0] for r in star_rows]
+    if not repo_ids:
+        return []
+
+    repos = (
+        db.query(models.Repository)
+        .options(
+            joinedload(models.Repository.owner),
+            joinedload(models.Repository.versions)
+        )
+        .filter(models.Repository.id.in_(repo_ids))
+        .all()
+    )
+    repo_map = {r.id: r for r in repos}
+    sorted_repos = [repo_map[rid] for rid in repo_ids if rid in repo_map]
+    return build_repo_responses_batch(sorted_repos, db, target_uid)
+
 @router.get("/user/{username}", response_model=List[schemas.RepositoryResponse])
 def list_public_repositories_for_user(
     username: str,

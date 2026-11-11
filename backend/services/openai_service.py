@@ -31,7 +31,7 @@ Do NOT include any markdown code block wrap outside the JSON object. Output raw 
 
     # 1. Try Gemini (primary)
     if gemini_key and gemini_key.strip():
-        for model_name in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+        for model_name in ["gemini-1.5-flash", "gemini-2.0-flash-exp", "gemini-1.5-pro"]:
             try:
                 import google.generativeai as genai
                 genai.configure(api_key=gemini_key)
