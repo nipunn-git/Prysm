@@ -382,13 +382,21 @@ export default function Navbar() {
 
   return (
     <>
-      <header className="bg-[#010409] border-b border-[#21262d] text-[#c9d1d9] h-14 sm:h-16 px-3 sm:px-6 flex items-center justify-between sticky top-0 z-40 select-none relative">
+      <header className={`h-14 sm:h-16 px-3 sm:px-6 flex items-center justify-between sticky top-0 z-40 select-none relative transition-colors duration-200 border-b ${
+        isDark 
+          ? "bg-[#05070c]/90 border-white/[0.08] text-[#f5f5f7]" 
+          : "bg-white/90 border-black/[0.08] text-[#1d1d1f]"
+      } backdrop-blur-xl`}>
         {/* Left Side: Hamburger Menu */}
         <div className="flex items-center">
           <button 
             onClick={() => setIsDrawerOpen(true)}
             aria-label="Open navigation menu"
-            className="p-1.5 text-[#8b949e] hover:text-[#f0f6fc] border border-[#30363d] hover:border-[#8b949e] hover:bg-[#161b22] rounded-md transition cursor-pointer"
+            className={`p-1.5 border rounded-md transition cursor-pointer ${
+              isDark 
+                ? "text-[#86868b] hover:text-[#f5f5f7] border-white/10 hover:border-white/20 hover:bg-white/5" 
+                : "text-[#86868b] hover:text-[#1d1d1f] border-black/10 hover:border-black/20 hover:bg-black/5"
+            }`}
           >
             <Menu className="w-4 h-4" />
           </button>
@@ -662,7 +670,9 @@ export default function Navbar() {
                 className="flex items-center gap-1 hover:opacity-80 transition cursor-pointer"
                 aria-label="User navigation"
               >
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden border border-[#30363d] bg-[#21262d] flex items-center justify-center text-xs font-semibold text-white">
+                <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden border flex items-center justify-center text-xs font-semibold ${
+                  isDark ? "border-white/20 bg-white/10 text-white" : "border-black/10 bg-neutral-200 text-neutral-800"
+                }`}>
                   {user?.avatar ? (
                     <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
                   ) : (

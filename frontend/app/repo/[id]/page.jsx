@@ -35,6 +35,7 @@ import {
   Loader2
 } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
+import { useTheme } from "../../../context/ThemeContext";
 import { 
   isUserRepo, 
   addCreatedRepoId, 
@@ -84,6 +85,7 @@ export default function RepositoryPage() {
   const { id } = useParams();
   const router = useRouter();
   const { user } = useAuth();
+  const { isDark } = useTheme();
 
   // Repository state - clean instant SSR & cache baseline
   const [repo, setRepo] = useState(() => {
@@ -602,12 +604,16 @@ export default function RepositoryPage() {
   const isOwner = isUserRepo(repo.id);
 
   return (
-    <div className="min-h-[calc(100vh-56px)] bg-[#010409] text-[#c9d1d9] pb-16">
+    <div className={`min-h-[calc(100vh-56px)] font-apple pb-16 transition-colors duration-200 ${
+      isDark ? "bg-[#05070c] text-[#c9d1d9]" : "bg-[#f8fafc] text-[#1d1d1f]"
+    }`}>
       
       {/* ========================================================
           TOP REPOSITORY HEADER (Exact GitHub Header)
          ======================================================== */}
-      <div className="bg-[#0d1117] border-b border-[#21262d] pt-5 pb-0 px-4 sm:px-8">
+      <div className={`border-b pt-5 pb-0 px-4 sm:px-8 transition-colors ${
+        isDark ? "bg-[#0d1117] border-[#21262d]" : "bg-white border-slate-200"
+      }`}>
         <div className="max-w-[1280px] mx-auto">
           
           {/* Breadcrumb row & GitHub Action Buttons */}
@@ -616,20 +622,22 @@ export default function RepositoryPage() {
             {/* Repo Owner / Name / Visibility Badge */}
             <div>
               <div className="flex items-center gap-2 flex-wrap text-lg">
-                <Book className="w-5 h-5 text-[#8b949e]" />
+                <Book className={`w-5 h-5 ${isDark ? "text-[#8b949e]" : "text-slate-500"}`} />
                 <Link 
                   href={`/u/${repo.owner_username || 'user'}`}
-                  className="inline-flex items-center gap-2 text-[#58a6ff] font-normal hover:underline cursor-pointer group"
+                  className="inline-flex items-center gap-2 text-[#0071e3] dark:text-[#58a6ff] font-normal hover:underline cursor-pointer group"
                 >
                   <img 
                     src={repo.owner_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${repo.owner_username || repo.owner_name || 'author'}`}
                     alt={repo.owner_name || repo.owner_username || 'Author'}
-                    className="w-5 h-5 rounded-full border border-[#30363d] group-hover:border-[#58a6ff] object-cover shrink-0 transition"
+                    className={`w-5 h-5 rounded-full border group-hover:border-[#0071e3] dark:group-hover:border-[#58a6ff] object-cover shrink-0 transition ${
+                      isDark ? "border-[#30363d]" : "border-slate-300"
+                    }`}
                   />
                   <span>{repo.owner_username || 'user'}</span>
                 </Link>
-                <span className="text-[#8b949e]">/</span>
-                <span className="font-bold text-[#58a6ff]">
+                <span className={isDark ? "text-[#8b949e]" : "text-slate-400"}>/</span>
+                <span className="font-bold text-[#0071e3] dark:text-[#58a6ff]">
                   {repo.name}
                 </span>
 
@@ -637,7 +645,11 @@ export default function RepositoryPage() {
                 <button
                   onClick={() => setVisibilityModalOpen(true)}
                   title={isOwner ? "Click to change visibility" : `Visibility: ${repo.visibility || 'Public'}`}
-                  className="inline-flex items-center gap-1 text-[11px] font-medium border border-[#30363d] text-[#8b949e] hover:text-[#f0f6fc] hover:border-[#8b949e] px-2 py-0.5 rounded-full ml-1 transition"
+                  className={`inline-flex items-center gap-1 text-[11px] font-medium border px-2 py-0.5 rounded-full ml-1 transition ${
+                    isDark 
+                      ? "border-[#30363d] text-[#8b949e] hover:text-[#f0f6fc] hover:border-[#8b949e]" 
+                      : "border-slate-300 text-slate-600 hover:text-slate-900 hover:border-slate-400 bg-slate-50"
+                  }`}
                 >
                   {repo.visibility === "Private" ? (
                     <>
@@ -656,13 +668,13 @@ export default function RepositoryPage() {
 
               {/* Forked From Subtitle (if forked) */}
               {forkInfo && (
-                <div className="text-xs text-[#8b949e] mt-1 flex items-center gap-1">
+                <div className={`text-xs mt-1 flex items-center gap-1 ${isDark ? "text-[#8b949e]" : "text-slate-500"}`}>
                   <span>forked from</span>
-                  <Link href={`/u/${forkInfo.owner_username || 'user'}`} className="text-[#58a6ff] hover:underline font-mono">
+                  <Link href={`/u/${forkInfo.owner_username || 'user'}`} className="text-[#0071e3] dark:text-[#58a6ff] hover:underline font-mono">
                     {forkInfo.owner_username || forkInfo.owner_name}
                   </Link>
-                  <span className="text-[#8b949e]">/</span>
-                  <Link href={`/repo/${forkInfo.id}`} className="text-[#58a6ff] hover:underline font-mono">
+                  <span className={isDark ? "text-[#8b949e]" : "text-slate-400"}>/</span>
+                  <Link href={`/repo/${forkInfo.id}`} className="text-[#0071e3] dark:text-[#58a6ff] hover:underline font-mono">
                     {forkInfo.name}
                   </Link>
                 </div>
@@ -672,10 +684,14 @@ export default function RepositoryPage() {
             {/* GitHub Action buttons: Watch, Fork, Star */}
             <div className="flex items-center gap-2">
               {/* Watch */}
-              <button className="bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-[#c9d1d9] text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5 transition">
-                <Eye className="w-3.5 h-3.5 text-[#8b949e]" />
+              <button className={`border text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5 transition ${
+                isDark 
+                  ? "bg-[#21262d] hover:bg-[#30363d] border-[#363b42] text-[#c9d1d9]" 
+                  : "bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800"
+              }`}>
+                <Eye className="w-3.5 h-3.5 opacity-70" />
                 Watch
-                <ChevronDown className="w-3 h-3 text-[#8b949e]" />
+                <ChevronDown className="w-3 h-3 opacity-60" />
               </button>
 
               {/* Fork */}
@@ -685,12 +701,18 @@ export default function RepositoryPage() {
                   setForkVisibility("Private");
                   setForkModalOpen(true);
                 }}
-                className="bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-[#c9d1d9] text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5 transition"
+                className={`border text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5 transition ${
+                  isDark 
+                    ? "bg-[#21262d] hover:bg-[#30363d] border-[#363b42] text-[#c9d1d9]" 
+                    : "bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800"
+                }`}
                 title="Fork repository"
               >
-                <GitFork className="w-3.5 h-3.5 text-[#8b949e]" />
+                <GitFork className="w-3.5 h-3.5 opacity-70" />
                 Fork
-                <span className="bg-[#30363d] px-1.5 py-0.2 rounded-full text-[10px] text-[#f0f6fc]">
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                  isDark ? "bg-[#30363d] text-[#f0f6fc]" : "bg-slate-200 text-slate-900 font-semibold"
+                }`}>
                   {forkInfo ? 2 : 1}
                 </span>
               </button>
@@ -701,14 +723,18 @@ export default function RepositoryPage() {
                 className={`border text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5 transition shadow-sm ${
                   isStarred 
                     ? "bg-[#e3b341]/10 border-[#e3b341]/60 text-[#e3b341] hover:bg-[#e3b341]/20" 
-                    : "bg-[#21262d] hover:bg-[#30363d] border-[#363b42] text-[#c9d1d9] hover:text-[#f0f6fc]"
+                    : isDark 
+                      ? "bg-[#21262d] hover:bg-[#30363d] border-[#363b42] text-[#c9d1d9] hover:text-[#f0f6fc]"
+                      : "bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800 hover:text-black"
                 }`}
                 title={isStarred ? "Starred by you (click to unstar)" : "Star this repository"}
               >
-                <Star className={`w-3.5 h-3.5 ${isStarred ? "text-[#e3b341] fill-[#e3b341]" : "text-[#8b949e]"}`} />
+                <Star className={`w-3.5 h-3.5 ${isStarred ? "text-[#e3b341] fill-[#e3b341]" : "opacity-70"}`} />
                 <span>{isStarred ? "Starred" : "Star"}</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono transition ${
-                  isStarred ? "bg-[#e3b341]/25 text-[#e3b341] font-bold" : "bg-[#30363d] text-[#f0f6fc]"
+                  isStarred 
+                    ? "bg-[#e3b341]/25 text-[#e3b341] font-bold" 
+                    : isDark ? "bg-[#30363d] text-[#f0f6fc]" : "bg-slate-200 text-slate-900 font-semibold"
                 }`}>
                   {starCount}
                 </span>
@@ -716,12 +742,14 @@ export default function RepositoryPage() {
             </div>
           </div>
 
-          <p className="text-xs text-[#8b949e] mb-3 max-w-3xl leading-relaxed">
+          <p className={`text-xs mb-3 max-w-3xl leading-relaxed ${isDark ? "text-[#8b949e]" : "text-slate-600"}`}>
             {repo.description || "Prompt engineering repository for production LLM workflows."}
           </p>
 
           {/* Author Details & Quick Profile Card */}
-          <div className="flex flex-wrap items-center justify-between gap-3 py-2.5 px-3.5 mb-4 bg-[#161b22]/70 border border-[#30363d] rounded-xl text-xs backdrop-blur-sm shadow-sm">
+          <div className={`flex flex-wrap items-center justify-between gap-3 py-2.5 px-3.5 mb-4 border rounded-xl text-xs backdrop-blur-sm shadow-sm transition-colors ${
+            isDark ? "bg-[#161b22]/70 border-[#30363d]" : "bg-slate-50 border-slate-200"
+          }`}>
             <div className="flex items-center gap-3 min-w-0">
               <Link 
                 href={`/u/${repo.owner_username || 'user'}`}
@@ -731,20 +759,26 @@ export default function RepositoryPage() {
                   <img 
                     src={repo.owner_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${repo.owner_username || repo.owner_name || 'author'}`}
                     alt={repo.owner_name || repo.owner_username || "Author"}
-                    className="w-8 h-8 rounded-full border border-[#30363d] group-hover:border-[#58a6ff] object-cover shrink-0 transition"
+                    className={`w-8 h-8 rounded-full border group-hover:border-[#0071e3] dark:group-hover:border-[#58a6ff] object-cover shrink-0 transition ${
+                      isDark ? "border-[#30363d]" : "border-slate-300"
+                    }`}
                   />
                   <span className="absolute -bottom-0.5 -right-0.5 bg-[#238636] border border-[#0d1117] w-2.5 h-2.5 rounded-full" title="Active author"></span>
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-semibold text-[#f0f6fc] group-hover:text-[#58a6ff] group-hover:underline transition truncate">
+                    <span className={`font-semibold group-hover:underline transition truncate ${
+                      isDark ? "text-[#f0f6fc] group-hover:text-[#58a6ff]" : "text-slate-900 group-hover:text-[#0071e3]"
+                    }`}>
                       {repo.owner_name || repo.owner_username || "Author"}
                     </span>
-                    <span className="bg-[#21262d] border border-[#30363d] text-[10px] text-[#58a6ff] px-1.5 py-0.2 rounded font-medium">
+                    <span className={`border text-[10px] px-1.5 py-0.2 rounded font-medium ${
+                      isDark ? "bg-[#21262d] border-[#30363d] text-[#58a6ff]" : "bg-blue-50 border-blue-200 text-[#0071e3]"
+                    }`}>
                       Author
                     </span>
                   </div>
-                  <div className="text-[11px] text-[#8b949e] truncate">
+                  <div className={`text-[11px] truncate ${isDark ? "text-[#8b949e]" : "text-slate-500"}`}>
                     @{repo.owner_username || 'user'} · Created {formatRelativeTime(repo.created_at)}
                   </div>
                 </div>
@@ -754,9 +788,13 @@ export default function RepositoryPage() {
             <div className="flex items-center gap-2">
               <Link
                 href={`/u/${repo.owner_username || 'user'}`}
-                className="bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-[#c9d1d9] hover:text-[#f0f6fc] text-xs font-semibold px-3 py-1.5 rounded-md transition flex items-center gap-1.5"
+                className={`border text-xs font-semibold px-3 py-1.5 rounded-md transition flex items-center gap-1.5 ${
+                  isDark 
+                    ? "bg-[#21262d] hover:bg-[#30363d] border-[#363b42] text-[#c9d1d9] hover:text-[#f0f6fc]" 
+                    : "bg-white hover:bg-slate-100 border-slate-300 text-slate-800"
+                }`}
               >
-                <UserIcon className="w-3.5 h-3.5 text-[#8b949e]" />
+                <UserIcon className="w-3.5 h-3.5 opacity-70" />
                 <span>View Author Profile</span>
               </Link>
               {user && repo.owner_id && user.id !== repo.owner_id && (
@@ -765,8 +803,10 @@ export default function RepositoryPage() {
                   disabled={isAuthorFollowLoading}
                   className={`text-xs font-semibold px-3 py-1.5 rounded-md transition flex items-center gap-1.5 shrink-0 ${
                     isAuthorFollowing
-                      ? "bg-[#21262d] text-[#8b949e] border border-[#30363d] hover:bg-[#da3633]/20 hover:text-[#f85149]"
-                      : "bg-[#238636] hover:bg-[#2ea043] text-white shadow-sm"
+                      ? isDark 
+                        ? "bg-[#21262d] text-[#8b949e] border border-[#30363d] hover:bg-[#da3633]/20 hover:text-[#f85149]"
+                        : "bg-slate-100 text-slate-600 border border-slate-300 hover:bg-red-50 hover:text-red-600"
+                      : "bg-[#0071e3] dark:bg-[#238636] hover:opacity-90 text-white shadow-sm"
                   }`}
                 >
                   {isAuthorFollowing ? (
@@ -791,8 +831,8 @@ export default function RepositoryPage() {
               onClick={() => { setActiveTab("Code"); setIsEditing(false); setAiResult(null); }}
               className={`flex items-center gap-2 pb-3 border-b-2 transition whitespace-nowrap ${
                 activeTab === "Code" 
-                  ? "border-[#f78166] text-[#f0f6fc]" 
-                  : "border-transparent text-[#8b949e] hover:text-[#f0f6fc]"
+                  ? isDark ? "border-[#2997ff] text-[#f0f6fc]" : "border-[#0071e3] text-[#1d1d1f]" 
+                  : isDark ? "border-transparent text-[#8b949e] hover:text-[#f0f6fc]" : "border-transparent text-slate-500 hover:text-slate-900"
               }`}
             >
               <CodeIcon className="w-4 h-4" />
@@ -803,13 +843,15 @@ export default function RepositoryPage() {
               onClick={() => { setActiveTab("Commits"); setIsEditing(false); setAiResult(null); }}
               className={`flex items-center gap-2 pb-3 border-b-2 transition whitespace-nowrap ${
                 activeTab === "Commits" 
-                  ? "border-[#f78166] text-[#f0f6fc]" 
-                  : "border-transparent text-[#8b949e] hover:text-[#f0f6fc]"
+                  ? isDark ? "border-[#2997ff] text-[#f0f6fc]" : "border-[#0071e3] text-[#1d1d1f]" 
+                  : isDark ? "border-transparent text-[#8b949e] hover:text-[#f0f6fc]" : "border-transparent text-slate-500 hover:text-slate-900"
               }`}
             >
               <History className="w-4 h-4" />
               Commits
-              <span className="bg-[#21262d] border border-[#30363d] text-[10px] font-mono text-[#8b949e] px-1.5 py-0.2 rounded-full">
+              <span className={`border text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                isDark ? "bg-[#21262d] border-[#30363d] text-[#8b949e]" : "bg-slate-100 border-slate-200 text-slate-600"
+              }`}>
                 {repo.versions ? repo.versions.length : 1}
               </span>
             </button>
@@ -818,8 +860,8 @@ export default function RepositoryPage() {
               onClick={() => { setActiveTab("Compare"); setIsEditing(false); setAiResult(null); }}
               className={`flex items-center gap-2 pb-3 border-b-2 transition whitespace-nowrap ${
                 activeTab === "Compare" 
-                  ? "border-[#f78166] text-[#f0f6fc]" 
-                  : "border-transparent text-[#8b949e] hover:text-[#f0f6fc]"
+                  ? isDark ? "border-[#2997ff] text-[#f0f6fc]" : "border-[#0071e3] text-[#1d1d1f]" 
+                  : isDark ? "border-transparent text-[#8b949e] hover:text-[#f0f6fc]" : "border-transparent text-slate-500 hover:text-slate-900"
               }`}
             >
               <GitCompare className="w-4 h-4" />
@@ -830,8 +872,8 @@ export default function RepositoryPage() {
               onClick={() => { setActiveTab("Settings"); setIsEditing(false); setAiResult(null); }}
               className={`flex items-center gap-2 pb-3 border-b-2 transition whitespace-nowrap ${
                 activeTab === "Settings" 
-                  ? "border-[#f78166] text-[#f0f6fc]" 
-                  : "border-transparent text-[#8b949e] hover:text-[#f0f6fc]"
+                  ? isDark ? "border-[#2997ff] text-[#f0f6fc]" : "border-[#0071e3] text-[#1d1d1f]" 
+                  : isDark ? "border-transparent text-[#8b949e] hover:text-[#f0f6fc]" : "border-transparent text-slate-500 hover:text-slate-900"
               }`}
             >
               <Settings className="w-4 h-4" />
@@ -853,18 +895,24 @@ export default function RepositoryPage() {
             {/* Action Bar (Branch, Code Dropdown, Edit, AI Optimize) */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-2.5 flex-wrap">
-                <div className="bg-[#21262d] border border-[#363b42] rounded-md px-3 py-1.5 text-xs font-semibold text-[#f0f6fc] flex items-center gap-2 cursor-pointer hover:bg-[#30363d]">
-                  <GitBranch className="w-3.5 h-3.5 text-[#8b949e]" />
+                <div className={`border rounded-md px-3 py-1.5 text-xs font-semibold flex items-center gap-2 cursor-pointer transition ${
+                  isDark 
+                    ? "bg-[#21262d] hover:bg-[#30363d] border-[#363b42] text-[#f0f6fc]" 
+                    : "bg-white hover:bg-slate-100 border-slate-300 text-slate-800"
+                }`}>
+                  <GitBranch className="w-3.5 h-3.5 opacity-70" />
                   main
-                  <ChevronDown className="w-3 h-3 text-[#8b949e]" />
+                  <ChevronDown className="w-3 h-3 opacity-60" />
                 </div>
                 
-                <span className="text-xs text-[#8b949e] font-mono bg-[#161b22] border border-[#30363d] px-2 py-1 rounded">
+                <span className={`text-xs font-mono border px-2 py-1 rounded ${
+                  isDark ? "text-[#8b949e] bg-[#161b22] border-[#30363d]" : "text-slate-600 bg-slate-100 border-slate-200"
+                }`}>
                   {activeVersion?.version || "v1.0"}
                 </span>
 
-                <span className="text-xs text-[#8b949e]">
-                  Category: <b className="text-[#c9d1d9]">{repo.category || "Prompt"}</b>
+                <span className={`text-xs ${isDark ? "text-[#8b949e]" : "text-slate-500"}`}>
+                  Category: <b className={isDark ? "text-[#c9d1d9]" : "text-slate-900"}>{repo.category || "Prompt"}</b>
                 </span>
               </div>
 
@@ -875,9 +923,13 @@ export default function RepositoryPage() {
                       <>
                         <button 
                           onClick={startEditing}
-                          className="bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-[#f0f6fc] text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5 transition"
+                          className={`border text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5 transition ${
+                            isDark 
+                              ? "bg-[#21262d] hover:bg-[#30363d] border-[#363b42] text-[#f0f6fc]" 
+                              : "bg-white hover:bg-slate-100 border-slate-300 text-slate-800"
+                          }`}
                         >
-                          <Edit className="w-3.5 h-3.5 text-[#8b949e]" />
+                          <Edit className="w-3.5 h-3.5 opacity-70" />
                           Edit Prompt
                         </button>
 
@@ -912,19 +964,23 @@ export default function RepositoryPage() {
                       </button>
 
                       {isCodeDropdownOpen && (
-                        <div className="absolute right-0 mt-2 w-72 bg-[#161b22] border border-[#30363d] rounded-lg shadow-xl p-3 z-30 text-xs">
-                          <div className="font-semibold text-[#f0f6fc] mb-2 flex items-center gap-1.5">
-                            <Terminal className="w-3.5 h-3.5 text-[#58a6ff]" />
+                        <div className={`absolute right-0 mt-2 w-72 border rounded-xl shadow-2xl p-3 z-30 text-xs backdrop-blur-2xl transition ${
+                          isDark 
+                            ? "bg-[#161b22]/95 border-white/10 text-slate-200" 
+                            : "bg-white/95 border-slate-200 text-slate-800"
+                        }`}>
+                          <div className={`font-semibold mb-2 flex items-center gap-1.5 ${isDark ? "text-[#f0f6fc]" : "text-slate-900"}`}>
+                            <Terminal className="w-3.5 h-3.5 text-[#0071e3] dark:text-[#58a6ff]" />
                             Clone or Use Prompt
                           </div>
                           
-                          <div className="bg-[#0d1117] border border-[#30363d] rounded p-2 mb-3">
-                            <div className="text-[10px] text-[#8b949e] mb-1">PromptHub URL</div>
-                            <div className="flex items-center justify-between font-mono text-[11px] text-[#c9d1d9] truncate">
+                          <div className={`border rounded p-2 mb-3 ${isDark ? "bg-[#0d1117] border-[#30363d]" : "bg-slate-50 border-slate-200"}`}>
+                            <div className={`text-[10px] mb-1 ${isDark ? "text-[#8b949e]" : "text-slate-500"}`}>PromptHub URL</div>
+                            <div className={`flex items-center justify-between font-mono text-[11px] truncate ${isDark ? "text-[#c9d1d9]" : "text-slate-800"}`}>
                               <span className="truncate">{typeof window !== 'undefined' ? window.location.href : `/repo/${repo.id}`}</span>
                               <button 
                                 onClick={handleCopy}
-                                className="ml-2 text-[#8b949e] hover:text-white"
+                                className={`ml-2 transition ${isDark ? "text-[#8b949e] hover:text-white" : "text-slate-500 hover:text-black"}`}
                                 title="Copy"
                               >
                                 {copied ? <Check className="w-3.5 h-3.5 text-[#3fb950]" /> : <Copy className="w-3.5 h-3.5" />}
@@ -935,7 +991,9 @@ export default function RepositoryPage() {
                           <div className="space-y-1">
                             <button
                               onClick={handleCloneToMyRepos}
-                              className="w-full text-left px-2.5 py-1.5 hover:bg-[#1f6feb] hover:text-white rounded text-xs text-[#c9d1d9] transition flex items-center gap-2"
+                              className={`w-full text-left px-2.5 py-1.5 rounded text-xs transition flex items-center gap-2 ${
+                                isDark ? "hover:bg-[#1f6feb] hover:text-white text-[#c9d1d9]" : "hover:bg-blue-50 hover:text-[#0071e3] text-slate-700"
+                              }`}
                             >
                               <Book className="w-3.5 h-3.5" />
                               <span>Clone to my repositories</span>
@@ -947,7 +1005,9 @@ export default function RepositoryPage() {
                                 setForkRepoName(repo.name);
                                 setForkModalOpen(true);
                               }}
-                              className="w-full text-left px-2.5 py-1.5 hover:bg-[#1f6feb] hover:text-white rounded text-xs text-[#c9d1d9] transition flex items-center gap-2"
+                              className={`w-full text-left px-2.5 py-1.5 rounded text-xs transition flex items-center gap-2 ${
+                                isDark ? "hover:bg-[#1f6feb] hover:text-white text-[#c9d1d9]" : "hover:bg-blue-50 hover:text-[#0071e3] text-slate-700"
+                              }`}
                             >
                               <GitFork className="w-3.5 h-3.5" />
                               <span>Fork this repository</span>
@@ -958,7 +1018,9 @@ export default function RepositoryPage() {
                                 handleCopy();
                                 setIsCodeDropdownOpen(false);
                               }}
-                              className="w-full text-left px-2.5 py-1.5 hover:bg-[#1f6feb] hover:text-white rounded text-xs text-[#c9d1d9] transition flex items-center gap-2"
+                              className={`w-full text-left px-2.5 py-1.5 rounded text-xs transition flex items-center gap-2 ${
+                                isDark ? "hover:bg-[#1f6feb] hover:text-white text-[#c9d1d9]" : "hover:bg-blue-50 hover:text-[#0071e3] text-slate-700"
+                              }`}
                             >
                               <Copy className="w-3.5 h-3.5" />
                               <span>Copy system prompt text</span>
@@ -971,7 +1033,11 @@ export default function RepositoryPage() {
                 ) : (
                   <button 
                     onClick={() => { setIsEditing(false); setAiResult(null); }}
-                    className="bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-[#f0f6fc] text-xs font-semibold px-3 py-1.5 rounded-md transition"
+                    className={`border text-xs font-semibold px-3 py-1.5 rounded-md transition ${
+                      isDark 
+                        ? "bg-[#21262d] hover:bg-[#30363d] border-[#363b42] text-[#f0f6fc]" 
+                        : "bg-white hover:bg-slate-100 border-slate-300 text-slate-800"
+                    }`}
                   >
                     Cancel Edit
                   </button>
@@ -980,34 +1046,46 @@ export default function RepositoryPage() {
             </div>
 
             {/* GitHub Latest Commit Banner Bar */}
-            <div className="border border-[#30363d] bg-[#161b22] rounded-t-lg px-4 py-3 flex items-center justify-between text-xs text-[#8b949e]">
+            <div className={`border rounded-t-lg px-4 py-3 flex items-center justify-between text-xs transition ${
+              isDark ? "border-[#30363d] bg-[#161b22] text-[#8b949e]" : "border-slate-200 bg-slate-50 text-slate-600"
+            }`}>
               <div className="flex items-center gap-2.5 min-w-0">
                 <Link href={`/u/${repo.owner_username || 'user'}`} className="shrink-0">
                   <img 
                     src={repo.owner_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${repo.owner_username || repo.owner_name || 'author'}`}
                     alt={repo.owner_name || repo.owner_username || 'Author'}
-                    className="w-5 h-5 rounded-full border border-[#30363d] object-cover hover:border-[#58a6ff] transition"
+                    className={`w-5 h-5 rounded-full border object-cover transition ${
+                      isDark ? "border-[#30363d] hover:border-[#58a6ff]" : "border-slate-300 hover:border-[#0071e3]"
+                    }`}
                   />
                 </Link>
                 <Link 
                   href={`/u/${repo.owner_username || 'user'}`}
-                  className="font-semibold text-[#f0f6fc] hover:text-[#58a6ff] hover:underline cursor-pointer truncate"
+                  className={`font-semibold hover:underline cursor-pointer truncate ${
+                    isDark ? "text-[#f0f6fc] hover:text-[#58a6ff]" : "text-slate-900 hover:text-[#0071e3]"
+                  }`}
                 >
                   {repo.owner_username || repo.owner_name || 'Author'}
                 </Link>
-                <span className="text-[#c9d1d9] truncate font-medium">
+                <span className={`truncate font-medium ${isDark ? "text-[#c9d1d9]" : "text-slate-700"}`}>
                   {latestVersion?.change_description || "Initial prompt commit"}
                 </span>
               </div>
 
               <div className="flex items-center gap-3 shrink-0">
-                <span className="font-mono text-[11px] text-[#8b949e] hover:text-[#58a6ff] cursor-pointer">
+                <span className={`font-mono text-[11px] cursor-pointer ${
+                  isDark ? "text-[#8b949e] hover:text-[#58a6ff]" : "text-slate-500 hover:text-[#0071e3]"
+                }`}>
                   {generateShortSha(latestVersion?.id, latestVersion?.version)}
                 </span>
-                <span>{formatRelativeTime(latestVersion?.created_at)}</span>
+                <span className={isDark ? "text-[#8b949e]" : "text-slate-500"}>
+                  {formatRelativeTime(latestVersion?.created_at)}
+                </span>
                 <button 
                   onClick={() => setActiveTab("Commits")}
-                  className="flex items-center gap-1 font-semibold text-[#c9d1d9] hover:text-[#58a6ff] transition"
+                  className={`flex items-center gap-1 font-semibold transition ${
+                    isDark ? "text-[#c9d1d9] hover:text-[#58a6ff]" : "text-slate-700 hover:text-[#0071e3]"
+                  }`}
                 >
                   <History className="w-3.5 h-3.5" />
                   <span>{repo.versions?.length || 1} commits</span>
@@ -1016,14 +1094,20 @@ export default function RepositoryPage() {
             </div>
 
             {/* Prompt File Box (system_prompt.md) */}
-            <div className="border border-[#30363d] border-t-0 bg-[#0d1117] rounded-b-lg overflow-hidden shadow-sm">
+            <div className={`border border-t-0 rounded-b-lg overflow-hidden shadow-sm transition ${
+              isDark ? "border-[#30363d] bg-[#0d1117]" : "border-slate-200 bg-white"
+            }`}>
               
               {/* File Header Bar */}
-              <div className="bg-[#161b22] border-b border-[#30363d] px-4 py-2 flex items-center justify-between text-xs">
+              <div className={`border-b px-4 py-2 flex items-center justify-between text-xs transition ${
+                isDark ? "bg-[#161b22] border-[#30363d]" : "bg-slate-50/80 border-slate-200"
+              }`}>
                 <div className="flex items-center gap-2.5">
-                  <FileText className="w-4 h-4 text-[#8b949e]" />
-                  <span className="font-semibold text-[#f0f6fc] font-mono">system_prompt.md</span>
-                  <span className="text-[#8b949e]">
+                  <FileText className={`w-4 h-4 ${isDark ? "text-[#8b949e]" : "text-slate-500"}`} />
+                  <span className={`font-semibold font-mono ${isDark ? "text-[#f0f6fc]" : "text-slate-900"}`}>
+                    system_prompt.md
+                  </span>
+                  <span className={isDark ? "text-[#8b949e]" : "text-slate-500"}>
                     {promptLines.length} lines ({currentPrompt.length} bytes)
                   </span>
                 </div>
@@ -1031,16 +1115,24 @@ export default function RepositoryPage() {
                 <div className="flex items-center gap-2">
                   {/* View Mode Toggle: Raw vs Preview */}
                   {!isEditing && (
-                    <div className="flex border border-[#30363d] rounded overflow-hidden text-[11px]">
+                    <div className={`flex border rounded overflow-hidden text-[11px] ${isDark ? "border-[#30363d]" : "border-slate-300"}`}>
                       <button
                         onClick={() => setViewMode("raw")}
-                        className={`px-2 py-0.5 font-medium transition ${viewMode === "raw" ? "bg-[#21262d] text-[#f0f6fc]" : "text-[#8b949e] hover:text-[#f0f6fc]"}`}
+                        className={`px-2 py-0.5 font-medium transition ${
+                          viewMode === "raw" 
+                            ? isDark ? "bg-[#21262d] text-[#f0f6fc]" : "bg-slate-200 text-slate-900 font-semibold" 
+                            : isDark ? "text-[#8b949e] hover:text-[#f0f6fc]" : "text-slate-500 hover:text-slate-900"
+                        }`}
                       >
                         Code
                       </button>
                       <button
                         onClick={() => setViewMode("preview")}
-                        className={`px-2 py-0.5 font-medium transition ${viewMode === "preview" ? "bg-[#21262d] text-[#f0f6fc]" : "text-[#8b949e] hover:text-[#f0f6fc]"}`}
+                        className={`px-2 py-0.5 font-medium transition ${
+                          viewMode === "preview" 
+                            ? isDark ? "bg-[#21262d] text-[#f0f6fc]" : "bg-slate-200 text-slate-900 font-semibold" 
+                            : isDark ? "text-[#8b949e] hover:text-[#f0f6fc]" : "text-slate-500 hover:text-slate-900"
+                        }`}
                       >
                         Preview
                       </button>
@@ -1049,7 +1141,11 @@ export default function RepositoryPage() {
 
                   <button 
                     onClick={handleCopy}
-                    className="text-[#8b949e] hover:text-[#f0f6fc] p-1 hover:bg-[#21262d] rounded transition flex items-center gap-1 text-xs"
+                    className={`p-1 rounded transition flex items-center gap-1 text-xs ${
+                      isDark 
+                        ? "text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d]" 
+                        : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+                    }`}
                     title="Copy prompt"
                   >
                     {copied ? (
@@ -1069,45 +1165,65 @@ export default function RepositoryPage() {
 
               {/* Prompt Content Area */}
               {isEditing ? (
-                <div className="p-4 bg-[#0d1117] space-y-4">
+                <div className={`p-4 space-y-4 ${isDark ? "bg-[#0d1117]" : "bg-slate-50/50"}`}>
                   <textarea 
                     value={editContent}
                     onChange={e => setEditContent(e.target.value)}
                     rows={16}
-                    className="w-full bg-[#161b22] border border-[#30363d] rounded-lg p-3 text-[#f0f6fc] font-mono text-xs focus:outline-none focus:border-[#58a6ff] resize-y leading-relaxed"
+                    className={`w-full rounded-lg p-3 font-mono text-xs focus:outline-none resize-y leading-relaxed border transition ${
+                      isDark 
+                        ? "bg-[#161b22] border-[#30363d] text-[#f0f6fc] focus:border-[#58a6ff]" 
+                        : "bg-white border-slate-300 text-slate-900 focus:border-[#0071e3]"
+                    }`}
                     placeholder="Enter system prompt instructions..."
                   />
 
                   {/* GitHub-style Commit Changes Card */}
-                  <div className="border border-[#30363d] bg-[#161b22] rounded-lg p-4 shadow-sm">
-                    <h3 className="text-xs font-semibold text-[#f0f6fc] mb-3">Commit changes</h3>
+                  <div className={`border rounded-lg p-4 shadow-sm transition ${
+                    isDark ? "border-[#30363d] bg-[#161b22]" : "border-slate-200 bg-white"
+                  }`}>
+                    <h3 className={`text-xs font-semibold mb-3 ${isDark ? "text-[#f0f6fc]" : "text-slate-900"}`}>
+                      Commit changes
+                    </h3>
                     
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-[11px] text-[#8b949e] mb-1">Commit message</label>
+                        <label className={`block text-[11px] mb-1 ${isDark ? "text-[#8b949e]" : "text-slate-600"}`}>
+                          Commit message
+                        </label>
                         <input 
                           type="text" 
                           placeholder="e.g. Update system_prompt.md with edge constraints"
                           value={commitTitle}
                           onChange={e => setCommitTitle(e.target.value)}
-                          className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-1.5 text-xs text-[#f0f6fc] focus:outline-none focus:border-[#58a6ff]"
+                          className={`w-full rounded px-3 py-1.5 text-xs focus:outline-none border transition ${
+                            isDark 
+                              ? "bg-[#0d1117] border-[#30363d] text-[#f0f6fc] focus:border-[#58a6ff]" 
+                              : "bg-slate-50 border-slate-300 text-slate-900 focus:border-[#0071e3]"
+                          }`}
                         />
                       </div>
 
                       <div>
-                        <label className="block text-[11px] text-[#8b949e] mb-1">Extended description (optional)</label>
+                        <label className={`block text-[11px] mb-1 ${isDark ? "text-[#8b949e]" : "text-slate-600"}`}>
+                          Extended description (optional)
+                        </label>
                         <textarea 
                           rows={2}
                           placeholder="Add an optional extended description..."
                           value={commitDesc}
                           onChange={e => setCommitDesc(e.target.value)}
-                          className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-1.5 text-xs text-[#c9d1d9] focus:outline-none focus:border-[#58a6ff]"
+                          className={`w-full rounded px-3 py-1.5 text-xs focus:outline-none border transition ${
+                            isDark 
+                              ? "bg-[#0d1117] border-[#30363d] text-[#c9d1d9] focus:border-[#58a6ff]" 
+                              : "bg-slate-50 border-slate-300 text-slate-900 focus:border-[#0071e3]"
+                          }`}
                         />
                       </div>
 
                       {/* Version Bump selection */}
                       <div className="flex items-center gap-4 text-xs pt-1">
-                        <span className="text-[#8b949e]">Version bump:</span>
+                        <span className={isDark ? "text-[#8b949e]" : "text-slate-600"}>Version bump:</span>
                         <label className="flex items-center gap-1.5 cursor-pointer">
                           <input 
                             type="radio" 
@@ -1117,7 +1233,7 @@ export default function RepositoryPage() {
                             onChange={() => setVersionBump("patch")}
                             className="accent-[#1f6feb]"
                           />
-                          <span>Patch (e.g. v1.1)</span>
+                          <span className={isDark ? "text-slate-300" : "text-slate-700"}>Patch (e.g. v1.1)</span>
                         </label>
                         <label className="flex items-center gap-1.5 cursor-pointer">
                           <input 
@@ -1128,17 +1244,19 @@ export default function RepositoryPage() {
                             onChange={() => setVersionBump("major")}
                             className="accent-[#1f6feb]"
                           />
-                          <span>Major (e.g. v2.0)</span>
+                          <span className={isDark ? "text-slate-300" : "text-slate-700"}>Major (e.g. v2.0)</span>
                         </label>
                       </div>
 
                       {aiResult && (
-                        <div className="border border-[#1b4b27] bg-[#041d11]/80 rounded p-3 text-xs">
+                        <div className={`border rounded p-3 text-xs ${
+                          isDark ? "border-[#1b4b27] bg-[#041d11]/80" : "border-emerald-300 bg-emerald-50 text-emerald-950"
+                        }`}>
                           <div className="flex items-center gap-1.5 text-[#3fb950] font-semibold mb-1">
                             <Sparkles className="w-3.5 h-3.5" />
                             AI Optimization Suggested
                           </div>
-                          <ul className="text-[11px] text-[#8b949e] space-y-1 list-disc pl-3">
+                          <ul className={`text-[11px] space-y-1 list-disc pl-3 ${isDark ? "text-[#8b949e]" : "text-slate-600"}`}>
                             {aiResult.changes ? aiResult.changes.map((c, i) => (
                               <li key={i}>{c}</li>
                             )) : (
@@ -1157,7 +1275,11 @@ export default function RepositoryPage() {
                         </button>
                         <button 
                           onClick={() => { setIsEditing(false); setAiResult(null); }}
-                          className="bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-[#c9d1d9] text-xs font-medium px-3 py-2 rounded-md transition"
+                          className={`border text-xs font-medium px-3 py-2 rounded-md transition ${
+                            isDark 
+                              ? "bg-[#21262d] hover:bg-[#30363d] border-[#363b42] text-[#c9d1d9]" 
+                              : "bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700"
+                          }`}
                         >
                           Discard
                         </button>
@@ -1167,25 +1289,31 @@ export default function RepositoryPage() {
                 </div>
               ) : viewMode === "raw" ? (
                 /* Raw Monospace View with Line Numbers */
-                <div className="flex bg-[#0d1117] text-xs font-mono overflow-x-auto">
-                  <div className="select-none py-4 px-3 bg-[#0d1117] text-[#8b949e]/50 text-right border-r border-[#21262d] font-mono min-w-[42px]">
+                <div className={`flex text-xs font-mono overflow-x-auto ${isDark ? "bg-[#0d1117]" : "bg-white"}`}>
+                  <div className={`select-none py-4 px-3 text-right border-r font-mono min-w-[42px] ${
+                    isDark ? "bg-[#0d1117] text-[#8b949e]/50 border-[#21262d]" : "bg-slate-50 text-slate-400 border-slate-200"
+                  }`}>
                     {promptLines.map((_, i) => (
                       <div key={i} className="leading-6">{i + 1}</div>
                     ))}
                   </div>
                   <div className="p-4 flex-1 overflow-x-auto">
-                    <pre className="text-[#c9d1d9] leading-6 font-mono whitespace-pre-wrap">
+                    <pre className={`leading-6 font-mono whitespace-pre-wrap ${isDark ? "text-[#c9d1d9]" : "text-slate-800"}`}>
                       {currentPrompt}
                     </pre>
                   </div>
                 </div>
               ) : (
                 /* Rendered Markdown Preview */
-                <div className="p-6 bg-[#0d1117] text-xs leading-relaxed space-y-3 prose-invert max-w-none">
-                  <div className="border-b border-[#21262d] pb-2 font-bold text-sm text-[#f0f6fc]">
+                <div className={`p-6 text-xs leading-relaxed space-y-3 max-w-none ${
+                  isDark ? "bg-[#0d1117] text-slate-200 prose-invert" : "bg-white text-slate-800"
+                }`}>
+                  <div className={`border-b pb-2 font-bold text-sm ${isDark ? "border-[#21262d] text-[#f0f6fc]" : "border-slate-200 text-slate-900"}`}>
                     System Prompt Preview
                   </div>
-                  <pre className="text-[#c9d1d9] font-mono whitespace-pre-wrap leading-relaxed bg-[#161b22] p-4 rounded-lg border border-[#30363d]">
+                  <pre className={`font-mono whitespace-pre-wrap leading-relaxed p-4 rounded-lg border ${
+                    isDark ? "text-[#c9d1d9] bg-[#161b22] border-[#30363d]" : "text-slate-800 bg-slate-50 border-slate-200"
+                  }`}>
                     {currentPrompt}
                   </pre>
                 </div>
@@ -1200,15 +1328,19 @@ export default function RepositoryPage() {
           <div className="space-y-6">
             
             {/* Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-[#21262d]">
+            <div className={`flex items-center justify-between pb-3 border-b transition ${
+              isDark ? "border-[#21262d]" : "border-slate-200"
+            }`}>
               <div className="flex items-center gap-2">
-                <GitBranch className="w-4 h-4 text-[#8b949e]" />
-                <span className="text-xs text-[#8b949e]">Commits on</span>
-                <span className="bg-[#161b22] border border-[#30363d] px-2 py-0.5 rounded text-xs font-semibold text-[#f0f6fc]">
+                <GitBranch className={`w-4 h-4 ${isDark ? "text-[#8b949e]" : "text-slate-500"}`} />
+                <span className={`text-xs ${isDark ? "text-[#8b949e]" : "text-slate-500"}`}>Commits on</span>
+                <span className={`border px-2 py-0.5 rounded text-xs font-semibold ${
+                  isDark ? "bg-[#161b22] border-[#30363d] text-[#f0f6fc]" : "bg-slate-100 border-slate-200 text-slate-800"
+                }`}>
                   main
                 </span>
               </div>
-              <span className="text-xs text-[#8b949e]">
+              <span className={`text-xs ${isDark ? "text-[#8b949e]" : "text-slate-500"}`}>
                 {repo.versions?.length || 1} commit{(repo.versions?.length || 1) > 1 ? "s" : ""}
               </span>
             </div>
@@ -1219,19 +1351,23 @@ export default function RepositoryPage() {
                 <div key={dateLabel} className="space-y-2">
                   
                   {/* Date Header Banner */}
-                  <div className="flex items-center gap-2 text-xs font-semibold text-[#8b949e]">
+                  <div className={`flex items-center gap-2 text-xs font-semibold ${isDark ? "text-[#8b949e]" : "text-slate-600"}`}>
                     <Clock className="w-3.5 h-3.5" />
                     <span>Commits on {dateLabel}</span>
                   </div>
 
                   {/* Commits Container Box */}
-                  <div className="border border-[#30363d] bg-[#0d1117] rounded-lg divide-y divide-[#21262d] overflow-hidden">
+                  <div className={`border rounded-lg divide-y overflow-hidden transition ${
+                    isDark ? "border-[#30363d] bg-[#0d1117] divide-[#21262d]" : "border-slate-200 bg-white divide-slate-100"
+                  }`}>
                     {versions.map((ver) => {
                       const shortSha = generateShortSha(ver.id, ver.version);
                       return (
                         <div 
                           key={ver.id} 
-                          className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#161b22]/60 transition group"
+                          className={`p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition group ${
+                            isDark ? "hover:bg-[#161b22]/60" : "hover:bg-slate-50"
+                          }`}
                         >
                           {/* Commit Message & Author */}
                           <div className="flex items-start gap-3 min-w-0">
@@ -1239,23 +1375,33 @@ export default function RepositoryPage() {
                               <img 
                                 src={repo.owner_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${repo.owner_username || repo.owner_name || 'author'}`}
                                 alt={repo.owner_name || repo.owner_username || 'Author'}
-                                className="w-6 h-6 rounded-full border border-[#30363d] object-cover hover:border-[#58a6ff] transition"
+                                className={`w-6 h-6 rounded-full border object-cover transition ${
+                                  isDark ? "border-[#30363d] hover:border-[#58a6ff]" : "border-slate-300 hover:border-[#0071e3]"
+                                }`}
                               />
                             </Link>
 
                             <div className="min-w-0">
-                              <p className="text-xs font-semibold text-[#f0f6fc] group-hover:text-[#58a6ff] transition truncate">
+                              <p className={`text-xs font-semibold transition truncate ${
+                                isDark ? "text-[#f0f6fc] group-hover:text-[#58a6ff]" : "text-slate-900 group-hover:text-[#0071e3]"
+                              }`}>
                                 {ver.change_description || `Updated prompt to ${ver.version}`}
                               </p>
-                              <div className="flex items-center gap-2 text-[11px] text-[#8b949e] mt-1 flex-wrap">
+                              <div className={`flex items-center gap-2 text-[11px] mt-1 flex-wrap ${
+                                isDark ? "text-[#8b949e]" : "text-slate-500"
+                              }`}>
                                 <Link 
                                   href={`/u/${repo.owner_username || 'user'}`}
-                                  className="font-medium text-[#c9d1d9] hover:text-[#58a6ff] hover:underline cursor-pointer"
+                                  className={`font-medium cursor-pointer ${
+                                    isDark ? "text-[#c9d1d9] hover:text-[#58a6ff] hover:underline" : "text-slate-700 hover:text-[#0071e3] hover:underline"
+                                  }`}
                                 >
                                   {repo.owner_username || repo.owner_name || "Author"}
                                 </Link>
                                 <span>committed {formatRelativeTime(ver.created_at)}</span>
-                                <span className="bg-[#161b22] border border-[#30363d] text-[10px] font-mono px-1.5 py-0.2 rounded text-[#58a6ff]">
+                                <span className={`border text-[10px] font-mono px-1.5 py-0.2 rounded ${
+                                  isDark ? "bg-[#161b22] border-[#30363d] text-[#58a6ff]" : "bg-blue-50 border-blue-200 text-[#0071e3]"
+                                }`}>
                                   {ver.version}
                                 </span>
                               </div>
@@ -1266,7 +1412,9 @@ export default function RepositoryPage() {
                           <div className="flex items-center gap-2 shrink-0 sm:self-center">
                             {/* Short Commit Hash */}
                             <span 
-                              className="font-mono text-xs text-[#58a6ff] bg-[#161b22] border border-[#30363d] px-2 py-1 rounded"
+                              className={`font-mono text-xs border px-2 py-1 rounded ${
+                                isDark ? "text-[#58a6ff] bg-[#161b22] border-[#30363d]" : "text-[#0071e3] bg-blue-50 border-blue-200"
+                              }`}
                               title={`Commit ${ver.id}`}
                             >
                               {shortSha}
@@ -1275,7 +1423,11 @@ export default function RepositoryPage() {
                             {/* Copy Commit SHA */}
                             <button
                               onClick={() => handleCopySha(ver.id, ver.id)}
-                              className="p-1 text-[#8b949e] hover:text-[#f0f6fc] border border-[#30363d] hover:bg-[#21262d] rounded transition"
+                              className={`p-1 border rounded transition ${
+                                isDark 
+                                  ? "text-[#8b949e] hover:text-[#f0f6fc] border-[#30363d] hover:bg-[#21262d]" 
+                                  : "text-slate-500 hover:text-slate-900 border-slate-300 hover:bg-slate-100"
+                              }`}
                               title="Copy full SHA"
                             >
                               {copiedSha === ver.id ? (
@@ -1292,10 +1444,14 @@ export default function RepositoryPage() {
                                 setCurrentPrompt(ver.content);
                                 setActiveTab("Code");
                               }}
-                              className="bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-xs font-semibold text-[#f0f6fc] px-3 py-1 rounded transition flex items-center gap-1.5"
+                              className={`border text-xs font-semibold px-3 py-1 rounded transition flex items-center gap-1.5 ${
+                                isDark 
+                                  ? "bg-[#21262d] hover:bg-[#30363d] border-[#363b42] text-[#f0f6fc]" 
+                                  : "bg-white hover:bg-slate-100 border-slate-300 text-slate-800"
+                              }`}
                               title="Browse prompt at this version"
                             >
-                              <CodeIcon className="w-3 h-3 text-[#8b949e]" />
+                              <CodeIcon className="w-3 h-3 opacity-70" />
                               <span>View</span>
                             </button>
                           </div>
@@ -1307,7 +1463,9 @@ export default function RepositoryPage() {
                 </div>
               ))
             ) : (
-              <div className="text-center py-12 text-[#8b949e] border border-[#30363d] border-dashed rounded-lg bg-[#0d1117]">
+              <div className={`text-center py-12 border border-dashed rounded-lg ${
+                isDark ? "text-[#8b949e] border-[#30363d] bg-[#0d1117]" : "text-slate-500 border-slate-300 bg-slate-50"
+              }`}>
                 No commit history recorded yet.
               </div>
             )}
@@ -1318,13 +1476,17 @@ export default function RepositoryPage() {
         {/* ── TAB 3: COMPARE VERSIONS ── */}
         {activeTab === "Compare" && (
           <div className="space-y-4">
-            <div className="border border-[#30363d] bg-[#161b22] p-4 rounded-lg flex items-center gap-4 flex-wrap">
+            <div className={`border p-4 rounded-lg flex items-center gap-4 flex-wrap transition ${
+              isDark ? "border-[#30363d] bg-[#161b22]" : "border-slate-200 bg-slate-50"
+            }`}>
               <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-                <span className="text-xs text-[#8b949e]">Base:</span>
+                <span className={`text-xs ${isDark ? "text-[#8b949e]" : "text-slate-600"}`}>Base:</span>
                 <select 
                   value={compareA} 
                   onChange={e => setCompareA(e.target.value)} 
-                  className="bg-[#0d1117] border border-[#30363d] rounded p-1.5 text-xs text-[#f0f6fc] flex-1 focus:outline-none"
+                  className={`rounded p-1.5 text-xs flex-1 focus:outline-none border transition ${
+                    isDark ? "bg-[#0d1117] border-[#30363d] text-[#f0f6fc]" : "bg-white border-slate-300 text-slate-900"
+                  }`}
                 >
                   <option value="">Select Version A</option>
                   {repo.versions && repo.versions.map(v => (
@@ -1333,14 +1495,16 @@ export default function RepositoryPage() {
                 </select>
               </div>
 
-              <span className="text-[#8b949e] font-bold">← compare →</span>
+              <span className={`font-bold ${isDark ? "text-[#8b949e]" : "text-slate-400"}`}>← compare →</span>
 
               <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-                <span className="text-xs text-[#8b949e]">Compare:</span>
+                <span className={`text-xs ${isDark ? "text-[#8b949e]" : "text-slate-600"}`}>Compare:</span>
                 <select 
                   value={compareB} 
                   onChange={e => setCompareB(e.target.value)} 
-                  className="bg-[#0d1117] border border-[#30363d] rounded p-1.5 text-xs text-[#f0f6fc] flex-1 focus:outline-none"
+                  className={`rounded p-1.5 text-xs flex-1 focus:outline-none border transition ${
+                    isDark ? "bg-[#0d1117] border-[#30363d] text-[#f0f6fc]" : "bg-white border-slate-300 text-slate-900"
+                  }`}
                 >
                   <option value="">Select Version B</option>
                   {repo.versions && repo.versions.map(v => (
@@ -1352,7 +1516,7 @@ export default function RepositoryPage() {
               <button 
                 onClick={handleCompare} 
                 disabled={!compareA || !compareB}
-                className="bg-[#238636] hover:bg-[#2ea043] disabled:opacity-50 text-white text-xs font-semibold px-4 py-1.5 rounded transition"
+                className="bg-[#238636] hover:bg-[#2ea043] disabled:opacity-50 text-white text-xs font-semibold px-4 py-1.5 rounded transition shadow-sm"
               >
                 Compare Versions
               </button>
@@ -1360,19 +1524,31 @@ export default function RepositoryPage() {
 
             {compareResult && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="border border-[#30363d] rounded-lg overflow-hidden bg-[#0d1117]">
-                  <div className="bg-[#161b22] border-b border-[#30363d] px-4 py-2 font-mono text-xs font-semibold text-[#f0f6fc]">
+                <div className={`border rounded-lg overflow-hidden transition ${
+                  isDark ? "border-[#30363d] bg-[#0d1117]" : "border-slate-200 bg-white"
+                }`}>
+                  <div className={`border-b px-4 py-2 font-mono text-xs font-semibold ${
+                    isDark ? "bg-[#161b22] border-[#30363d] text-[#f0f6fc]" : "bg-slate-50 border-slate-200 text-slate-900"
+                  }`}>
                     {compareResult.version_a.version}
                   </div>
-                  <pre className="p-4 font-mono text-xs text-[#c9d1d9] whitespace-pre-wrap leading-relaxed">
+                  <pre className={`p-4 font-mono text-xs whitespace-pre-wrap leading-relaxed ${
+                    isDark ? "text-[#c9d1d9]" : "text-slate-800"
+                  }`}>
                     {compareResult.version_a.content}
                   </pre>
                 </div>
-                <div className="border border-[#30363d] rounded-lg overflow-hidden bg-[#0d1117]">
-                  <div className="bg-[#161b22] border-b border-[#30363d] px-4 py-2 font-mono text-xs font-semibold text-[#f0f6fc]">
+                <div className={`border rounded-lg overflow-hidden transition ${
+                  isDark ? "border-[#30363d] bg-[#0d1117]" : "border-slate-200 bg-white"
+                }`}>
+                  <div className={`border-b px-4 py-2 font-mono text-xs font-semibold ${
+                    isDark ? "bg-[#161b22] border-[#30363d] text-[#f0f6fc]" : "bg-slate-50 border-slate-200 text-slate-900"
+                  }`}>
                     {compareResult.version_b.version}
                   </div>
-                  <pre className="p-4 font-mono text-xs text-[#c9d1d9] whitespace-pre-wrap leading-relaxed">
+                  <pre className={`p-4 font-mono text-xs whitespace-pre-wrap leading-relaxed ${
+                    isDark ? "text-[#c9d1d9]" : "text-slate-800"
+                  }`}>
                     {compareResult.version_b.content}
                   </pre>
                 </div>
@@ -1386,44 +1562,62 @@ export default function RepositoryPage() {
           <div className="max-w-3xl space-y-8">
             
             {/* General Settings */}
-            <div className="border border-[#30363d] bg-[#0d1117] rounded-lg p-5 space-y-4">
-              <h2 className="text-sm font-semibold text-[#f0f6fc] border-b border-[#21262d] pb-2">
+            <div className={`border rounded-lg p-5 space-y-4 transition ${
+              isDark ? "border-[#30363d] bg-[#0d1117]" : "border-slate-200 bg-white"
+            }`}>
+              <h2 className={`text-sm font-semibold border-b pb-2 ${
+                isDark ? "text-[#f0f6fc] border-[#21262d]" : "text-slate-900 border-slate-200"
+              }`}>
                 General Settings
               </h2>
               
               <div>
-                <label className="block text-xs font-medium text-[#8b949e] mb-1">Repository Name</label>
+                <label className={`block text-xs font-medium mb-1 ${isDark ? "text-[#8b949e]" : "text-slate-600"}`}>
+                  Repository Name
+                </label>
                 <input 
                   type="text"
                   disabled
                   value={repo.name}
-                  className="w-full bg-[#161b22] border border-[#30363d] rounded px-3 py-1.5 text-xs text-[#c9d1d9]"
+                  className={`w-full rounded px-3 py-1.5 text-xs border ${
+                    isDark ? "bg-[#161b22] border-[#30363d] text-[#c9d1d9]" : "bg-slate-50 border-slate-200 text-slate-700"
+                  }`}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-[#8b949e] mb-1">Category</label>
+                <label className={`block text-xs font-medium mb-1 ${isDark ? "text-[#8b949e]" : "text-slate-600"}`}>
+                  Category
+                </label>
                 <input 
                   type="text"
                   disabled
                   value={repo.category || "Other"}
-                  className="w-full bg-[#161b22] border border-[#30363d] rounded px-3 py-1.5 text-xs text-[#c9d1d9]"
+                  className={`w-full rounded px-3 py-1.5 text-xs border ${
+                    isDark ? "bg-[#161b22] border-[#30363d] text-[#c9d1d9]" : "bg-slate-50 border-slate-200 text-slate-700"
+                  }`}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-[#8b949e] mb-1">Description</label>
+                <label className={`block text-xs font-medium mb-1 ${isDark ? "text-[#8b949e]" : "text-slate-600"}`}>
+                  Description
+                </label>
                 <textarea 
                   disabled
                   value={repo.description || ""}
                   rows={2}
-                  className="w-full bg-[#161b22] border border-[#30363d] rounded px-3 py-1.5 text-xs text-[#c9d1d9]"
+                  className={`w-full rounded px-3 py-1.5 text-xs border ${
+                    isDark ? "bg-[#161b22] border-[#30363d] text-[#c9d1d9]" : "bg-slate-50 border-slate-200 text-slate-700"
+                  }`}
                 />
               </div>
             </div>
 
             {/* Danger Zone: Change Visibility (Public <-> Private) */}
-            <div className="border border-[#da3633]/60 bg-[#0d1117] rounded-lg p-5 space-y-4">
+            <div className={`border rounded-lg p-5 space-y-4 transition ${
+              isDark ? "border-[#da3633]/60 bg-[#0d1117]" : "border-red-200 bg-red-50/20"
+            }`}>
               <h2 className="text-sm font-semibold text-[#f85149] border-b border-[#da3633]/30 pb-2 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-[#f85149]" />
                 Danger Zone
@@ -1431,11 +1625,11 @@ export default function RepositoryPage() {
 
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-2 border-b border-[#da3633]/20 pb-4 mb-4">
                 <div>
-                  <h3 className="text-xs font-semibold text-[#f0f6fc]">
+                  <h3 className={`text-xs font-semibold ${isDark ? "text-[#f0f6fc]" : "text-slate-900"}`}>
                     Change repository visibility
                   </h3>
-                  <p className="text-xs text-[#8b949e] mt-0.5">
-                    This repository is currently <b className="text-[#f0f6fc]">{repo.visibility || "Public"}</b>.
+                  <p className={`text-xs mt-0.5 ${isDark ? "text-[#8b949e]" : "text-slate-600"}`}>
+                    This repository is currently <b className={isDark ? "text-[#f0f6fc]" : "text-slate-900"}>{repo.visibility || "Public"}</b>.
                     {repo.visibility === "Public" 
                       ? " Making it private will restrict access to only you." 
                       : " Making it public will make it visible to anyone on the internet and community."}
@@ -1444,7 +1638,11 @@ export default function RepositoryPage() {
 
                 <button
                   onClick={() => setVisibilityModalOpen(true)}
-                  className="bg-[#21262d] hover:bg-[#da3633]/20 border border-[#da3633]/60 text-[#f85149] hover:text-white text-xs font-semibold px-4 py-2 rounded-md transition whitespace-nowrap"
+                  className={`border text-xs font-semibold px-4 py-2 rounded-md transition whitespace-nowrap ${
+                    isDark 
+                      ? "bg-[#21262d] hover:bg-[#da3633]/20 border-[#da3633]/60 text-[#f85149] hover:text-white" 
+                      : "bg-white hover:bg-red-50 border-red-300 text-red-600"
+                  }`}
                 >
                   Change to {repo.visibility === "Public" ? "Private" : "Public"}
                 </button>
@@ -1452,17 +1650,17 @@ export default function RepositoryPage() {
 
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 py-2">
                 <div>
-                  <h3 className="text-xs font-semibold text-[#f0f6fc]">
+                  <h3 className={`text-xs font-semibold ${isDark ? "text-[#f0f6fc]" : "text-slate-900"}`}>
                     Delete this repository
                   </h3>
-                  <p className="text-xs text-[#8b949e] mt-0.5 max-w-lg">
+                  <p className={`text-xs mt-0.5 max-w-lg ${isDark ? "text-[#8b949e]" : "text-slate-600"}`}>
                     Once you delete a repository, there is no going back. Please be certain.
                   </p>
                 </div>
 
                 <button
                   onClick={() => setDeleteModalOpen(true)}
-                  className="bg-[#21262d] hover:bg-[#da3633] border border-[#da3633]/60 text-[#f85149] hover:text-white text-xs font-semibold px-4 py-2 rounded-md transition whitespace-nowrap"
+                  className="bg-[#da3633] hover:bg-[#b62324] text-white text-xs font-semibold px-4 py-2 rounded-md transition whitespace-nowrap shadow-sm"
                 >
                   Delete repository
                 </button>
@@ -1478,42 +1676,56 @@ export default function RepositoryPage() {
           DELETE CONFIRMATION MODAL
          ======================================================== */}
       {deleteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-[#161b22] border border-[#da3633]/60 rounded-xl max-w-md w-full p-6 shadow-2xl relative">
-            <h2 className="text-base font-semibold text-[#f0f6fc] flex items-center gap-2 mb-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className={`border rounded-xl max-w-md w-full p-6 shadow-2xl relative transition animate-scaleUp font-apple ${
+            isDark ? "bg-[#161b22] border-[#da3633]/60 text-[#f0f6fc]" : "bg-white border-red-200 text-slate-900"
+          }`}>
+            <h2 className={`text-base font-semibold flex items-center gap-2 mb-2 ${isDark ? "text-[#f0f6fc]" : "text-slate-900"}`}>
               <AlertTriangle className="w-5 h-5 text-[#f85149]" />
               Delete repository
             </h2>
 
-            <div className="bg-[#f85149]/10 border border-[#f85149]/30 rounded-md p-3 mb-4">
-              <p className="text-xs text-[#f0f6fc] leading-relaxed">
+            <div className={`border rounded-md p-3 mb-4 ${
+              isDark ? "bg-[#f85149]/10 border-[#f85149]/30 text-[#f0f6fc]" : "bg-red-50 border-red-200 text-red-950"
+            }`}>
+              <p className="text-xs leading-relaxed">
                 This action <strong>cannot</strong> be undone. This will permanently delete the 
-                <b className="font-mono bg-[#0d1117] px-1 rounded mx-1">{repo.owner_username || repo.owner_name}/{repo.name}</b> 
+                <b className={`font-mono px-1 rounded mx-1 ${isDark ? "bg-[#0d1117]" : "bg-red-100"}`}>
+                  {repo.owner_username || repo.owner_name}/{repo.name}
+                </b> 
                 repository, its prompt history, and all versions.
               </p>
             </div>
             
-            <label className="block text-xs font-medium text-[#c9d1d9] mb-1">
-              Please type <b className="font-mono bg-[#0d1117] px-1 rounded">{repo.owner_username || repo.owner_name}/{repo.name}</b> to confirm.
+            <label className={`block text-xs font-medium mb-1 ${isDark ? "text-[#c9d1d9]" : "text-slate-700"}`}>
+              Please type <b className={`font-mono px-1 rounded ${isDark ? "bg-[#0d1117]" : "bg-slate-100"}`}>{repo.owner_username || repo.owner_name}/{repo.name}</b> to confirm.
             </label>
             <input 
               type="text"
               value={deleteConfirmText}
               onChange={e => setDeleteConfirmText(e.target.value)}
-              className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-2 text-xs text-[#f0f6fc] focus:outline-none focus:border-[#da3633] mb-4"
+              className={`w-full rounded-md px-3 py-2 text-xs focus:outline-none mb-4 border transition ${
+                isDark 
+                  ? "bg-[#0d1117] border-[#30363d] text-[#f0f6fc] focus:border-[#da3633]" 
+                  : "bg-slate-50 border-slate-300 text-slate-900 focus:border-red-500"
+              }`}
             />
 
             <div className="flex items-center justify-end gap-2.5 pt-2">
               <button
                 onClick={() => { setDeleteModalOpen(false); setDeleteConfirmText(""); }}
-                className="bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-[#c9d1d9] text-xs font-medium px-4 py-2 rounded-md transition"
+                className={`border text-xs font-medium px-4 py-2 rounded-md transition ${
+                  isDark 
+                    ? "bg-[#21262d] hover:bg-[#30363d] border-[#363b42] text-[#c9d1d9]" 
+                    : "bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700"
+                }`}
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteRepository}
                 disabled={isDeleting || deleteConfirmText !== `${repo.owner_username || repo.owner_name}/${repo.name}`}
-                className="bg-[#da3633] hover:bg-[#b62324] text-white text-xs font-semibold px-4 py-2 rounded-md transition disabled:opacity-50 flex items-center gap-1.5"
+                className="bg-[#da3633] hover:bg-[#b62324] text-white text-xs font-semibold px-4 py-2 rounded-md transition disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
               >
                 {isDeleting ? (
                   <>
@@ -1534,8 +1746,8 @@ export default function RepositoryPage() {
          ======================================================== */}
       {visibilityModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-[#161b22] border border-[#30363d] rounded-xl max-w-md w-full p-6 shadow-2xl relative">
-            <h2 className="text-base font-semibold text-[#f0f6fc] flex items-center gap-2 mb-2">
+          <div className={`${isDark ? "bg-[#161b22] border-[#30363d] text-[#f0f6fc]" : "bg-white border-slate-200 text-slate-900"} border rounded-xl max-w-md w-full p-6 shadow-2xl relative`}>
+            <h2 className={`text-base font-semibold ${isDark ? "text-[#f0f6fc]" : "text-slate-900"} flex items-center gap-2 mb-2`}>
               {repo.visibility === "Public" ? (
                 <>
                   <Lock className="w-5 h-5 text-[#e3b341]" />
@@ -1549,24 +1761,28 @@ export default function RepositoryPage() {
               )}
             </h2>
 
-            <p className="text-xs text-[#8b949e] mb-4 leading-relaxed">
+            <p className={`text-xs ${isDark ? "text-[#8b949e]" : "text-slate-600"} mb-4 leading-relaxed`}>
               {repo.visibility === "Public" ? (
                 <>
-                  You are changing the visibility of <b className="text-[#f0f6fc]">{repo.name}</b> to <b>Private</b>. 
+                  You are changing the visibility of <b className={isDark ? "text-[#f0f6fc]" : "text-slate-900"}>{repo.name}</b> to <b>Private</b>. 
                   Only you will be able to see this repository and commit new prompt versions.
                 </>
               ) : (
                 <>
-                  You are changing the visibility of <b className="text-[#f0f6fc]">{repo.name}</b> to <b>Public</b>. 
+                  You are changing the visibility of <b className={isDark ? "text-[#f0f6fc]" : "text-slate-900"}>{repo.name}</b> to <b>Public</b>. 
                   Anyone on PromptHub will be able to view, search, and fork this prompt.
                 </>
               )}
             </p>
 
-            <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-[#30363d]">
+            <div className={`flex items-center justify-end gap-2.5 pt-4 border-t ${isDark ? "border-[#30363d]" : "border-slate-200"}`}>
               <button
                 onClick={() => setVisibilityModalOpen(false)}
-                className="bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-[#c9d1d9] text-xs font-medium px-4 py-2 rounded-md transition"
+                className={`text-xs font-medium px-4 py-2 rounded-md transition border ${
+                  isDark
+                    ? "bg-[#21262d] hover:bg-[#30363d] border-[#363b42] text-[#c9d1d9]"
+                    : "bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700"
+                }`}
               >
                 Cancel
               </button>
@@ -1598,30 +1814,34 @@ export default function RepositoryPage() {
          ======================================================== */}
       {forkModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-[#161b22] border border-[#30363d] rounded-xl max-w-md w-full p-6 shadow-2xl relative">
-            <h2 className="text-base font-semibold text-[#f0f6fc] flex items-center gap-2 mb-2">
+          <div className={`${isDark ? "bg-[#161b22] border-[#30363d] text-[#f0f6fc]" : "bg-white border-slate-200 text-slate-900"} border rounded-xl max-w-md w-full p-6 shadow-2xl relative`}>
+            <h2 className={`text-base font-semibold ${isDark ? "text-[#f0f6fc]" : "text-slate-900"} flex items-center gap-2 mb-2`}>
               <GitFork className="w-5 h-5 text-[#58a6ff]" />
               Create a new fork
             </h2>
-            <p className="text-xs text-[#8b949e] mb-5">
+            <p className={`text-xs ${isDark ? "text-[#8b949e]" : "text-slate-600"} mb-5`}>
               A fork is a copy of a repository. Forking allows you to freely experiment with and enhance this prompt without affecting the original repository.
             </p>
 
             <div className="space-y-4 mb-6">
               <div>
-                <label className="block text-xs font-semibold text-[#c9d1d9] mb-1.5">Repository name</label>
+                <label className={`block text-xs font-semibold ${isDark ? "text-[#c9d1d9]" : "text-slate-700"} mb-1.5`}>Repository name</label>
                 <input
                   type="text"
                   value={forkRepoName}
                   onChange={(e) => setForkRepoName(e.target.value)}
-                  className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1.5 text-xs text-[#f0f6fc] focus:outline-none focus:border-[#58a6ff]"
+                  className={`w-full rounded-md px-3 py-1.5 text-xs focus:outline-none transition border ${
+                    isDark
+                      ? "bg-[#0d1117] border-[#30363d] text-[#f0f6fc] focus:border-[#58a6ff]"
+                      : "bg-slate-50 border-slate-300 text-slate-900 focus:border-[#0071e3]"
+                  }`}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#c9d1d9] mb-2">Visibility</label>
+                <label className={`block text-xs font-semibold ${isDark ? "text-[#c9d1d9]" : "text-slate-700"} mb-2`}>Visibility</label>
                 <div className="space-y-2">
-                  <label className="flex items-center gap-2.5 cursor-pointer text-xs text-[#c9d1d9]">
+                  <label className={`flex items-center gap-2.5 cursor-pointer text-xs ${isDark ? "text-[#c9d1d9]" : "text-slate-700"}`}>
                     <input
                       type="radio"
                       name="repo_fork_vis"
@@ -1631,12 +1851,12 @@ export default function RepositoryPage() {
                       className="accent-[#1f6feb]"
                     />
                     <div className="flex items-center gap-1.5">
-                      <Lock className="w-3.5 h-3.5 text-[#8b949e]" />
-                      <span className="font-medium text-[#f0f6fc]">Private</span>
-                      <span className="text-[11px] text-[#8b949e]">(Default - Only you can see this repo)</span>
+                      <Lock className={`w-3.5 h-3.5 ${isDark ? "text-[#8b949e]" : "text-slate-500"}`} />
+                      <span className={`font-medium ${isDark ? "text-[#f0f6fc]" : "text-slate-900"}`}>Private</span>
+                      <span className={`text-[11px] ${isDark ? "text-[#8b949e]" : "text-slate-500"}`}>(Default - Only you can see this repo)</span>
                     </div>
                   </label>
-                  <label className="flex items-center gap-2.5 cursor-pointer text-xs text-[#c9d1d9]">
+                  <label className={`flex items-center gap-2.5 cursor-pointer text-xs ${isDark ? "text-[#c9d1d9]" : "text-slate-700"}`}>
                     <input
                       type="radio"
                       name="repo_fork_vis"
@@ -1647,18 +1867,22 @@ export default function RepositoryPage() {
                     />
                     <div className="flex items-center gap-1.5">
                       <Globe className="w-3.5 h-3.5 text-[#3fb950]" />
-                      <span className="font-medium text-[#f0f6fc]">Public</span>
-                      <span className="text-[11px] text-[#8b949e]">(Anyone can view and fork)</span>
+                      <span className={`font-medium ${isDark ? "text-[#f0f6fc]" : "text-slate-900"}`}>Public</span>
+                      <span className={`text-[11px] ${isDark ? "text-[#8b949e]" : "text-slate-500"}`}>(Anyone can view and fork)</span>
                     </div>
                   </label>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-[#30363d]">
+            <div className={`flex items-center justify-end gap-2.5 pt-4 border-t ${isDark ? "border-[#30363d]" : "border-slate-200"}`}>
               <button
                 onClick={() => setForkModalOpen(false)}
-                className="bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-[#c9d1d9] text-xs font-medium px-4 py-2 rounded-md transition"
+                className={`text-xs font-medium px-4 py-2 rounded-md transition border ${
+                  isDark
+                    ? "bg-[#21262d] hover:bg-[#30363d] border-[#363b42] text-[#c9d1d9]"
+                    : "bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700"
+                }`}
               >
                 Cancel
               </button>

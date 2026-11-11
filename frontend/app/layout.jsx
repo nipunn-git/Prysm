@@ -15,7 +15,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" data-theme="dark_default" suppressHydrationWarning>
+    <html lang="en" data-theme="dark_default" className="dark" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -23,9 +23,19 @@ export default function RootLayout({ children }) {
               (function() {
                 try {
                   var t = localStorage.getItem('prysm_theme') || localStorage.getItem('prompthub_theme') || 'dark_default';
+                  var isDark = t.indexOf('dark') !== -1;
                   document.documentElement.setAttribute('data-theme', t);
+                  if (isDark) {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.style.colorScheme = 'dark';
+                  } else {
+                    document.documentElement.classList.remove('dark');
+                    document.documentElement.style.colorScheme = 'light';
+                  }
                 } catch(e) {
                   document.documentElement.setAttribute('data-theme', 'dark_default');
+                  document.documentElement.classList.add('dark');
+                  document.documentElement.style.colorScheme = 'dark';
                 }
               })();
             `,

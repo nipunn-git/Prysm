@@ -84,6 +84,20 @@ export const THEMES = [
   }
 ];
 
+function applyThemeToDOM(themeId) {
+  if (typeof document === 'undefined') return;
+  const themeObj = THEMES.find(t => t.id === themeId);
+  const isDark = themeObj ? themeObj.isDark : themeId.startsWith('dark');
+  document.documentElement.setAttribute('data-theme', themeId);
+  if (isDark) {
+    document.documentElement.classList.add('dark');
+    document.documentElement.style.colorScheme = 'dark';
+  } else {
+    document.documentElement.classList.remove('dark');
+    document.documentElement.style.colorScheme = 'light';
+  }
+}
+
 const ThemeContext = createContext({
   theme: 'dark_default',
   setTheme: () => {},
@@ -93,23 +107,24 @@ const ThemeContext = createContext({
 });
 
 export function ThemeProvider({ children }) {
-  const [theme, setThemeState] = useState('dark_default');
+  const [theme, setThemeState] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('prysm_theme') || localStorage.getItem('prompthub_theme');
+        if (stored && THEMES.some(t => t.id === stored)) return stored;
+      } catch {}
+    }
+    return 'dark_default';
+  });
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem('prysm_theme') || localStorage.getItem('prompthub_theme');
-      if (stored && THEMES.some(t => t.id === stored)) {
-        setThemeState(stored);
-        document.documentElement.setAttribute('data-theme', stored);
-      } else {
-        // Default to Dark default
-        setThemeState('dark_default');
-        document.documentElement.setAttribute('data-theme', 'dark_default');
-        localStorage.setItem('prysm_theme', 'dark_default');
-        localStorage.setItem('prompthub_theme', 'dark_default');
-      }
+      const stored = localStorage.getItem('prysm_theme') || localStorage.getItem('prompthub_theme') || 'dark_default';
+      const validTheme = THEMES.some(t => t.id === stored) ? stored : 'dark_default';
+      setThemeState(validTheme);
+      applyThemeToDOM(validTheme);
     } catch (e) {
-      document.documentElement.setAttribute('data-theme', 'dark_default');
+      applyThemeToDOM('dark_default');
     }
   }, []);
 
@@ -120,8 +135,7 @@ export function ThemeProvider({ children }) {
       try {
         localStorage.setItem('prysm_theme', newTheme);
         localStorage.setItem('prompthub_theme', newTheme);
-        document.documentElement.setAttribute('data-theme', newTheme);
-        console.log('[ThemeContext] document data-theme set to:', newTheme);
+        applyThemeToDOM(newTheme);
       } catch (e) {
         console.error('[ThemeContext] error setting theme:', e);
       }
@@ -130,8 +144,8 @@ export function ThemeProvider({ children }) {
     }
   };
 
-  const currentThemeObj = THEMES.find(t => t.id === theme) || THEMES[0];
-  const isDark = currentThemeObj.isDark;
+  const currentThemeObj = THEMES.find(t => t.id === theme) || THEMES[3];
+  const isDark = currentThemeObj ? currentThemeObj.isDark : theme.startsWith('dark');
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme, isDark, availableThemes: THEMES, currentThemeObj }}>
