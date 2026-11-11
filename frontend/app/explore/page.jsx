@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef, Suspense } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
@@ -12,8 +12,7 @@ import {
   Loader2, 
   Users,
   ChevronDown,
-  Clock,
-  Flame,
+  RotateCw,
   Tag,
   ArrowRight,
   Lock,
@@ -52,34 +51,19 @@ function ExploreContent() {
 
   // Instant pre-cached hydration baseline for 0ms perceptible loading
   const [repos, setRepos] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem('explore_all_repos');
-        if (cached) return JSON.parse(cached);
-      } catch {}
-    }
-    return [];
+    return getCachedData('explore_all_repos', []);
   });
 
   const [loading, setLoading] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem('explore_all_repos');
-        if (cached && JSON.parse(cached).length > 0) return false;
-      } catch {}
-    }
-    return true;
+    const cached = getCachedData('explore_all_repos', []);
+    return !cached || cached.length === 0;
   });
 
   const [suggestedUsers, setSuggestedUsers] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem('explore_suggested_users');
-        if (cached) return JSON.parse(cached);
-      } catch {}
-    }
-    return [];
+    return getCachedData('explore_suggested_users', []);
   });
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Filter Dropdown States
   const [sortBy, setSortBy] = useState("newest"); // "newest" | "oldest"
@@ -108,29 +92,35 @@ function ExploreContent() {
   const [followingMap, setFollowingMap] = useState({});
 
   // Fetch suggested creators for in-feed suggested section
-  useEffect(() => {
-    async function fetchSuggested() {
-      try {
-        const storedToken = typeof window !== 'undefined' ? (localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token')) : null;
-        const res = await fetch(`${API_URL}/api/auth/users/suggested${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`);
-        if (res.ok) {
-          const data = await res.json();
-          const list = Array.isArray(data) ? data : [];
-          setSuggestedUsers(list);
-          setCachedData('explore_suggested_users', list);
-          cacheUsers(list);
-          const fMap = {};
-          list.forEach(u => {
-            fMap[u.id] = Boolean(u.is_following);
-          });
-          setFollowingMap(prev => ({ ...prev, ...fMap }));
-        }
-      } catch (e) {
-        console.error(e);
+  const fetchSuggested = useCallback(async (bypassCache = false) => {
+    try {
+      const storedToken = typeof window !== 'undefined' ? (localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token')) : null;
+      const queryParams = new URLSearchParams();
+      if (storedToken) queryParams.append("token", storedToken);
+      if (user?.id) queryParams.append("user_id", user.id);
+      if (bypassCache) queryParams.append("_t", Date.now().toString());
+
+      const res = await fetch(`${API_URL}/api/auth/users/suggested?${queryParams.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : [];
+        setSuggestedUsers(list);
+        setCachedData('explore_suggested_users', list);
+        cacheUsers(list);
+        const fMap = {};
+        list.forEach(u => {
+          fMap[u.id] = Boolean(u.is_following);
+        });
+        setFollowingMap(prev => ({ ...prev, ...fMap }));
       }
+    } catch (e) {
+      console.error(e);
     }
-    fetchSuggested();
   }, [user?.id]);
+
+  useEffect(() => {
+    fetchSuggested();
+  }, [fetchSuggested]);
 
   // Filter out creators the user already follows and themselves (Apple/Insta clean suggestions)
   const unFollowedSuggestedUsers = useMemo(() => {
@@ -143,33 +133,45 @@ function ExploreContent() {
   }, [suggestedUsers, followingMap, user?.id]);
 
   // Fetch fresh public feed from backend smoothly in background
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const storedToken = typeof window !== 'undefined' ? (localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token')) : null;
-        const queryParams = new URLSearchParams();
-        if (category !== "All") queryParams.append("category", category);
-        if (user?.id) queryParams.append("user_id", user.id);
-        if (storedToken) queryParams.append("token", storedToken);
-        
-        const res = await fetch(`${API_URL}/api/repositories/explore?${queryParams.toString()}`);
-        if (res && res.ok) {
-          const data = await res.json();
-          const list = Array.isArray(data) ? data : [];
-          setRepos(list);
-          cacheUsers(list.map(r => r.owner).filter(Boolean));
-          if (category === "All") {
-            setCachedData('explore_all_repos', list);
-          }
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
+  const fetchFreshRepos = useCallback(async (bypassCache = false) => {
+    try {
+      const storedToken = typeof window !== 'undefined' ? (localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token')) : null;
+      const queryParams = new URLSearchParams();
+      if (user?.id) queryParams.append("user_id", user.id);
+      if (storedToken) queryParams.append("token", storedToken);
+      if (bypassCache) queryParams.append("_t", Date.now().toString());
+      
+      const res = await fetch(`${API_URL}/api/repositories/explore?${queryParams.toString()}`);
+      if (res && res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : [];
+        setRepos(list);
+        cacheUsers(list.map(r => r.owner).filter(Boolean));
+        setCachedData('explore_all_repos', list);
       }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
     }
-    fetchData();
-  }, [category, user?.id]);
+  }, [user?.id]);
+
+  useEffect(() => {
+    fetchFreshRepos();
+  }, [fetchFreshRepos]);
+
+  // Instant Manual Refresh
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        fetchFreshRepos(true),
+        fetchSuggested(true)
+      ]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Client-Side Instant Filtering and Sorting (0ms Latency)
   const displayedRepos = useMemo(() => {
@@ -329,22 +331,21 @@ function ExploreContent() {
             : "bg-white/65 backdrop-blur-3xl border-white/80 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.07),0_0_0_1px_rgba(0,0,0,0.05),inset_0_1px_2px_rgba(255,255,255,0.9)]"
         }`}>
 
-          {/* Minimal Glass Filter Header Bar with 3 Dropdowns */}
+          {/* Minimal Glass Filter Header Bar with Elegant Apple-Style Controls */}
           <div 
             ref={filterRef}
-            className={`px-4 sm:px-6 py-3.5 border-b flex items-center justify-between gap-3 sticky top-0 z-20 backdrop-blur-2xl transition-colors ${
+            className={`px-4 sm:px-6 py-3 border-b flex items-center justify-between gap-3 sticky top-0 z-20 backdrop-blur-2xl transition-colors ${
               isDark ? "bg-[#090b10]/70 border-white/[0.08]" : "bg-white/65 border-black/[0.05]"
             }`}
           >
-            {/* Left Title Label */}
-            <div className="flex items-center gap-2 select-none">
-              <span className={`w-2 h-2 rounded-full ${isDark ? 'bg-[#2997ff] shadow-[0_0_8px_#2997ff]' : 'bg-[#0071e3] shadow-[0_0_8px_#0071e3]'}`} />
-              <span className={`text-xs font-bold tracking-tight uppercase ${isDark ? 'text-[#f5f5f7]' : 'text-[#1d1d1f]'}`}>
+            {/* Left Title Label - Minimal, No Blue Dot */}
+            <div className="flex items-center select-none">
+              <h1 className={`text-[13px] font-semibold tracking-tight ${isDark ? 'text-[#f5f5f7]' : 'text-[#1d1d1f]'}`}>
                 Feed
-              </span>
+              </h1>
             </div>
 
-            {/* Right: 3 Sleek Apple-Style Dropdown Filters */}
+            {/* Right: Sleek Apple-Style Dropdown Filters + Instant Refresh */}
             <div className="flex items-center gap-2 flex-wrap">
 
               {/* 1. Time / Date Sort Dropdown */}
@@ -352,19 +353,18 @@ function ExploreContent() {
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(prev => prev === "time" ? null : "time")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer backdrop-blur-md ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer backdrop-blur-md ${
                     sortBy !== "newest"
                       ? isDark
-                        ? "bg-[#2997ff]/15 border-[#2997ff]/40 text-[#2997ff]"
+                        ? "bg-[#2997ff]/15 border-[#2997ff]/35 text-[#2997ff]"
                         : "bg-blue-50/90 border-[#0071e3]/30 text-[#0071e3]"
                       : isDark
-                        ? "bg-white/[0.06] hover:bg-white/[0.12] border-white/[0.12] text-[#f5f5f7]"
-                        : "bg-white/70 hover:bg-white/95 border-black/[0.08] text-[#1d1d1f] shadow-sm"
+                        ? "bg-white/[0.04] hover:bg-white/[0.08] border-white/[0.08] text-[#f5f5f7]"
+                        : "bg-black/[0.03] hover:bg-black/[0.06] border-black/[0.06] text-[#1d1d1f]"
                   }`}
                 >
-                  <Clock className="w-3.5 h-3.5 opacity-75" />
                   <span>{sortBy === "newest" ? "Latest" : "Oldest"}</span>
-                  <ChevronDown className={`w-3 h-3 transition-transform ${openDropdown === "time" ? "rotate-180" : ""}`} />
+                  <ChevronDown className={`w-3 h-3 text-[#86868b] transition-transform duration-200 ${openDropdown === "time" ? "rotate-180" : ""}`} />
                 </button>
 
                 {openDropdown === "time" && (
@@ -402,21 +402,20 @@ function ExploreContent() {
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(prev => prev === "popular" ? null : "popular")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer backdrop-blur-md ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer backdrop-blur-md ${
                     popularFilter !== "all"
                       ? isDark
-                        ? "bg-[#2997ff]/15 border-[#2997ff]/40 text-[#2997ff]"
+                        ? "bg-[#2997ff]/15 border-[#2997ff]/35 text-[#2997ff]"
                         : "bg-blue-50/90 border-[#0071e3]/30 text-[#0071e3]"
                       : isDark
-                        ? "bg-white/[0.06] hover:bg-white/[0.12] border-white/[0.12] text-[#f5f5f7]"
-                        : "bg-white/70 hover:bg-white/95 border-black/[0.08] text-[#1d1d1f] shadow-sm"
+                        ? "bg-white/[0.04] hover:bg-white/[0.08] border-white/[0.08] text-[#f5f5f7]"
+                        : "bg-black/[0.03] hover:bg-black/[0.06] border-black/[0.06] text-[#1d1d1f]"
                   }`}
                 >
-                  <Flame className="w-3.5 h-3.5 text-amber-500" />
                   <span>
                     {popularFilter === "all" ? "Popularity" : popularFilter === "most_liked" ? "Most Liked" : "Trending"}
                   </span>
-                  <ChevronDown className={`w-3 h-3 transition-transform ${openDropdown === "popular" ? "rotate-180" : ""}`} />
+                  <ChevronDown className={`w-3 h-3 text-[#86868b] transition-transform duration-200 ${openDropdown === "popular" ? "rotate-180" : ""}`} />
                 </button>
 
                 {openDropdown === "popular" && (
@@ -465,19 +464,18 @@ function ExploreContent() {
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(prev => prev === "category" ? null : "category")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer backdrop-blur-md ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer backdrop-blur-md ${
                     category !== "All"
                       ? isDark
-                        ? "bg-[#2997ff]/15 border-[#2997ff]/40 text-[#2997ff]"
+                        ? "bg-[#2997ff]/15 border-[#2997ff]/35 text-[#2997ff]"
                         : "bg-blue-50/90 border-[#0071e3]/30 text-[#0071e3]"
                       : isDark
-                        ? "bg-white/[0.06] hover:bg-white/[0.12] border-white/[0.12] text-[#f5f5f7]"
-                        : "bg-white/70 hover:bg-white/95 border-black/[0.08] text-[#1d1d1f] shadow-sm"
+                        ? "bg-white/[0.04] hover:bg-white/[0.08] border-white/[0.08] text-[#f5f5f7]"
+                        : "bg-black/[0.03] hover:bg-black/[0.06] border-black/[0.06] text-[#1d1d1f]"
                   }`}
                 >
-                  <Tag className="w-3.5 h-3.5 opacity-75" />
                   <span>{category === "All" ? "Category" : category}</span>
-                  <ChevronDown className={`w-3 h-3 transition-transform ${openDropdown === "category" ? "rotate-180" : ""}`} />
+                  <ChevronDown className={`w-3 h-3 text-[#86868b] transition-transform duration-200 ${openDropdown === "category" ? "rotate-180" : ""}`} />
                 </button>
 
                 {openDropdown === "category" && (
@@ -501,6 +499,21 @@ function ExploreContent() {
                   </div>
                 )}
               </div>
+
+              {/* 4. Instant Refresh Button */}
+              <button
+                type="button"
+                onClick={handleManualRefresh}
+                disabled={isRefreshing}
+                title="Refresh feed instantly"
+                className={`p-1.5 rounded-xl border transition-all cursor-pointer backdrop-blur-md ${
+                  isDark
+                    ? "bg-white/[0.04] hover:bg-white/[0.08] border-white/[0.08] text-[#86868b] hover:text-[#f5f5f7]"
+                    : "bg-black/[0.03] hover:bg-black/[0.06] border-black/[0.06] text-[#86868b] hover:text-[#1d1d1f]"
+                }`}
+              >
+                <RotateCw className={`w-3.5 h-3.5 transition-transform ${isRefreshing ? "animate-spin text-[#0071e3] dark:text-[#2997ff]" : ""}`} />
+              </button>
 
             </div>
           </div>
@@ -754,9 +767,6 @@ function ExploreContent() {
                                 Suggested for You
                               </h3>
                             </div>
-                            <span className={`text-[11px] font-medium ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
-                              Top Creators
-                            </span>
                           </div>
 
                           {/* Horizontal Scrollable Creator Cards */}
@@ -830,9 +840,6 @@ function ExploreContent() {
                           Suggested for You
                         </h3>
                       </div>
-                      <span className={`text-[11px] font-medium ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
-                        Top Creators
-                      </span>
                     </div>
 
                     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none -mx-1 px-1">

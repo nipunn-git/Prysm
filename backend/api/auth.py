@@ -518,6 +518,7 @@ def get_suggested_creators(
     token: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    _t: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     current_user_id = resolve_user_id_from_token(token or authorization, db)
@@ -527,13 +528,17 @@ def get_suggested_creators(
         current_user_id = None
 
     cache_key = f"suggested_creators:{current_user_id or 'anon'}"
-    cached = fast_cache.get(cache_key)
-    if cached is not None:
-        return cached
+    if _t:
+        fast_cache.invalidate("suggested_creators")
+    else:
+        cached = fast_cache.get(cache_key)
+        if cached is not None:
+            return cached
 
     query = db.query(models.User)
     if current_user_id:
-        query = query.filter(models.User.id != current_user_id)
+        followed_subquery = db.query(models.UserFollow.following_id).filter(models.UserFollow.follower_id == current_user_id)
+        query = query.filter(models.User.id != current_user_id, ~models.User.id.in_(followed_subquery))
     
     users = query.limit(30).all()
     

@@ -208,6 +208,7 @@ def explore_public_repositories(
     token: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    _t: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     current_user_id = resolve_user_id_from_token(token or authorization, db)
@@ -219,9 +220,12 @@ def explore_public_repositories(
         current_user_id = None
 
     cache_key = f"explore_repos:{category or 'all'}:{search or 'none'}:{current_user_id or 'anon'}"
-    cached = fast_cache.get(cache_key)
-    if cached is not None:
-        return cached
+    if _t:
+        fast_cache.invalidate("explore_repos")
+    else:
+        cached = fast_cache.get(cache_key)
+        if cached is not None:
+            return cached
 
     query = (
         db.query(models.Repository)
