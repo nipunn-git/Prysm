@@ -398,6 +398,74 @@
 }
 
 /* ========================================================
+   APPLE-GRADE POPUP & MODAL ANIMATIONS
+   ======================================================== */
+@keyframes prysmFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes prysmScaleUp {
+  from { 
+    opacity: 0; 
+    transform: scale(0.96) translateY(-4px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: scale(1) translateY(0); 
+  }
+}
+
+@keyframes prysmSlideInLeft {
+  from { 
+    opacity: 0; 
+    transform: translateX(-100%); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateX(0); 
+  }
+}
+
+@keyframes prysmSlideInRight {
+  from { 
+    opacity: 0; 
+    transform: translateX(100%); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateX(0); 
+  }
+}
+
+@keyframes prysmSlideDown {
+  from { 
+    opacity: 0; 
+    transform: translateY(-8px) scale(0.98); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0) scale(1); 
+  }
+}
+
+.animate-fadeIn {
+  animation: prysmFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-scaleUp {
+  animation: prysmScaleUp 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slideInLeft {
+  animation: prysmSlideInLeft 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slideDown {
+  animation: prysmSlideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ========================================================
    SCROLLBAR DEFAULTS
    ======================================================== */
 ::-webkit-scrollbar {

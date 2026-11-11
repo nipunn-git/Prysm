@@ -1,27 +1,61 @@
 'use client';
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Book, Star, GitMerge, Users, MapPin, Link as LinkIcon, Twitter, Building, Lock, Eye, Sparkles, AlertCircle } from 'lucide-react';
+import { 
+  Book, 
+  Heart, 
+  Star, 
+  GitMerge, 
+  Users, 
+  MapPin, 
+  Link as LinkIcon, 
+  Twitter, 
+  Building, 
+  Lock, 
+  Eye, 
+  Sparkles, 
+  AlertCircle,
+  Edit3,
+  ArrowUpRight,
+  Camera,
+  Check,
+  Loader2,
+  Compass,
+  Plus,
+  Calendar
+} from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { addCreatedRepoId } from '../../lib/repoStore';
 import { API_URL } from '../../lib/api';
 import { getCachedData, setCachedData } from '../../lib/cache';
 import UserListModal from '../../components/UserListModal';
+import { GridPulse } from "@/components/ui/grid-pulse";
 
-const LEVEL_COLORS = [
-  "bg-[#161b22]",   // level 0 - no contributions
-  "bg-[#0e4429]",   // level 1
-  "bg-[#006d32]",   // level 2
-  "bg-[#26a641]",   // level 3
-  "bg-[#39d353]",   // level 4
+const LEVEL_COLORS_DARK = [
+  "bg-white/[0.06] border border-white/[0.04]", // 0
+  "bg-emerald-950/80 border border-emerald-800/60", // 1
+  "bg-emerald-800 border border-emerald-700", // 2
+  "bg-emerald-600 border border-emerald-500", // 3
+  "bg-emerald-400 border border-emerald-300", // 4
+];
+
+const LEVEL_COLORS_LIGHT = [
+  "bg-neutral-100 border border-neutral-200/70", // 0
+  "bg-emerald-100 border border-emerald-200", // 1
+  "bg-emerald-300 border border-emerald-400", // 2
+  "bg-emerald-500 border border-emerald-600", // 3
+  "bg-emerald-600 border border-emerald-700", // 4
 ];
 
 export default function ProfilePage() {
   const { user, updateProfile, isLoading } = useAuth();
+  const { isDark } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
   
@@ -30,17 +64,20 @@ export default function ProfilePage() {
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
+    username: '',
     bio: '',
     company: '',
     location: '',
     website: '',
-    twitter: ''
+    twitter: '',
+    avatar: ''
   });
 
-  // Profile repos and contributions state - safe initial SSR baseline
+  // Profile repos and contributions state
   const [repos, setRepos] = useState([]);
   const [contributions, setContributions] = useState(null);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'repositories' | 'stars'
+  const [repoSearchQuery, setRepoSearchQuery] = useState('');
   const [isCreatingSpecial, setIsCreatingSpecial] = useState(false);
   const [userListModalOpen, setUserListModalOpen] = useState(false);
   const [modalTab, setModalTab] = useState('followers');
@@ -56,13 +93,13 @@ export default function ProfilePage() {
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) { // 2MB limit for base64 DB storage
+      if (file.size > 2 * 1024 * 1024) {
         alert("Image is too large. Please choose an image under 2MB.");
         return;
       }
       const reader = new FileReader();
       reader.onloadend = () => {
-        setFormData({ ...formData, avatar: reader.result });
+        setFormData(prev => ({ ...prev, avatar: reader.result }));
       };
       reader.readAsDataURL(file);
     }
@@ -70,7 +107,7 @@ export default function ProfilePage() {
 
   const fetchRepos = useCallback(async () => {
     try {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
+      const storedToken = typeof window !== 'undefined' ? (localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token')) : null;
       const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || '{}')?.id) : null);
       if (!effectiveUserId) return;
       
@@ -79,12 +116,10 @@ export default function ProfilePage() {
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
-          // Auto-recover special repo if it exists in DB but not in localStorage
           const currentUsername = (user?.username || '').toLowerCase();
           const special = data.find(r => r?.name && r.name.toLowerCase() === currentUsername);
           if (special) addCreatedRepoId(special.id);
           
-          // All repos from DB for this user - no localStorage filtering
           setRepos(data);
           setCachedData('profile_my_repos', data);
         }
@@ -113,8 +148,18 @@ export default function ProfilePage() {
       e.preventDefault();
       e.stopPropagation();
     }
+    // Optimistic toggle
+    setRepos(prev => prev.map(r => {
+      if (r.id === repoId) {
+        const nextStarred = !r.is_starred;
+        const nextCount = Math.max(0, (r.stars_count || 0) + (nextStarred ? 1 : -1));
+        return { ...r, is_starred: nextStarred, stars_count: nextCount };
+      }
+      return r;
+    }));
+
     try {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
+      const storedToken = typeof window !== 'undefined' ? (localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token')) : null;
       const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || '{}')?.id) : null);
       const queryParams = new URLSearchParams();
       if (storedToken) queryParams.set('token', storedToken);
@@ -153,7 +198,6 @@ export default function ProfilePage() {
       avatar: user.avatar || ''
     });
 
-    // Hydrate cached data immediately on mount
     const cachedR = getCachedData('profile_my_repos', []);
     if (cachedR && cachedR.length > 0) setRepos(cachedR);
     const cachedC = getCachedData('profile_my_contributions', null);
@@ -163,68 +207,21 @@ export default function ProfilePage() {
     fetchContributions();
   }, [user, router, isLoading, fetchRepos, fetchContributions]);
 
-  // Re-fetch repos whenever the page regains focus (e.g., switching tabs, navigating back)
-  useEffect(() => {
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && user) {
-        fetchRepos();
-      }
-    };
-    const handleFocus = () => {
-      if (user) fetchRepos();
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('focus', handleFocus);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, [user, fetchRepos]);
-
-  // Re-fetch repos on pathname change (Next.js client-side navigation)
-  useEffect(() => {
-    if (pathname === '/profile' && user) {
-      fetchRepos();
-    }
-  }, [pathname, user, fetchRepos]);
-
-  if (isLoading || !user) {
-    return (
-      <div className="min-h-[calc(100vh-56px)] bg-[#010409] flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-2 border-[#58a6ff] border-t-transparent animate-spin" />
-      </div>
-    );
-  }
-
-  // Check username uniqueness
-  const checkUsername = async (username) => {
-    if (!username || username === user.username) {
-      setUsernameError('');
-      return true;
-    }
-    // Validate format
-    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
-      setUsernameError('Username can only contain letters, numbers, hyphens, and underscores');
-      return false;
-    }
-    if (username.length < 3) {
-      setUsernameError('Username must be at least 3 characters');
-      return false;
-    }
+  const checkUsername = async (uname) => {
+    if (!uname || uname === user?.username) return true;
     setIsCheckingUsername(true);
     try {
-      const res = await fetch(`${API_URL}/api/auth/users/check-username?username=${encodeURIComponent(username)}`);
+      const res = await fetch(`${API_URL}/api/auth/check-username?username=${encodeURIComponent(uname)}`);
       if (res.ok) {
         const data = await res.json();
         if (!data.available) {
-          setUsernameError(`Username "${username}" is already taken`);
+          setUsernameError('Username is already taken');
+          setIsCheckingUsername(false);
           return false;
         }
-        setUsernameError('');
-        return true;
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
+      // ignore
     } finally {
       setIsCheckingUsername(false);
     }
@@ -232,7 +229,6 @@ export default function ProfilePage() {
   };
 
   const handleSave = async () => {
-    // Check username uniqueness if it changed
     const currentUname = (user?.username || '').toLowerCase();
     const newUname = (formData.username || '').trim().toLowerCase();
     if (newUname && newUname !== currentUname) {
@@ -248,7 +244,6 @@ export default function ProfilePage() {
     setUsernameError('');
     await fetchRepos();
   };
-
 
   const handleCancel = () => {
     setFormData({
@@ -267,7 +262,6 @@ export default function ProfilePage() {
   const totalContributions = contributions?.total_contributions || 0;
   const weeks = contributions?.weeks || [];
 
-  // Month labels for the heatmap
   const monthLabels = [];
   if (Array.isArray(weeks) && weeks.length > 0) {
     let lastMonth = -1;
@@ -291,12 +285,12 @@ export default function ProfilePage() {
 
   const currentUsername = (user?.username || '').toLowerCase();
   const specialRepo = Array.isArray(repos) ? repos.find(r => r?.name && r.name.toLowerCase() === currentUsername) : null;
+  const levelColors = isDark ? LEVEL_COLORS_DARK : LEVEL_COLORS_LIGHT;
 
   const fetchGithubReadme = async () => {
     if (!githubUsername.trim()) return;
     setIsFetchingGithub(true);
     try {
-      // Extract username if they pasted a URL
       let uname = githubUsername.trim();
       if (uname.includes('github.com/')) {
         const parts = uname.split('github.com/');
@@ -304,9 +298,7 @@ export default function ProfilePage() {
       }
       
       let res = await fetch(`https://api.github.com/repos/${uname}/${uname}/readme`, {
-        headers: {
-          'Accept': 'application/vnd.github.v3.raw'
-        }
+        headers: { 'Accept': 'application/vnd.github.v3.raw' }
       });
       
       if (res.ok) {
@@ -317,7 +309,7 @@ export default function ProfilePage() {
       } else {
         alert("Could not find a special README for that GitHub user. Make sure they have a public repository named exactly after their username with a README.md");
       }
-    } catch (e) {
+    } catch {
       alert("Error fetching from GitHub");
     } finally {
       setIsFetchingGithub(false);
@@ -327,7 +319,7 @@ export default function ProfilePage() {
   const confirmCreateSpecialRepo = async () => {
     setIsCreatingSpecial(true);
     try {
-      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token') : null;
+      const storedToken = typeof window !== 'undefined' ? (localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token')) : null;
       const effectiveUserId = user?.id || (typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || '{}')?.id) : null);
       
       const queryParams = new URLSearchParams();
@@ -338,7 +330,6 @@ export default function ProfilePage() {
       if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
       if (effectiveUserId) headers['X-User-Id'] = effectiveUserId;
 
-      // Always use the freshest username for the special repo name
       const freshUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || '{}') : {};
       const specialRepoName = user?.username || freshUser?.username || 'profile';
       
@@ -363,8 +354,6 @@ export default function ProfilePage() {
       } else {
         resData = await res.json();
         if (resData.detail && resData.detail.includes("already exists")) {
-          // If the repository already exists but was missing from local storage,
-          // fetchRepos (which we just patched) will auto-recover it on next load.
           await fetchRepos();
           setPreviewModalOpen(false);
         } else {
@@ -379,601 +368,819 @@ export default function ProfilePage() {
     }
   };
 
+  if (!user) return null;
+
+  const filteredRepos = repos.filter(r => 
+    !repoSearchQuery.trim() || 
+    (r.name && r.name.toLowerCase().includes(repoSearchQuery.toLowerCase())) ||
+    (r.description && r.description.toLowerCase().includes(repoSearchQuery.toLowerCase()))
+  );
+
+  const starredRepos = repos.filter(r => r.is_starred);
+  const totalStarsCount = repos.reduce((acc, r) => acc + (r.stars_count || 0), 0);
+
   return (
-    <div className="max-w-[1280px] mx-auto px-4 sm:px-6 md:px-8 py-8 flex flex-col md:flex-row gap-8">
-      {/* Sidebar */}
-      <div className="w-full md:w-[296px] shrink-0">
-        <div className="relative mb-4 group cursor-pointer" onClick={() => {
-          if (!isEditing) setIsEditing(true);
-          else if (fileInputRef.current) fileInputRef.current.click();
-        }}>
-          <div className="w-full aspect-square rounded-full border border-[#30363d] bg-[#21262d] overflow-hidden flex items-center justify-center relative">
-            {(isEditing ? formData.avatar : user.avatar) ? (
-              <img 
-                src={isEditing ? formData.avatar : user.avatar} 
-                alt="Profile Avatar" 
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <span className="text-6xl font-bold text-[#8b949e]">
-                {user.name?.charAt(0)?.toUpperCase() || 'U'}
-              </span>
-            )}
-            {/* Hover overlay like GitHub */}
-            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              <span className="text-white text-sm font-semibold">{isEditing ? "Upload" : "Edit"}</span>
-            </div>
-          </div>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleImageUpload} 
-            accept="image/*" 
-            className="hidden" 
-          />
-        </div>
+    <div className={`min-h-screen font-apple relative transition-colors duration-200 ${isDark ? "bg-[#05070c] text-[#f5f5f7]" : "bg-[#f8fafc] text-[#1d1d1f]"}`}>
+      
+      {/* Background Interactive Canvas GridPulse */}
+      <GridPulse cell={28} reach={2.8} ambient={3} className="opacity-35 dark:opacity-20 pointer-events-none fixed inset-0 z-0" />
 
-        {isEditing ? (
-          <div className="flex flex-col gap-3 mb-6">
-            <div>
-              <label className="block text-sm font-semibold text-[#f0f6fc] mb-1">Username</label>
-              <input 
-                type="text" 
-                value={formData.username} 
-                onChange={(e) => {
-                  const val = e.target.value.toLowerCase().replace(/\s+/g, '-');
-                  setFormData({...formData, username: val});
-                  setUsernameError('');
-                }}
-                onBlur={() => formData.username !== user.username && checkUsername(formData.username)}
-                className={`w-full bg-[#0d1117] border rounded-md px-3 py-1 text-sm focus:outline-none text-[#c9d1d9] ${usernameError ? 'border-[#da3633] focus:border-[#da3633]' : 'border-[#30363d] focus:border-[#58a6ff]'}`}
-              />
-              {isCheckingUsername && (
-                <span className="text-[11px] text-[#8b949e] mt-1 block">Checking availability...</span>
-              )}
-              {usernameError && (
-                <span className="text-[11px] text-[#da3633] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{usernameError}</span>
-              )}
-              {!usernameError && formData.username && formData.username !== user.username && !isCheckingUsername && (
-                <span className="text-[11px] text-[#3fb950] mt-1 block">✓ Username available</span>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#f0f6fc] mb-1">Name</label>
-              <input 
-                type="text" 
-                value={formData.name} 
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-                className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1 text-sm focus:outline-none focus:border-[#58a6ff] text-[#c9d1d9]"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#f0f6fc] mb-1">Bio</label>
-              <textarea 
-                value={formData.bio} 
-                onChange={(e) => setFormData({...formData, bio: e.target.value})}
-                className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-[#58a6ff] text-[#c9d1d9] resize-y h-20 placeholder:text-[#8b949e]"
-                placeholder="Add a bio"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#f0f6fc] mb-1">Company</label>
-              <div className="flex items-center gap-2">
-                <Building className="w-4 h-4 text-[#8b949e] shrink-0" />
-                <input 
-                  type="text" 
-                  value={formData.company} 
-                  onChange={(e) => setFormData({...formData, company: e.target.value})}
-                  className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1 text-sm focus:outline-none focus:border-[#58a6ff] text-[#c9d1d9]"
-                  placeholder="Company"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#f0f6fc] mb-1">Location</label>
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-[#8b949e] shrink-0" />
-                <input 
-                  type="text" 
-                  value={formData.location} 
-                  onChange={(e) => setFormData({...formData, location: e.target.value})}
-                  className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1 text-sm focus:outline-none focus:border-[#58a6ff] text-[#c9d1d9]"
-                  placeholder="Location"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#f0f6fc] mb-1">Website</label>
-              <div className="flex items-center gap-2">
-                <LinkIcon className="w-4 h-4 text-[#8b949e] shrink-0" />
-                <input 
-                  type="text" 
-                  value={formData.website} 
-                  onChange={(e) => setFormData({...formData, website: e.target.value})}
-                  className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1 text-sm focus:outline-none focus:border-[#58a6ff] text-[#c9d1d9]"
-                  placeholder="Website"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#f0f6fc] mb-1">X (formerly Twitter)</label>
-              <div className="flex items-center gap-2">
-                <Twitter className="w-4 h-4 text-[#8b949e] shrink-0" />
-                <input 
-                  type="text" 
-                  value={formData.twitter} 
-                  onChange={(e) => setFormData({...formData, twitter: e.target.value})}
-                  className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1 text-sm focus:outline-none focus:border-[#58a6ff] text-[#c9d1d9]"
-                  placeholder="X username"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#f0f6fc] mb-1">Avatar URL</label>
-              <input 
-                type="text" 
-                value={formData.avatar} 
-                onChange={(e) => setFormData({...formData, avatar: e.target.value})}
-                className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1 text-sm focus:outline-none focus:border-[#58a6ff] text-[#c9d1d9]"
-                placeholder="https://example.com/avatar.png"
-              />
-            </div>
-            <div className="flex items-center gap-2 mt-2">
-              <button onClick={handleSave} className="bg-[#238636] hover:bg-[#2ea043] text-white text-sm font-semibold py-1.5 px-3 rounded-md transition border border-transparent">
-                Save
-              </button>
-              <button onClick={handleCancel} className="bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-white text-sm font-medium py-1.5 px-3 rounded-md transition">
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <h1 className="mb-4">
-              <span className="block text-2xl font-bold text-[#f0f6fc]">{user.name}</span>
-              <span className="block text-xl font-light text-[#8b949e]">{user.username}</span>
-            </h1>
-
-            {user.bio && <p className="text-sm text-[#c9d1d9] mb-4">{user.bio}</p>}
-
-            <button onClick={() => setIsEditing(true)} className="w-full bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-white font-medium py-1.5 px-3 rounded-md transition mb-4 text-sm">
-              Edit profile
-            </button>
-
-            <div className="flex items-center gap-1 text-sm mb-4 text-[#8b949e]">
-              <Users className="w-4 h-4" />
-              <button 
-                type="button"
-                onClick={() => { setModalTab('followers'); setUserListModalOpen(true); }}
-                className="hover:text-[#58a6ff] flex items-center gap-1 transition cursor-pointer"
-                title="View followers"
-              >
-                <span className="font-semibold text-[#c9d1d9] hover:text-[#58a6ff]">{user.followers_count ?? 0}</span>
-                <span className="hover:underline">followers</span>
-              </button>
-              <span className="mx-1">·</span>
-              <button 
-                type="button"
-                onClick={() => { setModalTab('following'); setUserListModalOpen(true); }}
-                className="hover:text-[#58a6ff] flex items-center gap-1 transition cursor-pointer"
-                title="View following"
-              >
-                <span className="font-semibold text-[#c9d1d9] hover:text-[#58a6ff]">{user.following_count ?? 0}</span>
-                <span className="hover:underline">following</span>
-              </button>
-            </div>
-
-            <ul className="text-sm space-y-2 text-[#c9d1d9]">
-              {user.company && (
-                <li className="flex items-center gap-2">
-                  <Building className="w-4 h-4 text-[#8b949e]" />
-                  <span className="font-semibold">{user.company}</span>
-                </li>
-              )}
-              {user.location && (
-                <li className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-[#8b949e]" />
-                  <span>{user.location}</span>
-                </li>
-              )}
-              {user.website && (
-                <li className="flex items-center gap-2">
-                  <LinkIcon className="w-4 h-4 text-[#8b949e]" />
-                  <a href={user.website.startsWith('http') ? user.website : `https://${user.website}`} target="_blank" rel="noopener noreferrer" className="hover:text-[#58a6ff] hover:underline">
-                    {user.website}
-                  </a>
-                </li>
-              )}
-              {user.twitter && (
-                <li className="flex items-center gap-2">
-                  <Twitter className="w-4 h-4 text-[#8b949e]" />
-                  <a href={`https://twitter.com/${user.twitter}`} target="_blank" rel="noopener noreferrer" className="hover:text-[#58a6ff] hover:underline">
-                    @{user.twitter}
-                  </a>
-                </li>
-              )}
-            </ul>
-          </>
-        )}
+      {/* Social Media Cover Banner - Refined Apple Glass Gradient */}
+      <div className="w-full h-44 sm:h-56 relative overflow-hidden border-b border-neutral-200/60 dark:border-white/[0.08] z-0">
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-indigo-500/10 dark:from-blue-600/15 dark:via-purple-600/10 dark:to-emerald-600/15" />
+        <div className="absolute inset-0 bg-[radial-gradient(#94a3b8_1px,transparent_1px)] dark:bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:24px_24px] opacity-20" />
+        <div className="absolute inset-0 backdrop-blur-[2px]" />
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1">
-        <div className="border-b border-[#30363d] mb-6">
-          <nav className="flex gap-4 text-sm overflow-x-auto no-scrollbar">
-            <button 
-              onClick={() => setActiveTab('overview')}
-              className={`flex items-center gap-2 py-3 px-2 border-b-2 font-semibold transition ${activeTab === 'overview' ? 'border-[#f78166] text-[#f0f6fc]' : 'border-transparent text-[#8b949e] hover:text-[#f0f6fc]'}`}
+      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 md:px-8 relative z-10 pb-24">
+        
+        {/* Profile Card Header */}
+        <div className="flex flex-col md:flex-row gap-8 -mt-16 sm:-mt-20 mb-8">
+          
+          {/* Left Column: Avatar & Profile Info */}
+          <div className="w-full md:w-[300px] shrink-0">
+            <div 
+              className="relative mb-5 inline-block cursor-pointer group"
+              onClick={() => {
+                if (!isEditing) setIsEditing(true);
+                else fileInputRef.current?.click();
+              }}
+              title="Click to update photo"
             >
-              <Book className="w-4 h-4" />
-              Overview
-            </button>
-            <button 
-              onClick={() => setActiveTab('repositories')}
-              className={`flex items-center gap-2 py-3 px-2 border-b-2 font-semibold transition ${activeTab === 'repositories' ? 'border-[#f78166] text-[#f0f6fc]' : 'border-transparent text-[#8b949e] hover:text-[#f0f6fc]'}`}
-            >
-              <span className="flex items-center gap-1.5"><GitMerge className="w-4 h-4" /> Repositories</span>
-              <span className="bg-[#161b22] border border-[#30363d] text-xs font-semibold px-2 py-0.5 rounded-full">{repos.length}</span>
-            </button>
-            <button 
-              onClick={() => setActiveTab('stars')}
-              className={`flex items-center gap-2 py-3 px-2 border-b-2 font-semibold transition ${activeTab === 'stars' ? 'border-[#f78166] text-[#f0f6fc]' : 'border-transparent text-[#8b949e] hover:text-[#f0f6fc]'}`}
-            >
-              <span className="flex items-center gap-1.5"><Star className="w-4 h-4" /> Stars</span>
-              <span className="bg-[#161b22] border border-[#30363d] text-xs font-semibold px-2 py-0.5 rounded-full">{repos.reduce((acc, r) => acc + (r.stars_count || 0), 0)}</span>
-            </button>
-          </nav>
-        </div>
-
-        {/* Overview Tab */}
-        {activeTab === 'overview' && (
-          <>
-            {/* Special Profile README */}
-            {specialRepo ? (
-              <div className="mb-8 border border-[#30363d] rounded-md bg-[#0d1117] overflow-hidden">
-                <div className="bg-[#161b22] px-4 py-2 border-b border-[#30363d] text-xs font-medium text-[#c9d1d9] flex items-center gap-2">
-                  <span className="text-[10px] bg-[#21262d] px-1.5 py-0.5 rounded border border-[#30363d] font-semibold">{user?.username || 'user'}</span>
-                  / README.md
+              <div className={`w-32 h-32 sm:w-40 sm:h-40 rounded-full ring-4 ${isDark ? "ring-[#05070c] bg-neutral-900" : "ring-white bg-neutral-100"} shadow-2xl overflow-hidden flex items-center justify-center relative`}>
+                {(isEditing ? formData.avatar : user.avatar) ? (
+                  <img 
+                    src={isEditing ? formData.avatar : user.avatar} 
+                    alt="Profile Avatar" 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-neutral-200 to-neutral-300 dark:from-neutral-800 dark:to-neutral-900">
+                    <span className="text-5xl font-semibold tracking-tight text-neutral-600 dark:text-neutral-300">
+                      {user.name?.charAt(0)?.toUpperCase() || user.username?.charAt(0)?.toUpperCase() || 'U'}
+                    </span>
+                  </div>
+                )}
+                {/* Clean hover overlay */}
+                <div className="absolute inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex flex-col items-center gap-1 text-white">
+                    <Camera className="w-5 h-5" />
+                    <span className="text-[10px] font-medium tracking-tight">{isEditing ? "Upload" : "Edit photo"}</span>
+                  </div>
                 </div>
-                <div className="p-6 text-sm text-[#c9d1d9] prose prose-invert prose-sm max-w-none prose-a:text-[#58a6ff] prose-a:no-underline hover:prose-a:underline prose-headings:border-b prose-headings:border-[#30363d] prose-headings:pb-2 prose-pre:bg-[#161b22] prose-pre:border prose-pre:border-[#30363d]">
-                  {specialRepo.latest_prompt ? (
-                    <ReactMarkdown 
-                      remarkPlugins={[remarkGfm]}
-                      rehypePlugins={[rehypeRaw]}
-                    >
-                      {specialRepo.latest_prompt}
-                    </ReactMarkdown>
-                  ) : (
-                    <p>This is your special repository.</p>
+              </div>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleImageUpload} 
+                accept="image/*" 
+                className="hidden" 
+              />
+            </div>
+
+            {isEditing ? (
+              <div className="flex flex-col gap-3 mb-6 bg-white/70 dark:bg-[#121620]/70 backdrop-blur-xl p-4 rounded-2xl border border-neutral-200/80 dark:border-white/10 shadow-sm animate-scaleUp">
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-900 dark:text-white mb-1">Username</label>
+                  <input 
+                    type="text" 
+                    value={formData.username} 
+                    onChange={(e) => {
+                      const val = e.target.value.toLowerCase().replace(/\s+/g, '-');
+                      setFormData({...formData, username: val});
+                      setUsernameError('');
+                    }}
+                    onBlur={() => formData.username !== user.username && checkUsername(formData.username)}
+                    className={`w-full rounded-xl px-3 py-1.5 text-xs focus:outline-none transition border ${
+                      isDark 
+                        ? "bg-white/[0.06] border-white/10 text-white focus:border-blue-500" 
+                        : "bg-neutral-100 border-neutral-200 text-neutral-900 focus:border-blue-500"
+                    }`}
+                  />
+                  {isCheckingUsername && (
+                    <span className="text-[11px] text-neutral-400 mt-1 block">Checking availability...</span>
                   )}
+                  {usernameError && (
+                    <span className="text-[11px] text-rose-500 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{usernameError}</span>
+                  )}
+                  {!usernameError && formData.username && formData.username !== user.username && !isCheckingUsername && (
+                    <span className="text-[11px] text-emerald-500 mt-1 block">✓ Username available</span>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-900 dark:text-white mb-1">Display Name</label>
+                  <input 
+                    type="text" 
+                    value={formData.name} 
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    className={`w-full rounded-xl px-3 py-1.5 text-xs focus:outline-none transition border ${
+                      isDark 
+                        ? "bg-white/[0.06] border-white/10 text-white focus:border-blue-500" 
+                        : "bg-neutral-100 border-neutral-200 text-neutral-900 focus:border-blue-500"
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-900 dark:text-white mb-1">Bio</label>
+                  <textarea 
+                    value={formData.bio} 
+                    onChange={(e) => setFormData({...formData, bio: e.target.value})}
+                    rows={3}
+                    placeholder="Tell the community about yourself..."
+                    className={`w-full rounded-xl px-3 py-1.5 text-xs focus:outline-none transition resize-none border ${
+                      isDark 
+                        ? "bg-white/[0.06] border-white/10 text-white placeholder:text-neutral-500 focus:border-blue-500" 
+                        : "bg-neutral-100 border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:border-blue-500"
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-900 dark:text-white mb-1">Company</label>
+                  <input 
+                    type="text" 
+                    value={formData.company} 
+                    onChange={(e) => setFormData({...formData, company: e.target.value})}
+                    placeholder="e.g. OpenAI / Google / Freelance"
+                    className={`w-full rounded-xl px-3 py-1.5 text-xs focus:outline-none transition border ${
+                      isDark 
+                        ? "bg-white/[0.06] border-white/10 text-white placeholder:text-neutral-500 focus:border-blue-500" 
+                        : "bg-neutral-100 border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:border-blue-500"
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-900 dark:text-white mb-1">Location</label>
+                  <input 
+                    type="text" 
+                    value={formData.location} 
+                    onChange={(e) => setFormData({...formData, location: e.target.value})}
+                    placeholder="e.g. San Francisco, CA"
+                    className={`w-full rounded-xl px-3 py-1.5 text-xs focus:outline-none transition border ${
+                      isDark 
+                        ? "bg-white/[0.06] border-white/10 text-white placeholder:text-neutral-500 focus:border-blue-500" 
+                        : "bg-neutral-100 border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:border-blue-500"
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-900 dark:text-white mb-1">Website</label>
+                  <input 
+                    type="text" 
+                    value={formData.website} 
+                    onChange={(e) => setFormData({...formData, website: e.target.value})}
+                    placeholder="https://example.com"
+                    className={`w-full rounded-xl px-3 py-1.5 text-xs focus:outline-none transition border ${
+                      isDark 
+                        ? "bg-white/[0.06] border-white/10 text-white placeholder:text-neutral-500 focus:border-blue-500" 
+                        : "bg-neutral-100 border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:border-blue-500"
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-900 dark:text-white mb-1">X / Twitter</label>
+                  <input 
+                    type="text" 
+                    value={formData.twitter} 
+                    onChange={(e) => setFormData({...formData, twitter: e.target.value})}
+                    placeholder="@handle"
+                    className={`w-full rounded-xl px-3 py-1.5 text-xs focus:outline-none transition border ${
+                      isDark 
+                        ? "bg-white/[0.06] border-white/10 text-white placeholder:text-neutral-500 focus:border-blue-500" 
+                        : "bg-neutral-100 border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:border-blue-500"
+                    }`}
+                  />
+                </div>
+                <div className="flex items-center gap-2 pt-2">
+                  <button 
+                    onClick={handleSave} 
+                    className="flex-1 bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:hover:bg-neutral-200 dark:text-black text-xs font-medium py-2 px-3 rounded-xl transition shadow-sm"
+                  >
+                    Save Changes
+                  </button>
+                  <button 
+                    onClick={handleCancel} 
+                    className={`px-3 py-2 text-xs font-medium rounded-xl border transition ${
+                      isDark ? "border-white/10 text-neutral-400 hover:bg-white/10 hover:text-white" : "border-neutral-200 text-neutral-600 hover:bg-neutral-100"
+                    }`}
+                  >
+                    Cancel
+                  </button>
                 </div>
               </div>
             ) : (
-              <div className="mb-8 border border-[#30363d] rounded-md p-4 bg-[#161b22] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-sm font-semibold text-[#f0f6fc] mb-1">
-                    {user?.username || 'user'} / {user?.username || 'user'} is a special repository
-                  </h3>
-                  <p className="text-xs text-[#8b949e]">
-                    Its `README.md` will appear on your public profile!
-                  </p>
+              <>
+                {/* Name & Username (ID strictly removed) */}
+                <div className="mb-4">
+                  <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-neutral-900 dark:text-white leading-tight">
+                    {user.name || user.username}
+                  </h1>
+                  <span className="text-sm sm:text-base text-neutral-500 dark:text-neutral-400 font-normal block mt-0.5">
+                    @{user.username}
+                  </span>
                 </div>
-                {showGithubInput ? (
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <input 
-                      type="text" 
-                      value={githubUsername}
-                      onChange={(e) => setGithubUsername(e.target.value)}
-                      placeholder="GitHub username or URL..."
-                      className="bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1.5 text-xs text-[#c9d1d9] focus:outline-none focus:border-[#58a6ff] min-w-[200px]"
-                      onKeyDown={(e) => e.key === 'Enter' && fetchGithubReadme()}
-                    />
-                    <button 
-                      onClick={fetchGithubReadme}
-                      disabled={isFetchingGithub || !githubUsername.trim()}
-                      className="bg-[#238636] hover:bg-[#2ea043] border border-[#2ea043]/60 text-white text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5 shadow-sm transition disabled:opacity-50 whitespace-nowrap"
-                    >
-                      {isFetchingGithub ? "Fetching..." : "Fetch"}
-                    </button>
-                    <button 
-                      onClick={() => setShowGithubInput(false)}
-                      className="text-[#8b949e] hover:text-[#c9d1d9] text-xs px-2"
-                    >
-                      Cancel
-                    </button>
+
+                {/* Edit & Public Profile Buttons */}
+                <div className="flex items-center gap-2 mb-5">
+                  <button 
+                    onClick={() => setIsEditing(true)} 
+                    className="flex-1 bg-neutral-100 hover:bg-neutral-200 dark:bg-white/10 dark:hover:bg-white/15 border border-neutral-200/80 dark:border-white/10 text-neutral-900 dark:text-white text-xs font-medium py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    Edit Profile
+                  </button>
+                  <Link
+                    href={`/u/${user.username}`}
+                    title="View public profile"
+                    className="p-2.5 bg-white/70 dark:bg-white/10 hover:bg-neutral-100 dark:hover:bg-white/15 border border-neutral-200/80 dark:border-white/10 rounded-xl text-neutral-600 dark:text-neutral-300 transition-all shadow-sm"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </Link>
+                </div>
+
+                {/* Bio */}
+                {user.bio && (
+                  <p className="text-xs sm:text-sm text-neutral-700 dark:text-neutral-300 mb-5 leading-relaxed bg-white/60 dark:bg-white/[0.04] backdrop-blur-md p-3.5 rounded-xl border border-neutral-200/70 dark:border-white/[0.06] shadow-sm">
+                    {user.bio}
+                  </p>
+                )}
+
+                {/* Follower Stats */}
+                <div className="flex items-center gap-3 text-xs mb-5 text-neutral-500 dark:text-neutral-400 pb-5 border-b border-neutral-200/70 dark:border-white/[0.08]">
+                  <div 
+                    onClick={() => { setModalTab('followers'); setUserListModalOpen(true); }}
+                    className="flex items-center gap-1.5 hover:text-neutral-900 dark:hover:text-white cursor-pointer transition group/stat"
+                    title="View followers"
+                  >
+                    <Users className="w-3.5 h-3.5 group-hover/stat:text-neutral-900 dark:group-hover/stat:text-white" />
+                    <span className="font-semibold text-neutral-900 dark:text-white">{user.followers_count ?? 0}</span>
+                    <span className="group-hover/stat:underline">followers</span>
+                  </div>
+                  <span>·</span>
+                  <div 
+                    onClick={() => { setModalTab('following'); setUserListModalOpen(true); }}
+                    className="flex items-center gap-1.5 hover:text-neutral-900 dark:hover:text-white cursor-pointer transition group/stat"
+                    title="View following"
+                  >
+                    <span className="font-semibold text-neutral-900 dark:text-white">{user.following_count ?? 0}</span>
+                    <span className="group-hover/stat:underline">following</span>
+                  </div>
+                  <span>·</span>
+                  <div className="flex items-center gap-1.5">
+                    <Book className="w-3.5 h-3.5" />
+                    <span className="font-semibold text-neutral-900 dark:text-white">{repos.length}</span>
+                    <span>prompts</span>
+                  </div>
+                </div>
+
+                {/* Metadata list */}
+                <ul className="text-xs space-y-2.5 text-neutral-500 dark:text-neutral-400">
+                  {user.company && (
+                    <li className="flex items-center gap-2">
+                      <Building className="w-3.5 h-3.5 shrink-0 text-neutral-400" />
+                      <span className="text-neutral-700 dark:text-neutral-300 font-medium">{user.company}</span>
+                    </li>
+                  )}
+                  {user.location && (
+                    <li className="flex items-center gap-2">
+                      <MapPin className="w-3.5 h-3.5 shrink-0 text-neutral-400" />
+                      <span className="text-neutral-700 dark:text-neutral-300">{user.location}</span>
+                    </li>
+                  )}
+                  {user.website && (
+                    <li className="flex items-center gap-2">
+                      <LinkIcon className="w-3.5 h-3.5 shrink-0 text-neutral-400" />
+                      <a 
+                        href={user.website.startsWith('http') ? user.website : `https://${user.website}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-blue-500 hover:underline truncate"
+                      >
+                        {user.website}
+                      </a>
+                    </li>
+                  )}
+                  {user.twitter && (
+                    <li className="flex items-center gap-2">
+                      <Twitter className="w-3.5 h-3.5 shrink-0 text-neutral-400" />
+                      <a 
+                        href={`https://twitter.com/${user.twitter.replace('@', '')}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-blue-500 hover:underline"
+                      >
+                        @{user.twitter.replace('@', '')}
+                      </a>
+                    </li>
+                  )}
+                  <li className="flex items-center gap-2 text-neutral-400 dark:text-neutral-500">
+                    <Calendar className="w-3.5 h-3.5 shrink-0" />
+                    <span>Joined {new Date(user.created_at || Date.now()).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</span>
+                  </li>
+                </ul>
+              </>
+            )}
+
+          </div>
+
+          {/* Right Column: Profile Navigation & Tabs */}
+          <div className="flex-1 min-w-0 pt-2">
+            
+            {/* Social Profile Navigation Tabs - Apple Segmented Glass Bar */}
+            <div className="flex items-center gap-2 p-1 bg-neutral-200/50 dark:bg-white/[0.06] backdrop-blur-xl rounded-xl border border-neutral-200/60 dark:border-white/[0.06] mb-6 w-fit">
+              <button
+                onClick={() => setActiveTab("overview")}
+                className={`flex items-center gap-2 px-4 py-2 text-xs font-medium rounded-lg transition-all ${
+                  activeTab === "overview"
+                    ? "bg-white dark:bg-white/15 text-neutral-900 dark:text-white shadow-sm"
+                    : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+                }`}
+              >
+                <Book className="w-3.5 h-3.5" />
+                Overview
+              </button>
+
+              <button
+                onClick={() => setActiveTab("repositories")}
+                className={`flex items-center gap-2 px-4 py-2 text-xs font-medium rounded-lg transition-all ${
+                  activeTab === "repositories"
+                    ? "bg-white dark:bg-white/15 text-neutral-900 dark:text-white shadow-sm"
+                    : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+                }`}
+              >
+                <GitMerge className="w-3.5 h-3.5" />
+                Repositories
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
+                  activeTab === "repositories" 
+                    ? "bg-neutral-100 dark:bg-white/20 text-neutral-800 dark:text-white" 
+                    : "bg-neutral-200 dark:bg-white/10 text-neutral-500 dark:text-neutral-400"
+                }`}>
+                  {repos.length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab("stars")}
+                className={`flex items-center gap-2 px-4 py-2 text-xs font-medium rounded-lg transition-all ${
+                  activeTab === "stars"
+                    ? "bg-white dark:bg-white/15 text-neutral-900 dark:text-white shadow-sm"
+                    : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+                }`}
+              >
+                <Heart className="w-3.5 h-3.5" />
+                Stars
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
+                  activeTab === "stars" 
+                    ? "bg-neutral-100 dark:bg-white/20 text-neutral-800 dark:text-white" 
+                    : "bg-neutral-200 dark:bg-white/10 text-neutral-500 dark:text-neutral-400"
+                }`}>
+                  {totalStarsCount}
+                </span>
+              </button>
+            </div>
+
+            {/* TAB 1: OVERVIEW */}
+            {activeTab === 'overview' && (
+              <>
+                {/* Special Profile README (Hero Card) */}
+                {specialRepo ? (
+                  <div className="mb-8 border border-neutral-200/80 dark:border-white/[0.08] rounded-2xl bg-white/70 dark:bg-[#121620]/70 backdrop-blur-xl overflow-hidden shadow-sm">
+                    <div className="bg-neutral-100/60 dark:bg-white/[0.04] px-4 py-3 border-b border-neutral-200/80 dark:border-white/[0.08] text-xs font-medium flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] bg-neutral-200 dark:bg-white/10 px-2 py-0.5 rounded-md font-semibold text-neutral-800 dark:text-neutral-200">
+                          {user.username}
+                        </span>
+                        <span className="text-neutral-500 dark:text-neutral-400">/ README.md</span>
+                      </div>
+                      <span className="text-[11px] text-neutral-400">Your Profile Bio README</span>
+                    </div>
+                    <div className="p-6 text-xs sm:text-sm text-neutral-800 dark:text-neutral-200 prose prose-neutral dark:prose-invert max-w-none">
+                      {specialRepo.latest_prompt ? (
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                          {specialRepo.latest_prompt}
+                        </ReactMarkdown>
+                      ) : (
+                        <p>This is your special profile bio repository.</p>
+                      )}
+                    </div>
                   </div>
                 ) : (
-                  <button 
-                    onClick={() => setShowGithubInput(true)}
-                    className="bg-[#21262d] hover:bg-[#30363d] border border-[#363b42] text-[#f0f6fc] text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5 shadow-sm transition whitespace-nowrap"
+                  <div className="mb-8 border border-neutral-200/80 dark:border-white/[0.08] rounded-2xl p-5 bg-white/70 dark:bg-[#121620]/70 backdrop-blur-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+                    <div>
+                      <h3 className="text-sm font-semibold text-neutral-900 dark:text-white mb-1">
+                        {user.username} / {user.username} is a special repository
+                      </h3>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                        Its <code className="bg-neutral-100 dark:bg-white/10 px-1 py-0.5 rounded font-mono">README.md</code> will appear on your public profile!
+                      </p>
+                    </div>
+                    {showGithubInput ? (
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <input 
+                          type="text" 
+                          value={githubUsername}
+                          onChange={(e) => setGithubUsername(e.target.value)}
+                          placeholder="GitHub username or repo URL..."
+                          className={`rounded-xl px-3 py-1.5 text-xs focus:outline-none transition border min-w-[200px] ${
+                            isDark 
+                              ? "bg-white/[0.06] border-white/10 text-white placeholder:text-neutral-500" 
+                              : "bg-neutral-100 border-neutral-200 text-neutral-900 placeholder:text-neutral-400"
+                          }`}
+                          onKeyDown={(e) => e.key === 'Enter' && fetchGithubReadme()}
+                        />
+                        <button 
+                          onClick={fetchGithubReadme}
+                          disabled={isFetchingGithub || !githubUsername.trim()}
+                          className="bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:hover:bg-neutral-200 dark:text-black text-xs font-medium px-3.5 py-1.5 rounded-xl transition disabled:opacity-50 whitespace-nowrap shadow-sm"
+                        >
+                          {isFetchingGithub ? "Fetching..." : "Fetch"}
+                        </button>
+                        <button 
+                          onClick={() => setShowGithubInput(false)}
+                          className="text-neutral-400 hover:text-neutral-600 dark:hover:text-white text-xs px-2"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button 
+                        onClick={() => setShowGithubInput(true)}
+                        className="bg-neutral-100 hover:bg-neutral-200 dark:bg-white/10 dark:hover:bg-white/15 border border-neutral-200/80 dark:border-white/10 text-neutral-900 dark:text-white text-xs font-medium px-3.5 py-2 rounded-xl flex items-center gap-2 transition shadow-sm whitespace-nowrap"
+                      >
+                        <Book className="w-3.5 h-3.5" />
+                        Fetch from GitHub
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Popular Repositories Grid */}
+                <div className="mb-8">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                      Popular Repositories
+                    </span>
+                    <Link href="/new" className="text-xs font-medium text-blue-500 hover:underline flex items-center gap-1">
+                      <Plus className="w-3.5 h-3.5" /> Create new
+                    </Link>
+                  </div>
+                  
+                  {repos.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {repos.slice(0, 6).map((repo) => (
+                        <div 
+                          key={repo.id}
+                          onClick={() => router.push(`/repo/${repo.id}`)}
+                          className="group flex flex-col justify-between border border-neutral-200/80 dark:border-white/[0.08] hover:border-neutral-300 dark:hover:border-white/20 rounded-2xl p-5 bg-white/70 dark:bg-[#121620]/70 backdrop-blur-xl transition-all duration-200 cursor-pointer shadow-[0_2px_12px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)]"
+                        >
+                          <div>
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Book className="w-4 h-4 text-neutral-400 shrink-0" />
+                                <span className="text-sm font-semibold text-neutral-900 dark:text-white truncate group-hover:text-blue-500 transition">
+                                  {repo.name}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-white/10 border border-neutral-200/70 dark:border-white/10 text-neutral-500 dark:text-neutral-400 shrink-0">
+                                {repo.visibility || 'Public'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-4 line-clamp-2 leading-relaxed">
+                              {repo.description || "Prompt repository"}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center justify-between text-[11px] text-neutral-500 dark:text-neutral-400 pt-3 border-t border-neutral-200/60 dark:border-white/[0.06]">
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full ${
+                                repo.category === 'Coding' ? 'bg-blue-500' :
+                                repo.category === 'Research' ? 'bg-emerald-500' :
+                                repo.category === 'Writing' ? 'bg-purple-500' :
+                                repo.category === 'Education' ? 'bg-amber-500' :
+                                'bg-neutral-400'
+                              }`} />
+                              <span className="font-medium text-neutral-600 dark:text-neutral-300">{repo.category || 'Other'}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={(e) => handleToggleStar(e, repo.id)}
+                                className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] transition ${
+                                  repo.is_starred ? 'text-rose-500 font-medium' : 'text-neutral-400 hover:text-rose-500'
+                                }`}
+                              >
+                                <Heart className={`w-3 h-3 ${repo.is_starred ? 'fill-rose-500 text-rose-500' : ''}`} />
+                                <span>{repo.stars_count || 0}</span>
+                              </button>
+                              <span className="text-[11px] text-neutral-400 group-hover:text-blue-500 flex items-center gap-0.5 transition">
+                                Open <ArrowUpRight className="w-3 h-3" />
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="border border-dashed border-neutral-300 dark:border-white/15 rounded-2xl p-10 text-center bg-white/40 dark:bg-white/[0.02] backdrop-blur-md">
+                      <div className="w-12 h-12 rounded-full bg-neutral-100 dark:bg-white/10 flex items-center justify-center mx-auto mb-3 text-neutral-400">
+                        <Book className="w-6 h-6" />
+                      </div>
+                      <h3 className="text-sm font-semibold mb-1 text-neutral-900 dark:text-white">No repositories yet</h3>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-4 max-w-sm mx-auto">
+                        Create your first prompt repository to start versioning and sharing your AI workflows.
+                      </p>
+                      <Link 
+                        href="/new" 
+                        className="inline-flex items-center gap-1.5 bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:hover:bg-neutral-200 dark:text-black px-4 py-2 rounded-xl text-xs font-medium transition shadow-sm"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Create a repository
+                      </Link>
+                    </div>
+                  )}
+                </div>
+
+                {/* Contribution Activity Heatmap */}
+                <div className="mb-8">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                      Contribution Heatmap
+                    </h2>
+                    <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                      {totalContributions} contributions in the last year
+                    </span>
+                  </div>
+
+                  <div className="border border-neutral-200/80 dark:border-white/[0.08] rounded-2xl p-4 bg-white/70 dark:bg-[#121620]/70 backdrop-blur-xl shadow-sm">
+                    <div className="relative h-4 mb-1 pl-8">
+                      {monthLabels.map(({ idx, label }, i) => (
+                        <div 
+                          key={i} 
+                          className="absolute text-[10px] text-neutral-400 font-medium"
+                          style={{ left: `${32 + (idx * 13)}px` }}
+                        >
+                          {label}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex gap-[3px] overflow-x-auto no-scrollbar pb-2">
+                      <div className="flex flex-col gap-[3px] pr-1 shrink-0">
+                        {['', 'Mon', '', 'Wed', '', 'Fri', ''].map((label, i) => (
+                          <div key={i} className="h-[10px] text-[9px] text-neutral-400 flex items-center">{label}</div>
+                        ))}
+                      </div>
+                      
+                      {weeks.length > 0 ? (
+                        weeks.map((week, col) => (
+                          <div key={col} className="flex flex-col gap-[3px]">
+                            {week.map((day, row) => (
+                              <div
+                                key={row}
+                                className={`w-[10px] h-[10px] rounded-sm ${levelColors[day.level]} cursor-pointer hover:scale-125 transition-all`}
+                                title={`${day.date}: ${day.count} contribution${day.count !== 1 ? 's' : ''}`}
+                              />
+                            ))}
+                          </div>
+                        ))
+                      ) : (
+                        Array.from({ length: 52 }).map((_, col) => (
+                          <div key={col} className="flex flex-col gap-[3px]">
+                            {Array.from({ length: 7 }).map((_, row) => (
+                              <div key={row} className={`w-[10px] h-[10px] rounded-sm ${levelColors[0]}`} />
+                            ))}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recent Activity */}
+                {contributions?.recent_activities && contributions.recent_activities.length > 0 && (
+                  <div>
+                    <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-3">
+                      Recent Activity
+                    </h2>
+                    <div className="border border-neutral-200/80 dark:border-white/[0.08] rounded-2xl bg-white/70 dark:bg-[#121620]/70 backdrop-blur-xl divide-y divide-neutral-200/60 dark:divide-white/[0.06] overflow-hidden shadow-sm">
+                      {contributions.recent_activities.slice(0, 8).map((activity, idx) => (
+                        <div key={idx} className="p-4 flex items-center justify-between gap-4 hover:bg-neutral-50 dark:hover:bg-white/[0.04] transition">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-neutral-100 dark:bg-white/10 flex items-center justify-center text-blue-500 shrink-0">
+                              {activity.type === 'repo_created' ? <Book className="w-4 h-4" /> : <GitMerge className="w-4 h-4" />}
+                            </div>
+                            <div>
+                              <div className="text-xs font-semibold text-neutral-900 dark:text-white">
+                                {activity.type === 'repo_created' ? 'Created repository ' : 'Made a commit in '}
+                                {activity.repo_name ? (
+                                  <Link href={`/repo/${activity.repo_id}`} className="text-blue-500 hover:underline font-mono">
+                                    {activity.repo_name}
+                                  </Link>
+                                ) : (
+                                  <span>prompt repository</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <span className="text-[10px] text-neutral-400 whitespace-nowrap">
+                            {activity.date ? (() => {
+                              try {
+                                const d = new Date(activity.date);
+                                return isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                              } catch { return ''; }
+                            })() : ''}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* TAB 2: REPOSITORIES */}
+            {activeTab === 'repositories' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <input 
+                    type="text" 
+                    placeholder="Find a repository..." 
+                    value={repoSearchQuery}
+                    onChange={(e) => setRepoSearchQuery(e.target.value)}
+                    className={`rounded-full px-4 py-2 text-xs focus:outline-none transition border flex-1 max-w-sm ${
+                      isDark 
+                        ? "bg-white/[0.06] border-white/10 text-white placeholder:text-neutral-500" 
+                        : "bg-neutral-100 border-neutral-200 text-neutral-900 placeholder:text-neutral-400"
+                    }`}
+                  />
+                  <Link 
+                    href="/new"
+                    className="bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:hover:bg-neutral-200 dark:text-black text-xs font-medium px-4 py-2 rounded-full flex items-center gap-1.5 transition shadow-sm shrink-0"
                   >
-                    <Book className="w-3.5 h-3.5" />
-                    Fetch from GitHub
-                  </button>
+                    <Plus className="w-3.5 h-3.5" />
+                    New Repository
+                  </Link>
+                </div>
+
+                {filteredRepos.length > 0 ? (
+                  <div className="border border-neutral-200/80 dark:border-white/[0.08] rounded-2xl bg-white/70 dark:bg-[#121620]/70 backdrop-blur-xl divide-y divide-neutral-200/60 dark:divide-white/[0.06] overflow-hidden shadow-sm">
+                    {filteredRepos.map((repo) => (
+                      <div key={repo.id} className="p-4 hover:bg-neutral-50 dark:hover:bg-white/[0.04] transition">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Link href={`/repo/${repo.id}`} className="text-sm font-semibold text-neutral-900 dark:text-white hover:text-blue-500 transition truncate">
+                                {repo.name}
+                              </Link>
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-white/10 border border-neutral-200/70 dark:border-white/10 text-neutral-500 dark:text-neutral-400">
+                                {repo.visibility || 'Public'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-3 line-clamp-2">{repo.description || "Prompt repository"}</p>
+                            <div className="flex items-center gap-4 text-[11px] text-neutral-400">
+                              <div className="flex items-center gap-1.5">
+                                <span className={`w-2 h-2 rounded-full ${
+                                  repo.category === 'Coding' ? 'bg-blue-500' :
+                                  repo.category === 'Research' ? 'bg-emerald-500' :
+                                  repo.category === 'Writing' ? 'bg-purple-500' :
+                                  repo.category === 'Education' ? 'bg-amber-500' :
+                                  'bg-neutral-400'
+                                }`} />
+                                <span>{repo.category || 'Other'}</span>
+                              </div>
+                              <span>Updated {repo.updated_at ? new Date(repo.updated_at).toLocaleDateString() : ''}</span>
+                            </div>
+                          </div>
+
+                          <button 
+                            onClick={(e) => handleToggleStar(e, repo.id)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition shrink-0 ${
+                              repo.is_starred
+                                ? "bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-400"
+                                : "bg-neutral-100 hover:bg-neutral-200 dark:bg-white/5 dark:hover:bg-white/10 border-neutral-200/70 dark:border-white/10 text-neutral-500 dark:text-neutral-400"
+                            }`}
+                          >
+                            <Heart className={`w-3.5 h-3.5 ${repo.is_starred ? 'fill-rose-500 text-rose-500' : ''}`} />
+                            <span>{repo.stars_count || 0}</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-xs text-neutral-400 border border-dashed border-neutral-200/80 dark:border-white/10 rounded-2xl">
+                    No repositories match your search.
+                  </div>
                 )}
               </div>
             )}
 
-            {/* Pinned Repos */}
-            <div className="mb-8">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-[#f0f6fc] font-medium">Popular repositories</span>
-              </div>
-              
-              {repos.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {repos.slice(0, 6).map((repo) => (
-                    <Link 
-                      key={repo.id}
-                      href={`/repo/${repo.id}`}
-                      className="border border-[#30363d] rounded-lg p-4 bg-[#0d1117] hover:border-[#8b949e]/50 transition group"
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <Book className="w-4 h-4 text-[#8b949e]" />
-                        <span className="text-sm font-semibold text-[#58a6ff] group-hover:underline">{repo.name}</span>
-                        <span className="text-[10px] font-medium border border-[#30363d] text-[#8b949e] px-1.5 py-0.5 rounded-full">
-                          {repo.visibility || 'Public'}
-                        </span>
-                      </div>
-                      <p className="text-xs text-[#8b949e] mb-3 line-clamp-2">{repo.description || "Prompt repository"}</p>
-                      <div className="flex items-center gap-3 text-[11px] text-[#8b949e]">
-                        <div className="flex items-center gap-1">
-                          <span className={`w-2.5 h-2.5 rounded-full ${
-                            repo.category === 'Coding' ? 'bg-[#3178c6]' :
-                            repo.category === 'Research' ? 'bg-[#238636]' :
-                            repo.category === 'Writing' ? 'bg-[#a371f7]' :
-                            repo.category === 'Education' ? 'bg-[#e3b341]' :
-                            'bg-[#8b949e]'
-                          }`}></span>
-                          <span>{repo.category || 'Other'}</span>
-                        </div>
-                        <span className="font-mono">{repo.latest_version || 'v1.0'}</span>
-                        <span>{repo.versions_count || 1} version{(repo.versions_count || 1) > 1 ? 's' : ''}</span>
-                        <div className="flex items-center gap-1 text-[#8b949e] ml-auto">
-                          <Star className={`w-3 h-3 ${repo.is_starred ? 'text-[#e3b341] fill-[#e3b341]' : ''}`} />
-                          <span>{repo.stars_count || 0}</span>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div className="border border-[#30363d] border-dashed rounded-md p-8 text-center bg-[#161b22]">
-                  <h3 className="text-sm font-medium mb-2 text-[#f0f6fc]">No repositories yet.</h3>
-                  <p className="text-xs text-[#8b949e] mb-4">Create your first prompt repository to get started!</p>
-                  <Link href="/new" className="text-xs font-semibold text-[#58a6ff] hover:underline">Create a repository</Link>
-                </div>
-              )}
-            </div>
-
-            {/* Contribution Graph - REAL DATA */}
-            <div>
-              <h2 className="text-sm text-[#f0f6fc] mb-2">{totalContributions} contributions in the last year</h2>
-              <div className="border border-[#30363d] rounded-md p-4 bg-[#0d1117]">
-                {/* Month labels */}
-                <div className="relative h-4 mb-1 pl-8">
-                  {monthLabels.map(({ idx, label }, i) => (
-                    <div 
-                      key={i} 
-                      className="absolute text-[10px] text-[#8b949e]"
-                      style={{ left: `${32 + (idx * 13)}px` }}
-                    >
-                      {label}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Heatmap Grid */}
-                <div className="flex gap-[3px] overflow-x-auto no-scrollbar pb-2">
-                  {/* Day labels */}
-                  <div className="flex flex-col gap-[3px] pr-1 shrink-0">
-                    {['', 'Mon', '', 'Wed', '', 'Fri', ''].map((label, i) => (
-                      <div key={i} className="h-[10px] text-[9px] text-[#8b949e] flex items-center">{label}</div>
-                    ))}
-                  </div>
-                  
-                  {weeks.length > 0 ? (
-                    weeks.map((week, col) => (
-                      <div key={col} className="flex flex-col gap-[3px]">
-                        {week.map((day, row) => (
-                          <div
-                            key={row}
-                            className={`w-[10px] h-[10px] rounded-sm ${LEVEL_COLORS[day.level]} outline outline-1 outline-offset-[-1px] outline-white/5 cursor-pointer hover:outline-white/30 transition-all`}
-                            title={`${day.date}: ${day.count} contribution${day.count !== 1 ? 's' : ''}`}
-                          />
-                        ))}
-                      </div>
-                    ))
-                  ) : (
-                    // Fallback empty grid
-                    Array.from({ length: 52 }).map((_, col) => (
-                      <div key={col} className="flex flex-col gap-[3px]">
-                        {Array.from({ length: 7 }).map((_, row) => (
-                          <div key={row} className="w-[10px] h-[10px] rounded-sm bg-[#161b22] outline outline-1 outline-offset-[-1px] outline-white/5" />
-                        ))}
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between text-xs text-[#8b949e] mt-2">
-                  <div className="flex items-center gap-4">
-                    <a href="#" className="hover:text-[#58a6ff]">Learn how we count contributions</a>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span>Less</span>
-                    {LEVEL_COLORS.map((color, i) => (
-                      <div key={i} className={`w-[10px] h-[10px] rounded-sm ${color}`} />
-                    ))}
-                    <span>More</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Recent Activity */}
-            {contributions?.recent_activities && contributions.recent_activities.length > 0 && (
-              <div className="mt-6">
-                <h2 className="text-sm text-[#f0f6fc] mb-3 font-medium">Recent Activity</h2>
-                <div className="space-y-2">
-                  {contributions.recent_activities.slice(0, 8).map((activity, idx) => (
-                    <div key={idx} className="flex items-start gap-3 text-xs text-[#8b949e] py-2 border-b border-[#21262d]">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
-                        activity.type === 'repo_created' ? 'bg-[#238636]/20 text-[#3fb950]' : 'bg-[#1f6feb]/20 text-[#58a6ff]'
-                      }`}>
-                        {activity.type === 'repo_created' ? (
-                          <Book className="w-3 h-3" />
-                        ) : (
-                          <GitMerge className="w-3 h-3" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-[#c9d1d9]">
-                          {activity.type === 'repo_created' ? 'Created repository ' : 'Made a commit in '}
-                          {activity.repo_name ? (
-                            <Link href={`/repo/${activity.repo_id}`} className="text-[#58a6ff] hover:underline font-medium">
-                              {user.username}/{activity.repo_name}
+            {/* TAB 3: STARS */}
+            {activeTab === 'stars' && (
+              <div className="space-y-4">
+                {starredRepos.length > 0 ? (
+                  <div className="border border-neutral-200/80 dark:border-white/[0.08] rounded-2xl bg-white/70 dark:bg-[#121620]/70 backdrop-blur-xl divide-y divide-neutral-200/60 dark:divide-white/[0.06] overflow-hidden shadow-sm">
+                    {starredRepos.map((repo) => (
+                      <div key={repo.id} className="p-4 hover:bg-neutral-50 dark:hover:bg-white/[0.04] transition">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            <Link href={`/repo/${repo.id}`} className="text-sm font-semibold text-neutral-900 dark:text-white hover:text-blue-500 transition truncate block mb-1">
+                              {repo.name}
                             </Link>
-                          ) : (
-                            <span className="text-[#8b949e]">unknown repository</span>
-                          )}
-                        </p>
-                        <p className="text-[11px] text-[#8b949e] mt-0.5">
-                          {activity.date ? (() => {
-                            try {
-                              const d = new Date(activity.date);
-                              return isNaN(d.getTime()) ? '' : d.toLocaleString();
-                            } catch { return ''; }
-                          })() : ''}
-                        </p>
+                            <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-2">{repo.description || "Prompt repository"}</p>
+                            <div className="flex items-center gap-2 text-[11px] text-neutral-400">
+                              <span>{repo.category || 'Other'}</span>
+                              <span>·</span>
+                              <span>{repo.stars_count || 0} stars</span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={(e) => handleToggleStar(e, repo.id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-400 shrink-0"
+                          >
+                            <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" />
+                            <span>Starred</span>
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Repositories Tab */}
-        {activeTab === 'repositories' && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between mb-4">
-              <input 
-                type="text" 
-                placeholder="Find a repository..." 
-                className="bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1.5 text-xs text-[#c9d1d9] placeholder:text-[#8b949e] focus:outline-none focus:border-[#58a6ff] w-full max-w-sm"
-              />
-              <Link 
-                href="/new"
-                className="bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5 transition ml-3"
-              >
-                <Book className="w-3.5 h-3.5" />
-                New
-              </Link>
-            </div>
-            {repos.map((repo) => (
-              <div key={repo.id} className="border-b border-[#21262d] pb-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <Link href={`/repo/${repo.id}`} className="text-[#58a6ff] hover:underline font-semibold text-base">
-                        {repo.name}
-                      </Link>
-                      <span className="text-[10px] font-medium border border-[#30363d] text-[#8b949e] px-1.5 py-0.5 rounded-full">
-                        {repo.visibility || 'Public'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-[#8b949e] mb-2 max-w-lg">{repo.description || "Prompt repository"}</p>
-                    <div className="flex items-center gap-4 text-xs text-[#8b949e]">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`w-2.5 h-2.5 rounded-full ${
-                          repo.category === 'Coding' ? 'bg-[#3178c6]' :
-                          repo.category === 'Research' ? 'bg-[#238636]' :
-                          repo.category === 'Writing' ? 'bg-[#a371f7]' :
-                          repo.category === 'Education' ? 'bg-[#e3b341]' :
-                          'bg-[#8b949e]'
-                        }`}></span>
-                        <span>{repo.category || 'Other'}</span>
-                      </div>
-                      <span>Updated {repo.updated_at ? (() => {
-                        try {
-                          const d = new Date(repo.updated_at);
-                          return isNaN(d.getTime()) ? '' : d.toLocaleDateString();
-                        } catch { return ''; }
-                      })() : ''}</span>
-                    </div>
+                    ))}
                   </div>
-                  <button 
-                    onClick={(e) => handleToggleStar(e, repo.id)}
-                    className={`border text-xs font-semibold px-3 py-1 rounded-md flex items-center gap-1.5 transition ${
-                      repo.is_starred
-                        ? 'bg-[#e3b341]/10 border-[#e3b341]/50 text-[#e3b341]'
-                        : 'bg-[#21262d] hover:bg-[#30363d] border-[#363b42] text-[#c9d1d9]'
-                    }`}
-                  >
-                    <Star className={`w-3.5 h-3.5 ${repo.is_starred ? 'text-[#e3b341] fill-[#e3b341]' : 'text-[#8b949e]'}`} />
-                    <span>{repo.is_starred ? 'Starred' : 'Star'}</span>
-                    <span className="bg-[#30363d] px-1.5 py-0.2 rounded-full text-[10px] text-[#f0f6fc]">
-                      {repo.stars_count || 0}
-                    </span>
-                  </button>
-                </div>
-              </div>
-            ))}
-            {repos.length === 0 && (
-              <div className="text-center py-12 text-[#8b949e]">
-                <p className="text-sm mb-2">You don't have any repositories yet.</p>
-                <Link href="/new" className="text-[#58a6ff] hover:underline text-sm font-semibold">Create your first repository</Link>
+                ) : (
+                  <div className="border border-dashed border-neutral-300 dark:border-white/15 rounded-2xl p-12 text-center bg-white/40 dark:bg-white/[0.02] backdrop-blur-md">
+                    <Heart className="w-8 h-8 mx-auto mb-3 text-neutral-300 dark:text-neutral-600" />
+                    <h3 className="text-sm font-semibold mb-1 text-neutral-900 dark:text-white">No starred repositories</h3>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-4 max-w-sm mx-auto">
+                      Explore prompt repositories published by the community and like the ones you find useful!
+                    </p>
+                    <Link 
+                      href="/explore" 
+                      className="inline-flex items-center gap-1.5 bg-[#1d1d1f] hover:bg-black text-white dark:bg-white dark:hover:bg-neutral-200 dark:text-black px-4 py-2 rounded-xl text-xs font-medium transition shadow-sm"
+                    >
+                      <Compass className="w-3.5 h-3.5" />
+                      Explore Repositories
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
-          </div>
-        )}
 
-        {/* Stars Tab */}
-        {activeTab === 'stars' && (
-          <div className="text-center py-12 text-[#8b949e]">
-            <Star className="w-8 h-8 mx-auto mb-3 text-[#30363d]" />
-            <p className="text-sm mb-2">You haven't starred any repositories yet.</p>
-            <Link href="/explore" className="text-[#58a6ff] hover:underline text-sm font-semibold">Explore repositories</Link>
           </div>
-        )}
+
+        </div>
+
       </div>
 
-      {/* AI Preview Modal */}
+      {/* AI Preview Modal (with smooth animations) */}
       {previewModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-          <div className="bg-[#0d1117] border border-[#30363d] rounded-xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
-            <div className="flex items-center justify-between p-4 border-b border-[#30363d]">
-              <h2 className="text-[#f0f6fc] text-lg font-semibold flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-[#58a6ff]" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
+          <div className={`w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh] animate-scaleUp border ${
+            isDark ? "bg-[#121620]/95 border-white/10 text-white" : "bg-white/95 border-neutral-200/80 text-neutral-900"
+          }`}>
+            <div className={`flex items-center justify-between p-4 border-b ${
+              isDark ? "border-white/[0.08]" : "border-neutral-200/70"
+            }`}>
+              <h2 className="text-sm font-semibold flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-blue-500" />
                 Preview Profile README
               </h2>
             </div>
             
             <div className="p-4 overflow-y-auto flex-1">
-              <label className="block text-sm font-semibold text-[#f0f6fc] mb-2">Edit your fetched README:</label>
+              <label className="block text-xs font-semibold mb-2">Edit your fetched README:</label>
               <textarea
                 value={previewContent}
                 onChange={(e) => setPreviewContent(e.target.value)}
-                className="w-full bg-[#161b22] border border-[#30363d] rounded-lg p-3 text-sm text-[#c9d1d9] font-mono focus:outline-none focus:border-[#58a6ff] transition"
+                className={`w-full rounded-2xl p-3 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition border ${
+                  isDark 
+                    ? "bg-white/[0.04] border-white/10 text-neutral-200" 
+                    : "bg-neutral-100 border-neutral-200 text-neutral-800"
+                }`}
                 rows={12}
               />
             </div>
             
-            <div className="p-4 border-t border-[#30363d] flex justify-end gap-2 bg-[#161b22]">
+            <div className={`p-4 border-t flex justify-end gap-2.5 ${
+              isDark ? "border-white/[0.08] bg-white/[0.02]" : "border-neutral-200/70 bg-neutral-50/50"
+            }`}>
               <button 
                 onClick={() => setPreviewModalOpen(false)}
-                className="px-4 py-2 text-sm font-medium text-[#c9d1d9] bg-[#21262d] border border-[#363b42] hover:bg-[#30363d] rounded-md transition"
+                className={`px-4 py-2 text-xs font-medium rounded-xl border transition ${
+                  isDark ? "border-white/10 text-neutral-300 hover:bg-white/10" : "border-neutral-200 text-neutral-700 hover:bg-neutral-100"
+                }`}
               >
                 Cancel
               </button>
               <button 
                 onClick={confirmCreateSpecialRepo}
                 disabled={isCreatingSpecial}
-                className="px-4 py-2 text-sm font-medium text-white bg-[#238636] hover:bg-[#2ea043] border border-[#2ea043]/60 rounded-md transition flex items-center gap-2 shadow-sm disabled:opacity-50"
+                className="px-4 py-2 text-xs font-medium text-white bg-[#1d1d1f] hover:bg-black dark:bg-white dark:hover:bg-neutral-200 dark:text-black rounded-xl transition flex items-center gap-2 shadow-sm disabled:opacity-50"
               >
-                {isCreatingSpecial ? "Creating..." : "Looks good, create repo!"}
+                {isCreatingSpecial ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create Special Repo"
+                )}
               </button>
             </div>
           </div>

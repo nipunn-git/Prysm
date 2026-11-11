@@ -672,58 +672,88 @@ export default function Navbar() {
               </button>
               
               {isProfileOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-[#161b22] border border-[#30363d] rounded-md shadow-xl py-1 z-50 text-xs">
-                  <div className="px-3 py-2 border-b border-[#30363d] text-[#8b949e]">
-                    Signed in as <br />
-                    <span className="font-semibold text-sm text-[#f0f6fc]">{user?.username || 'user'}</span>
-                    <span className="block text-[10px] text-[#8b949e] font-mono mt-0.5">ID: {user?.id}</span>
+                <div className={`absolute right-0 mt-2.5 w-60 rounded-2xl shadow-2xl p-1.5 z-50 text-xs backdrop-blur-2xl border transition-all animate-scaleUp font-apple ${
+                  isDark 
+                    ? "bg-[#121620]/95 border-white/10 text-neutral-200 shadow-[0_20px_50px_rgba(0,0,0,0.5)]" 
+                    : "bg-white/95 border-neutral-200/80 text-neutral-800 shadow-[0_20px_50px_rgba(0,0,0,0.12)]"
+                }`}>
+                  {/* User Profile Header (No ID) */}
+                  <div className={`px-3 py-2.5 rounded-xl mb-1 ${
+                    isDark ? "bg-white/[0.04] border border-white/[0.06]" : "bg-neutral-50 border border-neutral-100"
+                  }`}>
+                    <div className="text-[10px] text-neutral-400 font-medium">Signed in as</div>
+                    <div className="font-semibold text-sm text-neutral-900 dark:text-white truncate mt-0.5">
+                      {user?.name || user?.username || 'user'}
+                    </div>
+                    {user?.username && (
+                      <div className="text-[11px] text-neutral-500 dark:text-neutral-400 truncate">
+                        @{user.username}
+                      </div>
+                    )}
                   </div>
+
                   <Link 
                     href="/profile" 
-                    className="flex items-center gap-2 px-3 py-2 text-[#c9d1d9] hover:bg-[#1f6feb] hover:text-white transition"
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-xl transition ${
+                      isDark ? "hover:bg-white/10 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                    }`}
                     onClick={() => setIsProfileOpen(false)}
                   >
-                    <UserIcon className="w-3.5 h-3.5" />
-                    <span>Your profile</span>
+                    <UserIcon className="w-3.5 h-3.5 text-neutral-400" />
+                    <span className="font-medium">Your profile</span>
                   </Link>
                   <Link 
                     href="/dashboard" 
-                    className="flex items-center gap-2 px-3 py-2 text-[#c9d1d9] hover:bg-[#1f6feb] hover:text-white transition"
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-xl transition ${
+                      isDark ? "hover:bg-white/10 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                    }`}
                     onClick={() => setIsProfileOpen(false)}
                   >
-                    <FolderGit2 className="w-3.5 h-3.5" />
-                    <span>Your repositories</span>
+                    <FolderGit2 className="w-3.5 h-3.5 text-neutral-400" />
+                    <span className="font-medium">Your repositories</span>
                   </Link>
                   <Link 
                     href="/explore" 
-                    className="flex items-center gap-2 px-3 py-2 text-[#c9d1d9] hover:bg-[#1f6feb] hover:text-white transition"
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-xl transition ${
+                      isDark ? "hover:bg-white/10 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                    }`}
                     onClick={() => setIsProfileOpen(false)}
                   >
-                    <Compass className="w-3.5 h-3.5" />
-                    <span>Explore</span>
+                    <Compass className="w-3.5 h-3.5 text-neutral-400" />
+                    <span className="font-medium">Explore</span>
                   </Link>
-                  <div className="border-t border-[#30363d] my-1"></div>
+
+                  <div className={`border-t my-1 ${isDark ? "border-white/[0.08]" : "border-neutral-200/70"}`}></div>
+
                   <button 
                     onClick={() => {
                       setIsProfileOpen(false);
                       setIsThemeOpen(true);
                     }}
-                    className="w-full flex items-center justify-between px-3 py-2 text-[#c9d1d9] hover:bg-[#1f6feb] hover:text-white transition text-left"
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition text-left ${
+                      isDark ? "hover:bg-white/10 text-neutral-200" : "hover:bg-neutral-100 text-neutral-800"
+                    }`}
                   >
-                    <div className="flex items-center gap-2">
-                      <Palette className="w-3.5 h-3.5" />
-                      <span>Theme / Settings</span>
+                    <div className="flex items-center gap-2.5">
+                      <Palette className="w-3.5 h-3.5 text-neutral-400" />
+                      <span className="font-medium">Theme / Settings</span>
                     </div>
-                    <span className="text-[10px] text-[#8b949e] font-medium">{currentThemeObj?.name}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
+                      isDark ? "bg-white/10 text-neutral-300" : "bg-neutral-200/70 text-neutral-600"
+                    }`}>
+                      {currentThemeObj?.name || 'Default'}
+                    </span>
                   </button>
-                  <div className="border-t border-[#30363d] my-1"></div>
+
+                  <div className={`border-t my-1 ${isDark ? "border-white/[0.08]" : "border-neutral-200/70"}`}></div>
+
                   <button 
                     onClick={() => {
                       logout();
                       setIsProfileOpen(false);
                       router.push('/login');
                     }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-[#da3633] hover:bg-[#da3633] hover:text-white transition text-left"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-500 hover:bg-rose-500/10 hover:text-rose-600 transition text-left font-medium"
                   >
                     <LogOut className="w-3.5 h-3.5" />
                     <span>Sign out</span>
@@ -752,7 +782,7 @@ export default function Navbar() {
 
       {/* Centered Search Palette Modal (opens via search icon or pressing /) */}
       {isSearchOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 px-4 bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 px-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
           <div 
             ref={searchRef}
             className={`w-full max-w-xl rounded-2xl border shadow-2xl overflow-hidden animate-scaleUp backdrop-blur-3xl font-apple ${
@@ -954,28 +984,28 @@ export default function Navbar() {
 
       {/* Settings Theme Modal (Accessible via Settings / Profile dropdown) */}
       {isThemeOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
           <div 
             ref={themeRef}
-            className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden text-xs max-h-[85vh] flex flex-col ${
-              isDark ? "bg-[#161b22] border-[#30363d] text-[#c9d1d9]" : "bg-white border-[#d0d7de] text-[#1f2328]"
+            className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden text-xs max-h-[85vh] flex flex-col animate-scaleUp font-apple backdrop-blur-2xl ${
+              isDark ? "bg-[#121620]/95 border-white/10 text-neutral-200" : "bg-white/95 border-neutral-200/80 text-neutral-800"
             }`}
           >
             <div className={`px-4 py-3.5 border-b flex items-center justify-between shrink-0 ${
-              isDark ? "border-[#30363d] bg-[#0d1117]" : "border-[#d0d7de] bg-[#f6f8fa]"
+              isDark ? "border-white/[0.08] bg-white/[0.02]" : "border-neutral-200/70 bg-neutral-50/50"
             }`}>
               <div>
-                <div className={`font-semibold text-sm flex items-center gap-2 ${isDark ? "text-[#f0f6fc]" : "text-[#1f2328]"}`}>
-                  <Palette className="w-4 h-4 text-[#58a6ff]" />
+                <div className={`font-semibold text-sm flex items-center gap-2 ${isDark ? "text-white" : "text-neutral-900"}`}>
+                  <Palette className="w-4 h-4 text-blue-500" />
                   <span>Color Theme Settings</span>
                 </div>
-                <p className={`text-[11px] mt-0.5 ${isDark ? "text-[#8b949e]" : "text-[#57606a]"}`}>
+                <p className={`text-[11px] mt-0.5 ${isDark ? "text-neutral-400" : "text-neutral-500"}`}>
                   Choose your preferred appearance
                 </p>
               </div>
               <button
                 onClick={() => setIsThemeOpen(false)}
-                className={`p-1.5 rounded-md transition ${isDark ? "text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d]" : "text-[#57606a] hover:text-[#1f2328] hover:bg-[#eaeef2]"}`}
+                className={`p-1.5 rounded-full transition ${isDark ? "text-neutral-400 hover:text-white hover:bg-white/10" : "text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100"}`}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -997,10 +1027,10 @@ export default function Navbar() {
                           setTheme(t.id);
                           setIsThemeOpen(false);
                         }}
-                        className={`w-full text-left px-2.5 py-2 rounded-lg flex items-start gap-2.5 transition ${
+                        className={`w-full text-left px-3 py-2.5 rounded-xl flex items-start gap-2.5 transition ${
                           isActive 
-                            ? 'bg-[#1f6feb]/15 border border-[#1f6feb]/40 text-[#f0f6fc]' 
-                            : 'hover:bg-[#21262d] border border-transparent text-[#c9d1d9]'
+                            ? (isDark ? 'bg-blue-500/15 border border-blue-500/40 text-white' : 'bg-blue-50 border border-blue-200 text-blue-900') 
+                            : (isDark ? 'hover:bg-white/[0.06] border border-transparent text-neutral-300' : 'hover:bg-neutral-100 border border-transparent text-neutral-700')
                         }`}
                       >
                         <div 
@@ -1011,10 +1041,10 @@ export default function Navbar() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
-                            <span className="font-semibold text-xs text-[#f0f6fc]">{t.name}</span>
-                            {isActive && <Check className="w-3.5 h-3.5 text-[#58a6ff] shrink-0" />}
+                            <span className="font-semibold text-xs">{t.name}</span>
+                            {isActive && <Check className="w-3.5 h-3.5 text-blue-500 shrink-0" />}
                           </div>
-                          <p className="text-[11px] text-[#8b949e] leading-snug mt-0.5">{t.description}</p>
+                          <p className="text-[11px] text-neutral-400 leading-snug mt-0.5">{t.description}</p>
                         </div>
                       </button>
                     );
@@ -1037,10 +1067,10 @@ export default function Navbar() {
                           setTheme(t.id);
                           setIsThemeOpen(false);
                         }}
-                        className={`w-full text-left px-2.5 py-2 rounded-lg flex items-start gap-2.5 transition ${
+                        className={`w-full text-left px-3 py-2.5 rounded-xl flex items-start gap-2.5 transition ${
                           isActive 
-                            ? 'bg-[#1f6feb]/15 border border-[#1f6feb]/40 text-[#f0f6fc]' 
-                            : 'hover:bg-[#21262d] border border-transparent text-[#c9d1d9]'
+                            ? (isDark ? 'bg-blue-500/15 border border-blue-500/40 text-white' : 'bg-blue-50 border border-blue-200 text-blue-900') 
+                            : (isDark ? 'hover:bg-white/[0.06] border border-transparent text-neutral-300' : 'hover:bg-neutral-100 border border-transparent text-neutral-700')
                         }`}
                       >
                         <div 
@@ -1051,10 +1081,10 @@ export default function Navbar() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
-                            <span className="font-semibold text-xs text-[#f0f6fc]">{t.name}</span>
-                            {isActive && <Check className="w-3.5 h-3.5 text-[#58a6ff] shrink-0" />}
+                            <span className="font-semibold text-xs">{t.name}</span>
+                            {isActive && <Check className="w-3.5 h-3.5 text-blue-500 shrink-0" />}
                           </div>
-                          <p className="text-[11px] text-[#8b949e] leading-snug mt-0.5">{t.description}</p>
+                          <p className="text-[11px] text-neutral-400 leading-snug mt-0.5">{t.description}</p>
                         </div>
                       </button>
                     );
@@ -1066,15 +1096,22 @@ export default function Navbar() {
         </div>
       )}
 
-      {/* Hamburger Drawer Menu */}
+      {/* Hamburger Drawer Menu (Apple Glassmorphism + Smooth Slide Animation) */}
       {isDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex">
+        <div className="fixed inset-0 z-50 flex font-apple">
           <div 
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" 
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300 animate-fadeIn" 
             onClick={() => setIsDrawerOpen(false)}
-          ></div>
-          <div className="relative w-80 max-w-full bg-[#161b22] border-r border-[#30363d] h-full p-4 flex flex-col z-10 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-[#30363d] mb-4">
+          />
+          <div className={`relative w-80 max-w-[85vw] h-full p-5 flex flex-col z-10 shadow-2xl animate-slideInLeft border-r backdrop-blur-3xl transition-colors duration-200 ${
+            isDark 
+              ? "bg-[#121620]/95 border-white/10 text-white shadow-[0_0_50px_rgba(0,0,0,0.8)]" 
+              : "bg-white/95 border-neutral-200/80 text-neutral-900 shadow-[0_0_50px_rgba(0,0,0,0.15)]"
+          }`}>
+            {/* Drawer Header */}
+            <div className={`flex items-center justify-between pb-4 border-b mb-4 ${
+              isDark ? "border-white/[0.08]" : "border-neutral-200/70"
+            }`}>
               <div className="flex items-center gap-3">
                 <div className="relative flex items-center justify-center">
                   <div 
@@ -1084,24 +1121,27 @@ export default function Navbar() {
                   <img 
                     src="/logo.png" 
                     alt="Prysm" 
-                    className="logo-drop-shadow h-9 w-auto object-contain shrink-0 relative z-10" 
+                    className="logo-drop-shadow h-8 w-auto object-contain shrink-0 relative z-10" 
                     style={{ filter: "drop-shadow(0 0 8px rgba(255, 255, 255, 0.7))" }}
                   />
                 </div>
-                <span className="font-bold text-lg text-[#f0f6fc] tracking-tight">Prysm</span>
+                <span className="font-semibold text-base tracking-tight">Prysm</span>
               </div>
               <button 
                 onClick={() => setIsDrawerOpen(false)}
-                className="text-[#8b949e] hover:text-[#f0f6fc] p-1 rounded-md hover:bg-[#21262d]"
+                className={`p-1.5 rounded-full transition ${
+                  isDark ? "text-neutral-400 hover:text-white hover:bg-white/10" : "text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100"
+                }`}
+                aria-label="Close sidebar"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Mobile Drawer Search Bar */}
             <div className="mb-4">
               <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-[#8b949e]" />
+                <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-neutral-400" />
                 <input 
                   type="text" 
                   placeholder="Search prompts or @users..." 
@@ -1114,11 +1154,17 @@ export default function Navbar() {
                       router.push(`/explore?search=${encodeURIComponent(searchQuery.trim())}`);
                     }
                   }}
-                  className="w-full bg-[#0d1117] border border-[#30363d] rounded-md pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:border-[#58a6ff] text-[#c9d1d9] placeholder:text-[#8b949e]"
+                  className={`w-full rounded-full pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition border ${
+                    isDark 
+                      ? "bg-white/[0.06] border-white/10 text-white placeholder:text-neutral-500" 
+                      : "bg-neutral-100 border-neutral-200/80 text-neutral-900 placeholder:text-neutral-400"
+                  }`}
                 />
               </div>
               {searchQuery.trim().length > 0 && searchResults.length > 0 && (
-                <div className="mt-2 bg-[#0d1117] border border-[#30363d] rounded-lg max-h-48 overflow-y-auto divide-y divide-[#21262d]">
+                <div className={`mt-2 rounded-2xl max-h-48 overflow-y-auto divide-y border shadow-lg ${
+                  isDark ? "bg-[#0d1017] border-white/10 divide-white/[0.04]" : "bg-white border-neutral-200 divide-neutral-100"
+                }`}>
                   {searchResults.map(u => (
                     <Link
                       key={u.id}
@@ -1129,16 +1175,18 @@ export default function Navbar() {
                         setSearchQuery('');
                         setSearchResults([]);
                       }}
-                      className="flex items-center gap-2.5 p-2 hover:bg-[#21262d] transition"
+                      className={`flex items-center gap-2.5 p-2.5 transition ${
+                        isDark ? "hover:bg-white/[0.06]" : "hover:bg-neutral-100/70"
+                      }`}
                     >
                       <img 
                         src={u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`} 
                         alt={u.username}
-                        className="w-6 h-6 rounded-full border border-[#30363d] object-cover shrink-0"
+                        className="w-6 h-6 rounded-full border border-neutral-200 dark:border-white/10 object-cover shrink-0"
                       />
                       <div className="min-w-0 flex-1">
-                        <div className="text-xs font-semibold text-[#f0f6fc] truncate">{u.name}</div>
-                        <div className="text-[10px] text-[#8b949e] truncate">@{u.username}</div>
+                        <div className="text-xs font-semibold truncate">{u.name}</div>
+                        <div className="text-[10px] text-neutral-400 truncate">@{u.username}</div>
                       </div>
                     </Link>
                   ))}
@@ -1146,37 +1194,53 @@ export default function Navbar() {
               )}
             </div>
 
-            <nav className="space-y-1 text-sm font-medium text-[#c9d1d9] flex-1 overflow-y-auto">
+            <nav className="space-y-1 text-xs font-medium flex-1 overflow-y-auto pr-1">
               <Link 
                 href="/dashboard" 
                 onClick={() => setIsDrawerOpen(false)}
-                className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-[#21262d] hover:text-white transition"
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${
+                  pathname === '/dashboard' 
+                    ? (isDark ? 'bg-white/10 text-white font-semibold' : 'bg-neutral-200/70 text-neutral-900 font-semibold')
+                    : (isDark ? 'text-neutral-300 hover:bg-white/[0.06] hover:text-white' : 'text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900')
+                }`}
               >
-                <FolderGit2 className="w-4 h-4 text-[#8b949e]" />
+                <FolderGit2 className="w-4 h-4 text-neutral-400" />
                 Home / Dashboard
               </Link>
               <Link 
                 href="/explore" 
                 onClick={() => setIsDrawerOpen(false)}
-                className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-[#21262d] hover:text-white transition"
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${
+                  pathname === '/explore' 
+                    ? (isDark ? 'bg-white/10 text-white font-semibold' : 'bg-neutral-200/70 text-neutral-900 font-semibold')
+                    : (isDark ? 'text-neutral-300 hover:bg-white/[0.06] hover:text-white' : 'text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900')
+                }`}
               >
-                <Compass className="w-4 h-4 text-[#8b949e]" />
+                <Compass className="w-4 h-4 text-neutral-400" />
                 Explore Community
               </Link>
               <Link 
                 href="/new" 
                 onClick={() => setIsDrawerOpen(false)}
-                className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-[#21262d] hover:text-white transition"
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${
+                  pathname === '/new' 
+                    ? (isDark ? 'bg-white/10 text-white font-semibold' : 'bg-neutral-200/70 text-neutral-900 font-semibold')
+                    : (isDark ? 'text-neutral-300 hover:bg-white/[0.06] hover:text-white' : 'text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900')
+                }`}
               >
-                <Plus className="w-4 h-4 text-[#8b949e]" />
+                <Plus className="w-4 h-4 text-neutral-400" />
                 New repository
               </Link>
               <Link 
                 href="/profile" 
                 onClick={() => setIsDrawerOpen(false)}
-                className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-[#21262d] hover:text-white transition"
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${
+                  pathname === '/profile' 
+                    ? (isDark ? 'bg-white/10 text-white font-semibold' : 'bg-neutral-200/70 text-neutral-900 font-semibold')
+                    : (isDark ? 'text-neutral-300 hover:bg-white/[0.06] hover:text-white' : 'text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900')
+                }`}
               >
-                <UserIcon className="w-4 h-4 text-[#8b949e]" />
+                <UserIcon className="w-4 h-4 text-neutral-400" />
                 Profile
               </Link>
               <button
@@ -1184,37 +1248,41 @@ export default function Navbar() {
                   setIsDrawerOpen(false);
                   setIsNotificationsOpen(true);
                 }}
-                className="w-full flex items-center justify-between px-3 py-2 rounded-md hover:bg-[#21262d] hover:text-white transition text-left"
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition text-left ${
+                  isDark ? 'text-neutral-300 hover:bg-white/[0.06] hover:text-white' : 'text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900'
+                }`}
               >
                 <div className="flex items-center gap-3">
-                  <Bell className="w-4 h-4 text-[#8b949e]" />
+                  <Bell className="w-4 h-4 text-neutral-400" />
                   <span>Notifications</span>
                 </div>
                 {unreadCount > 0 && (
-                  <span className="bg-[#1f6feb] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                  <span className="bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                     {unreadCount}
                   </span>
                 )}
               </button>
 
               {/* Theme section inside drawer */}
-              <div className="pt-3 mt-3 border-t border-[#30363d]">
-                <div className="px-3 py-1 text-[11px] font-bold text-[#8b949e] uppercase tracking-wider flex items-center justify-between">
+              <div className={`pt-4 mt-3 border-t ${
+                isDark ? "border-white/[0.08]" : "border-neutral-200/70"
+              }`}>
+                <div className="px-3 py-1 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
-                    <Palette className="w-3.5 h-3.5 text-[#58a6ff]" />
+                    <Palette className="w-3.5 h-3.5 text-blue-500" />
                     <span>Theme</span>
                   </span>
-                  <span className="text-[10px] text-[#58a6ff] lowercase font-normal">{currentThemeObj?.name}</span>
+                  <span className="text-[10px] text-blue-500 lowercase font-normal">{currentThemeObj?.name}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-1.5 mt-2 px-1">
+                <div className="grid grid-cols-2 gap-1.5 mt-2.5 px-1">
                   {availableThemes.map((t) => (
                     <button
                       key={t.id}
                       onClick={() => setTheme(t.id)}
-                      className={`text-left px-2 py-1.5 rounded-md border text-[11px] flex items-center gap-1.5 transition ${
+                      className={`text-left px-2.5 py-2 rounded-xl border text-[11px] flex items-center gap-2 transition ${
                         theme === t.id 
-                          ? 'border-[#58a6ff] bg-[#1f6feb]/20 text-[#f0f6fc] font-semibold' 
-                          : 'border-[#30363d] hover:bg-[#21262d] text-[#8b949e]'
+                          ? (isDark ? 'border-blue-500/60 bg-blue-500/15 text-white font-semibold' : 'border-blue-500 bg-blue-50 text-blue-900 font-semibold')
+                          : (isDark ? 'border-white/10 hover:bg-white/[0.06] text-neutral-400' : 'border-neutral-200 hover:bg-neutral-100 text-neutral-600')
                       }`}
                     >
                       <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: t.accent }}></div>
@@ -1225,7 +1293,9 @@ export default function Navbar() {
               </div>
             </nav>
 
-            <div className="pt-3 border-t border-[#30363d] text-xs text-[#8b949e]">
+            <div className={`pt-3 border-t text-[11px] text-neutral-400 ${
+              isDark ? "border-white/[0.08]" : "border-neutral-200/70"
+            }`}>
               <p>© 2026 Prysm, Inc.</p>
             </div>
           </div>
