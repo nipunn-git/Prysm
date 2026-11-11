@@ -150,8 +150,7 @@ export default function ProfilePage() {
       location: user.location || '',
       website: user.website || '',
       twitter: user.twitter || '',
-      avatar: user.avatar || '',
-      status_emoji: user.status_emoji || '🎯'
+      avatar: user.avatar || ''
     });
 
     // Hydrate cached data immediately on mount
@@ -260,8 +259,7 @@ export default function ProfilePage() {
       location: user.location || '',
       website: user.website || '',
       twitter: user.twitter || '',
-      avatar: user.avatar || '',
-      status_emoji: user.status_emoji || '🎯'
+      avatar: user.avatar || ''
     });
     setIsEditing(false);
   };
@@ -413,9 +411,6 @@ export default function ProfilePage() {
             accept="image/*" 
             className="hidden" 
           />
-          <div className="absolute bottom-6 right-0 bg-[#161b22] border border-[#30363d] rounded-full p-2 cursor-pointer shadow-sm hover:text-[#58a6ff] transition z-10" onClick={() => !isEditing && setIsEditing(true)}>
-            <span className="text-xl">{user.status_emoji || '🎯'}</span>
-          </div>
         </div>
 
         {isEditing ? (
@@ -450,17 +445,6 @@ export default function ProfilePage() {
                 value={formData.name} 
                 onChange={(e) => setFormData({...formData, name: e.target.value})}
                 className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1 text-sm focus:outline-none focus:border-[#58a6ff] text-[#c9d1d9]"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#f0f6fc] mb-1">Status Emoji</label>
-              <input 
-                type="text" 
-                maxLength="2"
-                value={formData.status_emoji} 
-                onChange={(e) => setFormData({...formData, status_emoji: e.target.value})}
-                className="w-full bg-[#0d1117] border border-[#30363d] rounded-md px-3 py-1 text-sm focus:outline-none focus:border-[#58a6ff] text-[#c9d1d9]"
-                placeholder="🎯"
               />
             </div>
             <div>
