@@ -132,6 +132,16 @@ function ExploreContent() {
     fetchSuggested();
   }, [user?.id]);
 
+  // Filter out creators the user already follows and themselves (Apple/Insta clean suggestions)
+  const unFollowedSuggestedUsers = useMemo(() => {
+    return suggestedUsers.filter(u => {
+      if (user?.id && u.id === user.id) return false;
+      if (followingMap[u.id] === true) return false;
+      if (u.is_following) return false;
+      return true;
+    });
+  }, [suggestedUsers, followingMap, user?.id]);
+
   // Fetch fresh public feed from backend smoothly in background
   useEffect(() => {
     async function fetchData() {
@@ -304,37 +314,37 @@ function ExploreContent() {
   const categories = ["All", "Coding", "Research", "Education", "Writing", "Productivity", "Other"];
 
   return (
-    <div className={`min-h-[calc(100vh-64px)] relative overflow-x-hidden transition-colors duration-300 font-sans pb-28 ${
-      isDark ? "bg-[#05070c] text-[#c9d1d9]" : "bg-[#f8fafc] text-slate-800"
+    <div className={`min-h-[calc(100vh-64px)] relative overflow-x-hidden transition-colors duration-300 font-apple pb-28 ${
+      isDark ? "bg-[#05070c] text-[#f5f5f7]" : "bg-[#f8fafc] text-[#1d1d1f]"
     }`}>
-      {/* Background Interactive Canvas GridPulse (Exact same as Prysm AI Dashboard - Image 2) */}
+      {/* Background Interactive Canvas GridPulse (Exact same as Prysm AI Dashboard) */}
       <GridPulse cell={28} reach={2.8} ambient={3} className="opacity-35 dark:opacity-20 pointer-events-none fixed inset-0 z-0" />
 
-      {/* Main Frosted Glass Feed Stream Container */}
-      <div className="relative z-10 max-w-2xl mx-auto w-full px-3 sm:px-4 py-4 sm:py-6">
+      {/* Main Apple-Style Glassmorphic Feed Stream Container */}
+      <div className="relative z-10 max-w-2xl mx-auto w-full px-3 sm:px-4 py-4 sm:py-6 font-apple">
         
         <div className={`rounded-3xl border transition-all duration-300 shadow-2xl overflow-hidden relative ${
           isDark 
-            ? "bg-[#080b11]/90 backdrop-blur-2xl border-white/10 shadow-[0_20px_70px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.08)]" 
-            : "bg-white/95 backdrop-blur-2xl border-[#d0d7de] shadow-[0_20px_50px_rgba(0,0,0,0.06),inset_0_1px_1px_rgba(0,0,0,0.02)]"
+            ? "bg-[#090b10]/65 backdrop-blur-3xl border-white/[0.12] shadow-[0_25px_70px_rgba(0,0,0,0.65),inset_0_1px_1px_rgba(255,255,255,0.08)]" 
+            : "bg-white/65 backdrop-blur-3xl border-white/80 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.07),0_0_0_1px_rgba(0,0,0,0.05),inset_0_1px_2px_rgba(255,255,255,0.9)]"
         }`}>
 
-          {/* Minimal Filter Header Bar with 3 Dropdowns */}
+          {/* Minimal Glass Filter Header Bar with 3 Dropdowns */}
           <div 
             ref={filterRef}
-            className={`px-4 sm:px-6 py-3.5 border-b flex items-center justify-between gap-3 sticky top-0 z-20 backdrop-blur-xl transition-colors ${
-              isDark ? "bg-[#080b11]/85 border-white/10" : "bg-white/85 border-slate-100"
+            className={`px-4 sm:px-6 py-3.5 border-b flex items-center justify-between gap-3 sticky top-0 z-20 backdrop-blur-2xl transition-colors ${
+              isDark ? "bg-[#090b10]/70 border-white/[0.08]" : "bg-white/65 border-black/[0.05]"
             }`}
           >
             {/* Left Title Label */}
             <div className="flex items-center gap-2 select-none">
-              <span className={`w-2 h-2 rounded-full ${isDark ? 'bg-cyan-400 shadow-[0_0_8px_#22d3ee]' : 'bg-blue-600 shadow-[0_0_8px_#3b82f6]'}`} />
-              <span className={`text-xs font-bold tracking-tight uppercase ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              <span className={`w-2 h-2 rounded-full ${isDark ? 'bg-[#2997ff] shadow-[0_0_8px_#2997ff]' : 'bg-[#0071e3] shadow-[0_0_8px_#0071e3]'}`} />
+              <span className={`text-xs font-bold tracking-tight uppercase ${isDark ? 'text-[#f5f5f7]' : 'text-[#1d1d1f]'}`}>
                 Feed
               </span>
             </div>
 
-            {/* Right: 3 Sleek Dropdown Filters */}
+            {/* Right: 3 Sleek Apple-Style Dropdown Filters */}
             <div className="flex items-center gap-2 flex-wrap">
 
               {/* 1. Time / Date Sort Dropdown */}
@@ -342,31 +352,31 @@ function ExploreContent() {
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(prev => prev === "time" ? null : "time")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer backdrop-blur-md ${
                     sortBy !== "newest"
                       ? isDark
-                        ? "bg-cyan-500/15 border-cyan-500/40 text-cyan-300"
-                        : "bg-blue-50 border-blue-300 text-blue-700"
+                        ? "bg-[#2997ff]/15 border-[#2997ff]/40 text-[#2997ff]"
+                        : "bg-blue-50/90 border-[#0071e3]/30 text-[#0071e3]"
                       : isDark
-                        ? "bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 hover:text-white"
-                        : "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200/70"
+                        ? "bg-white/[0.06] hover:bg-white/[0.12] border-white/[0.12] text-[#f5f5f7]"
+                        : "bg-white/70 hover:bg-white/95 border-black/[0.08] text-[#1d1d1f] shadow-sm"
                   }`}
                 >
-                  <Clock className="w-3.5 h-3.5" />
+                  <Clock className="w-3.5 h-3.5 opacity-75" />
                   <span>{sortBy === "newest" ? "Latest" : "Oldest"}</span>
                   <ChevronDown className={`w-3 h-3 transition-transform ${openDropdown === "time" ? "rotate-180" : ""}`} />
                 </button>
 
                 {openDropdown === "time" && (
-                  <div className={`absolute right-0 mt-1.5 w-36 rounded-2xl border p-1.5 shadow-2xl z-30 animate-fadeIn ${
-                    isDark ? "bg-[#0d1117] border-white/15 text-slate-200" : "bg-white border-slate-200 text-slate-800 shadow-xl"
+                  <div className={`absolute right-0 mt-1.5 w-36 rounded-2xl border p-1.5 shadow-2xl z-30 animate-fadeIn backdrop-blur-2xl ${
+                    isDark ? "bg-[#12141a]/90 border-white/[0.15] text-[#f5f5f7]" : "bg-white/90 border-black/[0.08] text-[#1d1d1f] shadow-xl"
                   }`}>
                     <button
                       onClick={() => { setSortBy("newest"); setOpenDropdown(null); }}
                       className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-between cursor-pointer transition ${
                         sortBy === "newest" 
-                          ? isDark ? "bg-cyan-500/20 text-cyan-300 font-semibold" : "bg-blue-50 text-blue-700 font-semibold"
-                          : isDark ? "hover:bg-white/5" : "hover:bg-slate-100"
+                          ? isDark ? "bg-[#2997ff]/20 text-[#2997ff] font-semibold" : "bg-blue-50 text-[#0071e3] font-semibold"
+                          : isDark ? "hover:bg-white/5" : "hover:bg-black/[0.04]"
                       }`}
                     >
                       <span>Newest first</span>
@@ -376,8 +386,8 @@ function ExploreContent() {
                       onClick={() => { setSortBy("oldest"); setOpenDropdown(null); }}
                       className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-between cursor-pointer transition ${
                         sortBy === "oldest" 
-                          ? isDark ? "bg-cyan-500/20 text-cyan-300 font-semibold" : "bg-blue-50 text-blue-700 font-semibold"
-                          : isDark ? "hover:bg-white/5" : "hover:bg-slate-100"
+                          ? isDark ? "bg-[#2997ff]/20 text-[#2997ff] font-semibold" : "bg-blue-50 text-[#0071e3] font-semibold"
+                          : isDark ? "hover:bg-white/5" : "hover:bg-black/[0.04]"
                       }`}
                     >
                       <span>Oldest first</span>
@@ -392,14 +402,14 @@ function ExploreContent() {
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(prev => prev === "popular" ? null : "popular")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer backdrop-blur-md ${
                     popularFilter !== "all"
                       ? isDark
-                        ? "bg-cyan-500/15 border-cyan-500/40 text-cyan-300"
-                        : "bg-blue-50 border-blue-300 text-blue-700"
+                        ? "bg-[#2997ff]/15 border-[#2997ff]/40 text-[#2997ff]"
+                        : "bg-blue-50/90 border-[#0071e3]/30 text-[#0071e3]"
                       : isDark
-                        ? "bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 hover:text-white"
-                        : "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200/70"
+                        ? "bg-white/[0.06] hover:bg-white/[0.12] border-white/[0.12] text-[#f5f5f7]"
+                        : "bg-white/70 hover:bg-white/95 border-black/[0.08] text-[#1d1d1f] shadow-sm"
                   }`}
                 >
                   <Flame className="w-3.5 h-3.5 text-amber-500" />
@@ -410,15 +420,15 @@ function ExploreContent() {
                 </button>
 
                 {openDropdown === "popular" && (
-                  <div className={`absolute right-0 mt-1.5 w-40 rounded-2xl border p-1.5 shadow-2xl z-30 animate-fadeIn ${
-                    isDark ? "bg-[#0d1117] border-white/15 text-slate-200" : "bg-white border-slate-200 text-slate-800 shadow-xl"
+                  <div className={`absolute right-0 mt-1.5 w-40 rounded-2xl border p-1.5 shadow-2xl z-30 animate-fadeIn backdrop-blur-2xl ${
+                    isDark ? "bg-[#12141a]/90 border-white/[0.15] text-[#f5f5f7]" : "bg-white/90 border-black/[0.08] text-[#1d1d1f] shadow-xl"
                   }`}>
                     <button
                       onClick={() => { setPopularFilter("all"); setOpenDropdown(null); }}
                       className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-between cursor-pointer transition ${
                         popularFilter === "all" 
-                          ? isDark ? "bg-cyan-500/20 text-cyan-300 font-semibold" : "bg-blue-50 text-blue-700 font-semibold"
-                          : isDark ? "hover:bg-white/5" : "hover:bg-slate-100"
+                          ? isDark ? "bg-[#2997ff]/20 text-[#2997ff] font-semibold" : "bg-blue-50 text-[#0071e3] font-semibold"
+                          : isDark ? "hover:bg-white/5" : "hover:bg-black/[0.04]"
                       }`}
                     >
                       <span>Default</span>
@@ -428,8 +438,8 @@ function ExploreContent() {
                       onClick={() => { setPopularFilter("most_liked"); setOpenDropdown(null); }}
                       className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-between cursor-pointer transition ${
                         popularFilter === "most_liked" 
-                          ? isDark ? "bg-cyan-500/20 text-cyan-300 font-semibold" : "bg-blue-50 text-blue-700 font-semibold"
-                          : isDark ? "hover:bg-white/5" : "hover:bg-slate-100"
+                          ? isDark ? "bg-[#2997ff]/20 text-[#2997ff] font-semibold" : "bg-blue-50 text-[#0071e3] font-semibold"
+                          : isDark ? "hover:bg-white/5" : "hover:bg-black/[0.04]"
                       }`}
                     >
                       <span>Most Liked</span>
@@ -439,8 +449,8 @@ function ExploreContent() {
                       onClick={() => { setPopularFilter("trending"); setOpenDropdown(null); }}
                       className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-between cursor-pointer transition ${
                         popularFilter === "trending" 
-                          ? isDark ? "bg-cyan-500/20 text-cyan-300 font-semibold" : "bg-blue-50 text-blue-700 font-semibold"
-                          : isDark ? "hover:bg-white/5" : "hover:bg-slate-100"
+                          ? isDark ? "bg-[#2997ff]/20 text-[#2997ff] font-semibold" : "bg-blue-50 text-[#0071e3] font-semibold"
+                          : isDark ? "hover:bg-white/5" : "hover:bg-black/[0.04]"
                       }`}
                     >
                       <span>Trending</span>
@@ -455,24 +465,24 @@ function ExploreContent() {
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(prev => prev === "category" ? null : "category")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer backdrop-blur-md ${
                     category !== "All"
                       ? isDark
-                        ? "bg-cyan-500/15 border-cyan-500/40 text-cyan-300"
-                        : "bg-blue-50 border-blue-300 text-blue-700"
+                        ? "bg-[#2997ff]/15 border-[#2997ff]/40 text-[#2997ff]"
+                        : "bg-blue-50/90 border-[#0071e3]/30 text-[#0071e3]"
                       : isDark
-                        ? "bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 hover:text-white"
-                        : "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200/70"
+                        ? "bg-white/[0.06] hover:bg-white/[0.12] border-white/[0.12] text-[#f5f5f7]"
+                        : "bg-white/70 hover:bg-white/95 border-black/[0.08] text-[#1d1d1f] shadow-sm"
                   }`}
                 >
-                  <Tag className="w-3.5 h-3.5" />
+                  <Tag className="w-3.5 h-3.5 opacity-75" />
                   <span>{category === "All" ? "Category" : category}</span>
                   <ChevronDown className={`w-3 h-3 transition-transform ${openDropdown === "category" ? "rotate-180" : ""}`} />
                 </button>
 
                 {openDropdown === "category" && (
-                  <div className={`absolute right-0 mt-1.5 w-44 rounded-2xl border p-1.5 shadow-2xl z-30 animate-fadeIn ${
-                    isDark ? "bg-[#0d1117] border-white/15 text-slate-200" : "bg-white border-slate-200 text-slate-800 shadow-xl"
+                  <div className={`absolute right-0 mt-1.5 w-44 rounded-2xl border p-1.5 shadow-2xl z-30 animate-fadeIn backdrop-blur-2xl ${
+                    isDark ? "bg-[#12141a]/90 border-white/[0.15] text-[#f5f5f7]" : "bg-white/90 border-black/[0.08] text-[#1d1d1f] shadow-xl"
                   }`}>
                     {categories.map(cat => (
                       <button
@@ -480,8 +490,8 @@ function ExploreContent() {
                         onClick={() => { setCategory(cat); setOpenDropdown(null); }}
                         className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-between cursor-pointer transition ${
                           category === cat 
-                            ? isDark ? "bg-cyan-500/20 text-cyan-300 font-semibold" : "bg-blue-50 text-blue-700 font-semibold"
-                            : isDark ? "hover:bg-white/5" : "hover:bg-slate-100"
+                            ? isDark ? "bg-[#2997ff]/20 text-[#2997ff] font-semibold" : "bg-blue-50 text-[#0071e3] font-semibold"
+                            : isDark ? "hover:bg-white/5" : "hover:bg-black/[0.04]"
                         }`}
                       >
                         <span>{cat === "All" ? "All Categories" : cat}</span>
@@ -495,31 +505,33 @@ function ExploreContent() {
             </div>
           </div>
 
-          {/* Continuous Stream Feed (Instagram-style seamless list) */}
+          {/* Continuous Stream Feed (Instagram-style seamless list with Apple typography) */}
           <div className="divide-y divide-transparent">
             {loading && repos.length === 0 ? (
               <div className="py-24 text-center flex flex-col items-center justify-center">
-                <Loader2 className={`w-7 h-7 animate-spin mb-3 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`} />
-                <span className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Loading feed...</span>
+                <Loader2 className={`w-7 h-7 animate-spin mb-3 ${isDark ? 'text-[#2997ff]' : 'text-[#0071e3]'}`} />
+                <span className={`text-xs font-medium ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>Loading feed...</span>
               </div>
             ) : displayedRepos.length === 0 ? (
               <div className="py-24 text-center flex flex-col items-center px-4">
                 <div className={`w-12 h-12 rounded-full border flex items-center justify-center mb-3 ${
-                  isDark ? 'bg-white/5 border-white/10 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-500'
+                  isDark ? 'bg-white/5 border-white/10 text-[#86868b]' : 'bg-black/[0.03] border-black/[0.06] text-[#86868b]'
                 }`}>
                   <Tag className="w-5 h-5" />
                 </div>
-                <p className={`text-sm font-semibold mb-1 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                <p className={`text-sm font-semibold mb-1 tracking-tight ${isDark ? 'text-[#f5f5f7]' : 'text-[#1d1d1f]'}`}>
                   No prompts found in {category === "All" ? "feed" : category}
                 </p>
-                <p className={`text-xs max-w-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                <p className={`text-xs max-w-sm ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
                   Try clearing your filters or select a different category above.
                 </p>
                 {category !== "All" && (
                   <button
                     onClick={() => { setCategory("All"); setPopularFilter("all"); setSortBy("newest"); }}
                     className={`mt-4 text-xs font-semibold px-3 py-1.5 rounded-full border transition cursor-pointer ${
-                      isDark ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20' : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
+                      isDark 
+                        ? 'bg-[#2997ff]/15 border-[#2997ff]/40 text-[#2997ff] hover:bg-[#2997ff]/25' 
+                        : 'bg-blue-50 border-[#0071e3]/30 text-[#0071e3] hover:bg-blue-100'
                     }`}
                   >
                     Reset filters
@@ -537,8 +549,8 @@ function ExploreContent() {
                       {/* The Seamless Post Item */}
                       <article className={`p-4 sm:p-6 border-b transition-colors ${
                         isDark 
-                          ? "border-white/10 hover:bg-white/[0.015]" 
-                          : "border-slate-100 hover:bg-slate-50/60"
+                          ? "border-white/[0.08] hover:bg-white/[0.015]" 
+                          : "border-black/[0.04] hover:bg-black/[0.015]"
                       }`}>
                         {/* Post Header: Avatar, Name, Handle, Date, Category Tag */}
                         <div className="flex items-start justify-between gap-3 mb-2.5">
@@ -560,29 +572,29 @@ function ExploreContent() {
                             <img 
                               src={repo.owner_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${repo.owner_name}`} 
                               alt={repo.owner_name} 
-                              className={`w-10 h-10 rounded-full border object-cover shrink-0 ${
-                                isDark ? 'border-white/15' : 'border-slate-200'
+                              className={`w-10 h-10 rounded-full border object-cover shrink-0 shadow-sm ${
+                                isDark ? 'border-white/15' : 'border-black/[0.08]'
                               }`}
                             />
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className={`font-semibold text-xs sm:text-sm transition truncate ${
-                                  isDark ? 'text-white group-hover/author:text-cyan-400' : 'text-slate-900 group-hover/author:text-blue-600'
+                                <span className={`font-semibold text-xs sm:text-sm transition truncate tracking-tight ${
+                                  isDark ? 'text-[#f5f5f7] group-hover/author:text-[#2997ff]' : 'text-[#1d1d1f] group-hover/author:text-[#0071e3]'
                                 }`}>
                                   {repo.owner_name}
                                 </span>
-                                <span className={`text-xs truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                <span className={`text-xs truncate ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
                                   @{repo.owner_username}
                                 </span>
                                 <span className={`text-xs ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>·</span>
-                                <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                <span className={`text-xs ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
                                   {formatPostDate(repo.created_at)}
                                 </span>
                               </div>
                               {repo.category && (
                                 <div className="mt-0.5">
-                                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
-                                    isDark ? 'bg-white/5 border-white/10 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'
+                                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border tracking-wide ${
+                                    isDark ? 'bg-white/[0.05] border-white/[0.08] text-[#86868b]' : 'bg-black/[0.03] border-black/[0.06] text-[#86868b]'
                                   }`}>
                                     #{repo.category}
                                   </span>
@@ -595,13 +607,13 @@ function ExploreContent() {
                           <button
                             onClick={(e) => openForkModal(e, repo)}
                             title="Fork repository"
-                            className={`text-xs font-medium px-2.5 py-1 rounded-lg border transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                            className={`text-xs font-medium px-2.5 py-1 rounded-xl border transition flex items-center gap-1.5 shrink-0 cursor-pointer backdrop-blur-md ${
                               isDark 
-                                ? 'border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white' 
-                                : 'border-slate-200 bg-slate-100 hover:bg-slate-200/70 text-slate-700 hover:text-slate-900'
+                                ? 'border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] text-[#f5f5f7]' 
+                                : 'border-black/[0.06] bg-black/[0.03] hover:bg-black/[0.06] text-[#1d1d1f]'
                             }`}
                           >
-                            <GitFork className={`w-3.5 h-3.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                            <GitFork className={`w-3.5 h-3.5 ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`} />
                             <span>Fork</span>
                           </button>
                         </div>
@@ -611,30 +623,30 @@ function ExploreContent() {
                           onClick={() => router.push(`/repo/${repo.id}`)}
                           className="cursor-pointer mb-3"
                         >
-                          <h2 className={`text-sm sm:text-base font-semibold transition mb-1 leading-snug ${
-                            isDark ? 'text-white hover:text-cyan-400' : 'text-slate-900 hover:text-blue-600'
+                          <h2 className={`text-sm sm:text-base font-semibold transition mb-1 leading-snug tracking-tight ${
+                            isDark ? 'text-[#f5f5f7] hover:text-[#2997ff]' : 'text-[#1d1d1f] hover:text-[#0071e3]'
                           }`}>
                             {repo.name}
                           </h2>
                           {repo.description && (
-                            <p className={`text-xs sm:text-[13px] leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                            <p className={`text-xs sm:text-[13px] leading-relaxed ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
                               {repo.description}
                             </p>
                           )}
                         </div>
 
-                        {/* Prompt Content Preview Box */}
-                        <div className={`relative group/code rounded-xl border p-3.5 sm:p-4 mb-3 transition-colors ${
+                        {/* Prompt Content Preview Box with Frosted Glass */}
+                        <div className={`relative group/code rounded-2xl border p-3.5 sm:p-4 mb-3 transition-all backdrop-blur-md ${
                           isDark 
-                            ? 'bg-[#05070c]/90 border-white/10' 
-                            : 'bg-slate-50/90 border-slate-200/80'
+                            ? 'bg-black/35 border-white/[0.08] shadow-[inset_0_1px_2px_rgba(0,0,0,0.4)]' 
+                            : 'bg-black/[0.025] border-black/[0.06] shadow-[inset_0_1px_2px_rgba(0,0,0,0.03)]'
                         }`}>
                           <button
                             onClick={(e) => handleCopyPrompt(e, repo.latest_prompt, repo.id)}
-                            className={`absolute top-2.5 right-2.5 p-1.5 border rounded-lg opacity-0 group-hover/code:opacity-100 transition-opacity z-10 cursor-pointer ${
+                            className={`absolute top-2.5 right-2.5 p-1.5 border rounded-lg opacity-0 group-hover/code:opacity-100 transition-opacity z-10 cursor-pointer backdrop-blur-md ${
                               isDark 
-                                ? 'bg-[#0d1117] border-white/15 text-slate-400 hover:text-white hover:bg-white/10' 
-                                : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                                ? 'bg-white/10 border-white/15 text-[#86868b] hover:text-white hover:bg-white/20' 
+                                : 'bg-white/90 border-black/[0.08] text-[#86868b] hover:text-[#1d1d1f] hover:bg-white shadow-sm'
                             }`}
                             title="Copy prompt"
                           >
@@ -644,8 +656,8 @@ function ExploreContent() {
                               <Copy className="w-3.5 h-3.5" />
                             )}
                           </button>
-                          <pre className={`text-xs sm:text-[13px] font-mono line-clamp-5 whitespace-pre-wrap leading-relaxed select-all ${
-                            isDark ? 'text-slate-300' : 'text-slate-800'
+                          <pre className={`text-xs sm:text-[13px] font-apple-mono line-clamp-5 whitespace-pre-wrap leading-[1.65] select-all ${
+                            isDark ? 'text-slate-300' : 'text-[#1d1d1f]'
                           }`}>
                             {repo.latest_prompt}
                           </pre>
@@ -654,7 +666,7 @@ function ExploreContent() {
                         {/* Social Action Footer: Like (Heart), Copy, Optimize, View Versions */}
                         <div className="flex items-center justify-between text-xs pt-1">
                           <div className="flex items-center gap-4 sm:gap-6">
-                            {/* Like (Heart) - Instagram Style */}
+                            {/* Like (Heart) - Instagram Style with Apple touch */}
                             <button
                               onClick={(e) => handleToggleStar(e, repo.id)}
                               title={repo.is_starred ? "Unlike" : "Like"}
@@ -663,16 +675,16 @@ function ExploreContent() {
                               <Heart 
                                 className={`w-4 h-4 transition-all duration-200 ${
                                   repo.is_starred 
-                                    ? "fill-rose-500 text-rose-500 stroke-rose-500 scale-110" 
+                                    ? "fill-[#ff2d55] text-[#ff2d55] stroke-[#ff2d55] scale-110" 
                                     : isDark
-                                      ? "text-slate-400 group-hover:text-rose-500 group-hover:scale-110 stroke-[1.8]"
-                                      : "text-slate-500 group-hover:text-rose-600 group-hover:scale-110 stroke-[1.8]"
+                                      ? "text-[#86868b] group-hover:text-[#ff375f] group-hover:scale-110 stroke-[1.8]"
+                                      : "text-[#86868b] group-hover:text-[#ff2d55] group-hover:scale-110 stroke-[1.8]"
                                 }`} 
                               />
                               <span className={`font-semibold ${
                                 repo.is_starred 
-                                  ? "text-rose-500" 
-                                  : isDark ? "text-slate-400 group-hover:text-white" : "text-slate-600 group-hover:text-slate-900"
+                                  ? "text-[#ff2d55]" 
+                                  : isDark ? "text-[#86868b] group-hover:text-[#f5f5f7]" : "text-[#86868b] group-hover:text-[#1d1d1f]"
                               }`}>
                                 {repo.stars_count || 0}
                               </span>
@@ -683,7 +695,7 @@ function ExploreContent() {
                               onClick={(e) => handleCopyPrompt(e, repo.latest_prompt, repo.id)}
                               title="Copy prompt"
                               className={`flex items-center gap-1.5 transition cursor-pointer font-medium ${
-                                isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
+                                isDark ? 'text-[#86868b] hover:text-[#f5f5f7]' : 'text-[#86868b] hover:text-[#1d1d1f]'
                               }`}
                             >
                               {copiedId === repo.id ? (
@@ -709,10 +721,10 @@ function ExploreContent() {
                               }}
                               title="Optimize in Prysm AI Studio"
                               className={`flex items-center gap-1.5 transition cursor-pointer font-medium ${
-                                isDark ? 'text-cyan-400 hover:text-cyan-300' : 'text-blue-600 hover:text-blue-700'
+                                isDark ? 'text-[#2997ff] hover:text-[#67b5ff]' : 'text-[#0071e3] hover:text-[#0077ed]'
                               }`}
                             >
-                              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                              <Sparkles className="w-3.5 h-3.5" />
                               <span>Optimize</span>
                             </button>
                           </div>
@@ -721,7 +733,7 @@ function ExploreContent() {
                           <Link
                             href={`/repo/${repo.id}`}
                             className={`text-xs font-medium transition flex items-center gap-1 ${
-                              isDark ? 'text-slate-400 hover:text-cyan-400' : 'text-slate-500 hover:text-blue-600'
+                              isDark ? 'text-[#86868b] hover:text-[#2997ff]' : 'text-[#86868b] hover:text-[#0071e3]'
                             }`}
                           >
                             <span>View versions</span>
@@ -730,32 +742,32 @@ function ExploreContent() {
                         </div>
                       </article>
 
-                      {/* In-feed "Suggested for You" Section (Instagram Style) */}
-                      {isSuggestedPosition && suggestedUsers.length > 0 && (
-                        <section className={`p-4 sm:p-5 border-b my-0.5 ${
-                          isDark ? 'border-white/10 bg-white/[0.01]' : 'border-slate-100 bg-slate-50/40'
+                      {/* In-feed "Suggested for You" Section (Instagram Style - ONLY Unfollowed Creators!) */}
+                      {isSuggestedPosition && unFollowedSuggestedUsers.length > 0 && (
+                        <section className={`p-4 sm:p-5 border-b my-0.5 transition-colors ${
+                          isDark ? 'border-white/[0.08] bg-white/[0.015]' : 'border-black/[0.04] bg-black/[0.01]'
                         }`}>
-                          <div className="flex items-center justify-between mb-3 px-1">
+                          <div className="flex items-center justify-between mb-3.5 px-1">
                             <div className="flex items-center gap-2">
-                              <Users className={`w-3.5 h-3.5 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`} />
-                              <h3 className={`text-xs font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                              <Users className={`w-3.5 h-3.5 ${isDark ? 'text-[#2997ff]' : 'text-[#0071e3]'}`} />
+                              <h3 className={`text-xs font-semibold tracking-tight ${isDark ? 'text-[#f5f5f7]' : 'text-[#1d1d1f]'}`}>
                                 Suggested for You
                               </h3>
                             </div>
-                            <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            <span className={`text-[11px] font-medium ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
                               Top Creators
                             </span>
                           </div>
 
                           {/* Horizontal Scrollable Creator Cards */}
                           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none -mx-1 px-1">
-                            {suggestedUsers.map(u => (
+                            {unFollowedSuggestedUsers.map(u => (
                               <div 
                                 key={u.id}
-                                className={`min-w-[155px] max-w-[170px] p-3.5 rounded-2xl border flex flex-col items-center text-center shrink-0 transition group ${
+                                className={`min-w-[155px] max-w-[170px] p-3.5 rounded-2xl border flex flex-col items-center text-center shrink-0 transition-all duration-200 backdrop-blur-xl group ${
                                   isDark 
-                                    ? 'bg-[#0d1117] border-white/10 hover:border-cyan-500/40' 
-                                    : 'bg-white border-slate-200 hover:border-blue-400/50 shadow-sm'
+                                    ? 'bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.06] hover:border-white/[0.15]' 
+                                    : 'bg-white/70 border-black/[0.06] hover:bg-white/95 hover:border-black/[0.12] shadow-sm hover:shadow-md'
                                 }`}
                               >
                                 <Link 
@@ -767,15 +779,15 @@ function ExploreContent() {
                                     src={u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`} 
                                     alt={u.username}
                                     className={`w-12 h-12 rounded-full border object-cover mb-2 shadow-sm ${
-                                      isDark ? 'border-white/15' : 'border-slate-200'
+                                      isDark ? 'border-white/15' : 'border-black/[0.08]'
                                     }`}
                                   />
-                                  <span className={`font-semibold text-xs truncate w-full transition ${
-                                    isDark ? 'text-white group-hover:text-cyan-400' : 'text-slate-900 group-hover:text-blue-600'
+                                  <span className={`font-semibold text-xs truncate w-full transition tracking-tight ${
+                                    isDark ? 'text-[#f5f5f7] group-hover:text-[#2997ff]' : 'text-[#1d1d1f] group-hover:text-[#0071e3]'
                                   }`}>
                                     {u.name}
                                   </span>
-                                  <span className={`text-[11px] truncate w-full mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                  <span className={`text-[11px] truncate w-full mb-1 ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
                                     @{u.username}
                                   </span>
                                   <span className={`text-[10px] mb-3 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
@@ -783,20 +795,20 @@ function ExploreContent() {
                                   </span>
                                 </Link>
 
-                                {user?.id !== u.id && (
-                                  <button
-                                    onClick={(e) => handleToggleFollow(e, u.id)}
-                                    className={`w-full text-xs font-semibold py-1.5 px-2 rounded-lg transition shrink-0 cursor-pointer ${
-                                      followingMap[u.id]
-                                        ? isDark 
-                                          ? "bg-[#21262d] text-slate-400 border border-white/10 hover:bg-red-950/40 hover:text-red-400" 
-                                          : "bg-slate-100 text-slate-600 border border-slate-200 hover:bg-red-50 hover:text-red-600"
-                                        : "bg-[#238636] hover:bg-[#2ea043] text-white shadow-sm"
-                                    }`}
-                                  >
-                                    {followingMap[u.id] ? "Following" : "Follow"}
-                                  </button>
-                                )}
+                                <button
+                                  onClick={(e) => handleToggleFollow(e, u.id)}
+                                  className={`w-full text-xs font-semibold py-1.5 px-2 rounded-xl transition shrink-0 cursor-pointer ${
+                                    followingMap[u.id]
+                                      ? isDark 
+                                        ? "bg-white/10 text-[#86868b] border border-white/10 hover:bg-red-950/40 hover:text-red-400" 
+                                        : "bg-black/[0.05] text-[#86868b] border border-black/[0.08] hover:bg-red-50 hover:text-red-600"
+                                      : isDark
+                                        ? "bg-[#2997ff] hover:bg-[#0071e3] text-white shadow-sm"
+                                        : "bg-[#0071e3] hover:bg-[#0077ed] text-white shadow-sm"
+                                  }`}
+                                >
+                                  {followingMap[u.id] ? "Following" : "Follow"}
+                                </button>
                               </div>
                             ))}
                           </div>
@@ -806,31 +818,31 @@ function ExploreContent() {
                   );
                 })}
 
-                {/* In case there are fewer than 3 posts, still display Suggested for You at bottom */}
-                {displayedRepos.length > 0 && displayedRepos.length < 3 && suggestedUsers.length > 0 && (
-                  <section className={`p-4 sm:p-5 border-b my-0.5 ${
-                    isDark ? 'border-white/10 bg-white/[0.01]' : 'border-slate-100 bg-slate-50/40'
+                {/* In case there are fewer than 3 posts, still display Suggested for You at bottom if unfollowed exist */}
+                {displayedRepos.length > 0 && displayedRepos.length < 3 && unFollowedSuggestedUsers.length > 0 && (
+                  <section className={`p-4 sm:p-5 border-b my-0.5 transition-colors ${
+                    isDark ? 'border-white/[0.08] bg-white/[0.015]' : 'border-black/[0.04] bg-black/[0.01]'
                   }`}>
-                    <div className="flex items-center justify-between mb-3 px-1">
+                    <div className="flex items-center justify-between mb-3.5 px-1">
                       <div className="flex items-center gap-2">
-                        <Users className={`w-3.5 h-3.5 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`} />
-                        <h3 className={`text-xs font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                        <Users className={`w-3.5 h-3.5 ${isDark ? 'text-[#2997ff]' : 'text-[#0071e3]'}`} />
+                        <h3 className={`text-xs font-semibold tracking-tight ${isDark ? 'text-[#f5f5f7]' : 'text-[#1d1d1f]'}`}>
                           Suggested for You
                         </h3>
                       </div>
-                      <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      <span className={`text-[11px] font-medium ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
                         Top Creators
                       </span>
                     </div>
 
                     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none -mx-1 px-1">
-                      {suggestedUsers.map(u => (
+                      {unFollowedSuggestedUsers.map(u => (
                         <div 
                           key={u.id}
-                          className={`min-w-[155px] max-w-[170px] p-3.5 rounded-2xl border flex flex-col items-center text-center shrink-0 transition group ${
+                          className={`min-w-[155px] max-w-[170px] p-3.5 rounded-2xl border flex flex-col items-center text-center shrink-0 transition-all duration-200 backdrop-blur-xl group ${
                             isDark 
-                              ? 'bg-[#0d1117] border-white/10 hover:border-cyan-500/40' 
-                              : 'bg-white border-slate-200 hover:border-blue-400/50 shadow-sm'
+                              ? 'bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.06] hover:border-white/[0.15]' 
+                              : 'bg-white/70 border-black/[0.06] hover:bg-white/95 hover:border-black/[0.12] shadow-sm hover:shadow-md'
                           }`}
                         >
                           <Link 
@@ -842,15 +854,15 @@ function ExploreContent() {
                               src={u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`} 
                               alt={u.username}
                               className={`w-12 h-12 rounded-full border object-cover mb-2 shadow-sm ${
-                                isDark ? 'border-white/15' : 'border-slate-200'
+                                isDark ? 'border-white/15' : 'border-black/[0.08]'
                               }`}
                             />
-                            <span className={`font-semibold text-xs truncate w-full transition ${
-                              isDark ? 'text-white group-hover:text-cyan-400' : 'text-slate-900 group-hover:text-blue-600'
+                            <span className={`font-semibold text-xs truncate w-full transition tracking-tight ${
+                              isDark ? 'text-[#f5f5f7] group-hover:text-[#2997ff]' : 'text-[#1d1d1f] group-hover:text-[#0071e3]'
                             }`}>
                               {u.name}
                             </span>
-                            <span className={`text-[11px] truncate w-full mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            <span className={`text-[11px] truncate w-full mb-1 ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
                               @{u.username}
                             </span>
                             <span className={`text-[10px] mb-3 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
@@ -858,20 +870,20 @@ function ExploreContent() {
                             </span>
                           </Link>
 
-                          {user?.id !== u.id && (
-                            <button
-                              onClick={(e) => handleToggleFollow(e, u.id)}
-                              className={`w-full text-xs font-semibold py-1.5 px-2 rounded-lg transition shrink-0 cursor-pointer ${
-                                followingMap[u.id]
-                                  ? isDark 
-                                    ? "bg-[#21262d] text-slate-400 border border-white/10 hover:bg-red-950/40 hover:text-red-400" 
-                                    : "bg-slate-100 text-slate-600 border border-slate-200 hover:bg-red-50 hover:text-red-600"
-                                  : "bg-[#238636] hover:bg-[#2ea043] text-white shadow-sm"
-                              }`}
-                            >
-                              {followingMap[u.id] ? "Following" : "Follow"}
-                            </button>
-                          )}
+                          <button
+                            onClick={(e) => handleToggleFollow(e, u.id)}
+                            className={`w-full text-xs font-semibold py-1.5 px-2 rounded-xl transition shrink-0 cursor-pointer ${
+                              followingMap[u.id]
+                                ? isDark 
+                                  ? "bg-white/10 text-[#86868b] border border-white/10 hover:bg-red-950/40 hover:text-red-400" 
+                                  : "bg-black/[0.05] text-[#86868b] border border-black/[0.08] hover:bg-red-50 hover:text-red-600"
+                                : isDark
+                                  ? "bg-[#2997ff] hover:bg-[#0071e3] text-white shadow-sm"
+                                  : "bg-[#0071e3] hover:bg-[#0077ed] text-white shadow-sm"
+                            }`}
+                          >
+                            {followingMap[u.id] ? "Following" : "Follow"}
+                          </button>
                         </div>
                       ))}
                     </div>
@@ -885,37 +897,37 @@ function ExploreContent() {
 
       </div>
 
-      {/* Fork Modal */}
+      {/* Fork Modal with Apple-Style Glass Dialog */}
       {forkModalRepo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className={`border rounded-3xl max-w-md w-full p-6 shadow-2xl relative transition-all ${
-            isDark ? "bg-[#0d1117] border-white/15 text-white" : "bg-white border-slate-200 text-slate-900"
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md p-4">
+          <div className={`border rounded-3xl max-w-md w-full p-6 shadow-2xl relative transition-all backdrop-blur-3xl font-apple ${
+            isDark ? "bg-[#12141a]/90 border-white/[0.15] text-[#f5f5f7]" : "bg-white/90 border-black/[0.08] text-[#1d1d1f]"
           }`}>
-            <h2 className="text-lg font-bold flex items-center gap-2 mb-2">
-              <GitFork className={`w-5 h-5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+            <h2 className="text-lg font-bold flex items-center gap-2 mb-2 tracking-tight">
+              <GitFork className={`w-5 h-5 ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`} />
               Fork Repository
             </h2>
-            <p className={`text-xs mb-5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              Clone a copy of <span className="font-semibold text-cyan-500">@{forkModalRepo.owner_username || forkModalRepo.owner_name}</span>&apos;s prompt into your workspace.
+            <p className={`text-xs mb-5 ${isDark ? 'text-[#86868b]' : 'text-[#86868b]'}`}>
+              Clone a copy of <span className="font-semibold text-[#0071e3] dark:text-[#2997ff]">@{forkModalRepo.owner_username || forkModalRepo.owner_name}</span>&apos;s prompt into your workspace.
             </p>
 
             <div className="space-y-4 mb-6">
               <div>
-                <label className="block text-xs font-semibold mb-1.5">Repository Name</label>
+                <label className="block text-xs font-semibold mb-1.5 tracking-tight">Repository Name</label>
                 <input
                   type="text"
                   value={forkRepoName}
                   onChange={(e) => setForkRepoName(e.target.value)}
                   className={`w-full border rounded-xl px-3 py-2 text-sm focus:outline-none transition-all ${
                     isDark 
-                      ? "bg-black/40 border-white/15 text-white focus:border-cyan-400" 
-                      : "bg-slate-50 border-slate-300 text-slate-900 focus:border-blue-500"
+                      ? "bg-black/40 border-white/15 text-white focus:border-[#2997ff]" 
+                      : "bg-slate-50 border-slate-300 text-slate-900 focus:border-[#0071e3]"
                   }`}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold mb-1.5">Visibility</label>
+                <label className="block text-xs font-semibold mb-1.5 tracking-tight">Visibility</label>
                 <div className="flex gap-4">
                   <label className={`flex items-center gap-2 cursor-pointer text-xs font-medium ${
                     isDark ? 'text-slate-300' : 'text-slate-700'
@@ -926,7 +938,7 @@ function ExploreContent() {
                       value="Private"
                       checked={forkVisibility === "Private"}
                       onChange={() => setForkVisibility("Private")}
-                      className="accent-cyan-500"
+                      className="accent-[#0071e3] dark:accent-[#2997ff]"
                     />
                     <Lock className="w-3.5 h-3.5" /> Private
                   </label>
@@ -939,7 +951,7 @@ function ExploreContent() {
                       value="Public"
                       checked={forkVisibility === "Public"}
                       onChange={() => setForkVisibility("Public")}
-                      className="accent-cyan-500"
+                      className="accent-[#0071e3] dark:accent-[#2997ff]"
                     />
                     <Globe className="w-3.5 h-3.5" /> Public
                   </label>
@@ -948,7 +960,7 @@ function ExploreContent() {
             </div>
 
             <div className={`flex items-center justify-end gap-3 pt-4 border-t ${
-              isDark ? 'border-white/10' : 'border-slate-100'
+              isDark ? 'border-white/[0.08]' : 'border-black/[0.05]'
             }`}>
               <button
                 onClick={() => setForkModalRepo(null)}
@@ -961,7 +973,7 @@ function ExploreContent() {
               <button
                 onClick={handleExecuteFork}
                 disabled={forkingId !== null}
-                className="bg-[#238636] hover:bg-[#2ea043] text-white font-semibold text-xs px-4 py-2 rounded-xl flex items-center gap-2 transition disabled:opacity-50 cursor-pointer shadow-sm"
+                className="bg-[#0071e3] dark:bg-[#2997ff] hover:opacity-90 text-white font-semibold text-xs px-4 py-2 rounded-xl flex items-center gap-2 transition disabled:opacity-50 cursor-pointer shadow-sm"
               >
                 {forkingId ? (
                   <>
@@ -988,7 +1000,7 @@ export default function ExplorePage() {
   return (
     <Suspense fallback={
       <div className="min-h-[calc(100vh-64px)] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
+        <Loader2 className="w-8 h-8 animate-spin text-[#0071e3] dark:text-[#2997ff]" />
       </div>
     }>
       <ExploreContent />
