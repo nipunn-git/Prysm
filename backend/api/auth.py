@@ -286,18 +286,34 @@ def firebase_login(payload: FirebaseLogin, db: Session = Depends(get_db)):
                     print(f"Unverified decode failed: {decode_err}")
                     
         email = decoded_token.get("email") or payload.email
-        name = decoded_token.get("name") or payload.name or "User"
+        name = decoded_token.get("name") or payload.name
         avatar = decoded_token.get("picture") or payload.avatar
         
         # If no email provided, authentication failed
         if not email:
             raise HTTPException(status_code=400, detail="Authentication failed: No email provided in token.")
             
+        # Clean email
+        email = email.strip().lower()
+
+        # Format name fallback nicely (especially for Apple sign-in where name might not be sent on subsequent logins)
+        if not name or name.strip() == "":
+            prefix = email.split('@')[0]
+            name = prefix.replace('.', ' ').replace('_', ' ').replace('-', ' ').title()
+            if not name:
+                name = "Prysm Creator"
+
         # Check if user exists by email (case-insensitive)
         user = db.query(models.User).filter(models.User.email.ilike(email)).first()
         if not user:
-            # Create user automatically
-            username = email.split('@')[0]
+            # Create user automatically with safe alphanumeric username
+            import re
+            raw_username = email.split('@')[0].lower()
+            cleaned_username = re.sub(r'[^a-z0-9_-]', '', raw_username)
+            if not cleaned_username or len(cleaned_username) < 2:
+                cleaned_username = f"user-{cleaned_username or 'hub'}"
+                
+            username = cleaned_username
             base_username = username
             count = 1
             while db.query(models.User).filter(models.User.username.ilike(username)).first():
@@ -309,11 +325,17 @@ def firebase_login(payload: FirebaseLogin, db: Session = Depends(get_db)):
                 name=name,
                 email=email,
                 password_hash="oauth_managed",
-                avatar=avatar or "https://avatars.githubusercontent.com/u/9919?s=40&v=4"
+                avatar=avatar or f"https://api.dicebear.com/7.x/avataaars/svg?seed={username}"
             )
             db.add(user)
             db.commit()
             db.refresh(user)
+        else:
+            # If user exists but avatar was missing, update it
+            if avatar and (not user.avatar or "dicebear" in user.avatar):
+                user.avatar = avatar
+                db.commit()
+                db.refresh(user)
             
         token = f"token_{user.id}"
         active_sessions[token] = user.id

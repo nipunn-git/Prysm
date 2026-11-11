@@ -1,5 +1,11 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, OAuthProvider } from "firebase/auth";
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  OAuthProvider, 
+  browserLocalPersistence, 
+  setPersistence 
+} from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDDtwFhszfgJxh5J8yEV0JPjVp9wU4LRbw",
@@ -14,14 +20,26 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 
+// Explicitly ensure local persistence for all browsers (Opera, Safari, Chrome, Firefox, Edge, Brave)
+if (typeof window !== "undefined") {
+  setPersistence(auth, browserLocalPersistence).catch((err) => {
+    console.warn("Firebase persistence setup notice:", err);
+  });
+}
+
+// Google OAuth Provider
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
   prompt: 'select_account'
 });
 
+// Apple OAuth Provider - Configured for cross-browser & Apple ID specifications
 const appleProvider = new OAuthProvider('apple.com');
+appleProvider.addScope('email');
+appleProvider.addScope('name');
+// Note: Apple does not accept Google's prompt parameter, which causes invalid_request errors in some browsers.
 appleProvider.setCustomParameters({
-  prompt: 'select_account'
+  locale: 'en'
 });
 
 export { auth, googleProvider, appleProvider };
