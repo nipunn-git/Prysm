@@ -19,7 +19,8 @@ import {
   Trash2,
   CheckCheck,
   Bell,
-  Home
+  Home,
+  Sparkles
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
