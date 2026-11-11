@@ -461,6 +461,13 @@ def toggle_star_repository(
     
     if star:
         db.delete(star)
+        # Remove any unread like notification for this repo from this sender
+        db.query(models.Notification).filter(
+            models.Notification.recipient_id == repo.owner_id,
+            models.Notification.sender_id == current_user_id,
+            models.Notification.link == f"/repo/{repo.id}",
+            models.Notification.is_read == 0
+        ).delete()
         db.commit()
         starred = False
     else:
@@ -470,17 +477,17 @@ def toggle_star_repository(
         )
         db.add(new_star)
 
-        # Notify repo owner if starred by someone else
-        if repo.owner_id and repo.owner_id != current_user_id:
+        # Notify repo owner instantly
+        if repo.owner_id:
             sender = db.query(models.User).filter(models.User.id == current_user_id).first()
-            sender_name = sender.name if sender else "Someone"
+            sender_name = sender.name if sender else (sender.username if sender else "Someone")
             sender_uname = sender.username if sender else "user"
             notif = models.Notification(
                 recipient_id=repo.owner_id,
                 sender_id=current_user_id,
-                type="star",
-                title="Repository Starred",
-                message=f"{sender_name} (@{sender_uname}) starred your repository '{repo.name}'",
+                type="like",
+                title="New Like",
+                message=f"{sender_name} (@{sender_uname}) liked your repository '{repo.name}'",
                 link=f"/repo/{repo.id}",
                 is_read=0
             )

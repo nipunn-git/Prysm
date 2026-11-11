@@ -132,16 +132,22 @@ function ExploreContent() {
     });
   }, [suggestedUsers, followingMap, user?.id]);
 
-  // Fetch fresh public feed from backend smoothly in background
+  // Fetch fresh public feed from backend smoothly in background with live sync
   const fetchFreshRepos = useCallback(async (bypassCache = false) => {
     try {
       const storedToken = typeof window !== 'undefined' ? (localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token')) : null;
       const queryParams = new URLSearchParams();
       if (user?.id) queryParams.append("user_id", user.id);
       if (storedToken) queryParams.append("token", storedToken);
-      if (bypassCache) queryParams.append("_t", Date.now().toString());
+      queryParams.append("_t", Date.now().toString());
       
-      const res = await fetch(`${API_URL}/api/repositories/explore?${queryParams.toString()}`);
+      const res = await fetch(`${API_URL}/api/repositories/explore?${queryParams.toString()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
       if (res && res.ok) {
         const data = await res.json();
         const list = Array.isArray(data) ? data : [];
@@ -158,6 +164,14 @@ function ExploreContent() {
 
   useEffect(() => {
     fetchFreshRepos();
+    // Live real-time likes sync every 10 seconds & when tab regains focus
+    const interval = setInterval(() => fetchFreshRepos(true), 10000);
+    const onFocus = () => fetchFreshRepos(true);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
   }, [fetchFreshRepos]);
 
   // Instant Manual Refresh
@@ -209,6 +223,7 @@ function ExploreContent() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  // 0ms Instant Optimistic Like / Unlike Toggle with Background Sync & Rollback
   const handleToggleStar = async (e, repoId) => {
     e.preventDefault();
     e.stopPropagation();
@@ -216,18 +231,60 @@ function ExploreContent() {
       router.push('/login');
       return;
     }
+
+    const currentRepo = repos.find(r => r.id === repoId);
+    if (!currentRepo) return;
+
+    const prevStarred = Boolean(currentRepo.is_starred);
+    const prevCount = currentRepo.stars_count || 0;
+    const nextStarred = !prevStarred;
+    const nextCount = nextStarred ? prevCount + 1 : Math.max(0, prevCount - 1);
+
+    // 1. 0ms INSTANT optimistic update (Heart turns red & count changes immediately!)
+    setRepos(prev => {
+      const updated = prev.map(r => r.id === repoId ? { ...r, is_starred: nextStarred, stars_count: nextCount } : r);
+      setCachedData('explore_all_repos', updated);
+      return updated;
+    });
+
+    // 2. Background Server Sync
     try {
       const storedToken = typeof window !== 'undefined' ? (localStorage.getItem('prysm_token') || localStorage.getItem('prompthub_token')) : null;
-      const res = await fetch(`${API_URL}/api/repositories/${repoId}/star${storedToken ? `?token=${encodeURIComponent(storedToken)}` : ''}`, {
+      const queryParams = new URLSearchParams();
+      if (storedToken) queryParams.append("token", storedToken);
+      if (user?.id) queryParams.append("user_id", user.id);
+
+      const headers = storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {};
+
+      const res = await fetch(`${API_URL}/api/repositories/${repoId}/star?${queryParams.toString()}`, {
         method: 'POST',
-        headers: storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {}
+        headers
       });
+
       if (res.ok) {
         const data = await res.json();
-        setRepos(prev => prev.map(r => r.id === repoId ? { ...r, is_starred: data.starred, stars_count: data.stars_count } : r));
+        // Authoritative server count sync
+        setRepos(prev => {
+          const synced = prev.map(r => r.id === repoId ? { ...r, is_starred: Boolean(data.starred), stars_count: data.stars_count } : r);
+          setCachedData('explore_all_repos', synced);
+          return synced;
+        });
+      } else {
+        // Revert on API error
+        setRepos(prev => {
+          const reverted = prev.map(r => r.id === repoId ? { ...r, is_starred: prevStarred, stars_count: prevCount } : r);
+          setCachedData('explore_all_repos', reverted);
+          return reverted;
+        });
       }
     } catch (e) {
       console.error("Star error:", e);
+      // Revert on network failure
+      setRepos(prev => {
+        const reverted = prev.map(r => r.id === repoId ? { ...r, is_starred: prevStarred, stars_count: prevCount } : r);
+        setCachedData('explore_all_repos', reverted);
+        return reverted;
+      });
     }
   };
 

@@ -15,6 +15,7 @@ import {
   Palette,
   UserPlus,
   Star as StarIcon,
+  Heart,
   Trash2,
   CheckCheck,
   Bell,
@@ -231,10 +232,18 @@ export default function Navbar() {
   }, [user?.id]);
 
   useEffect(() => {
-    if (user?.id) {
+    const storedUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('prysm_user') || localStorage.getItem('prompthub_user') || 'null') : null;
+    const effectiveId = user?.id || storedUser?.id;
+    if (effectiveId) {
       fetchNotifications();
-      const interval = setInterval(fetchNotifications, 20000);
-      return () => clearInterval(interval);
+      // Fast 5-second polling + instant sync when tab is focused
+      const interval = setInterval(fetchNotifications, 5000);
+      const onFocus = () => fetchNotifications();
+      window.addEventListener('focus', onFocus);
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('focus', onFocus);
+      };
     }
   }, [user?.id, fetchNotifications]);
 
@@ -550,10 +559,10 @@ export default function Navbar() {
                             className="w-8 h-8 rounded-full border border-[#30363d] object-cover"
                           />
                           <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center border border-[#161b22] ${
-                            n.type === 'star' ? 'bg-[#d29922] text-black' : 'bg-[#238636] text-white'
+                            (n.type === 'star' || n.type === 'like') ? 'bg-[#ff2d55] text-white' : 'bg-[#238636] text-white'
                           }`}>
-                            {n.type === 'star' ? (
-                              <StarIcon className="w-2.5 h-2.5 fill-current" />
+                            {(n.type === 'star' || n.type === 'like') ? (
+                              <Heart className="w-2.5 h-2.5 fill-current" />
                             ) : (
                               <UserPlus className="w-2.5 h-2.5" />
                             )}
