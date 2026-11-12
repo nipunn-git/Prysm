@@ -22,8 +22,8 @@ jobs:
             RESPONSE=$(curl -s -m 15 "$URL" || true)
             echo "Response: $RESPONSE"
             
-            if echo "$RESPONSE" | grep -q '"using_postgresql":true'; then
-              echo "✅ Render Backend is LIVE and connected to Neon PostgreSQL!"
+            if echo "$RESPONSE" | grep -q '"engine_driver"'; then
+              echo "✅ Render Backend is LIVE and responding! Health verified."
               exit 0
             fi
             

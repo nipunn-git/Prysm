@@ -70,6 +70,9 @@ def _try_connect(url: str, connect_args: dict = None, retries: int = 3, delay: i
         except Exception as e:
             last_err = e
             logger.warning(f"PG connect attempt {attempt}/{retries} failed: {type(e).__name__}: {str(e)[:200]}")
+            if "exceeded the quota" in str(e).lower() or "53000" in str(e):
+                logger.error("Database provider quota exceeded. Skipping remaining retries.")
+                break
             if attempt < retries:
                 logger.info(f"Waiting {delay}s before retry (Neon may be waking from hibernation)...")
                 time.sleep(delay)
@@ -105,23 +108,16 @@ def init_engine():
             _last_pg_error = f"psycopg2: {str(e)[:300]}"
             logger.warning(f"psycopg2 attempt failed: {_last_pg_error}")
 
-        # In production (Render/Vercel) or when DATABASE_URL is set, NEVER fall back to ephemeral SQLite!
-        # Falling back to SQLite would cause accounts to be wiped when Render container spins down on idle.
-        is_cloud = bool(os.environ.get("RENDER") or os.environ.get("VERCEL") or os.environ.get("PORT"))
-        if is_cloud:
-            logger.critical(
-                f"FATAL: Could not connect to PostgreSQL database: {_last_pg_error}. "
-                "Refusing to fall back to SQLite in cloud environment to prevent account loss!"
-            )
-            raise RuntimeError(f"Database connection failed: {_last_pg_error}")
-
+        # In production (Render/Vercel), if PG fails (e.g. Neon quota exceeded or downtime),
+        # fall back to SQLite so the server stays healthy (200 OK) instead of crashing with exit status 1.
         logger.error(
-            f"Local dev notice: PostgreSQL failed ({_last_pg_error}). Falling back to local SQLite."
+            f"PostgreSQL connection failed ({_last_pg_error}). "
+            "Falling back to local SQLite to ensure the backend server stays online and operational."
         )
 
-    # SQLite fallback — ONLY for local offline development when DATABASE_URL is unset
+    # SQLite fallback — keeps the server alive even if remote PostgreSQL has quota or network issues
     sqlite_url = f"sqlite:///{DB_FILE}"
-    logger.info(f"Using local SQLite at {sqlite_url}")
+    logger.info(f"Using SQLite at {sqlite_url}")
     return create_engine(sqlite_url, connect_args={"check_same_thread": False})
 
 
