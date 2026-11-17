@@ -6,7 +6,7 @@ import os
 import sys
 
 # Simulate exactly what Render sees (only DATABASE_URL set, no .env file)
-os.environ["DATABASE_URL"] = "postgresql://neondb_owner:npg_0ArFKD6IPkBl@ep-flat-pond-azd31apc.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+os.environ["DATABASE_URL"] = "postgresql://neondb_owner:npg_H2qN5DeGWVha@ep-aged-sun-azua9w0w-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 
 # Enable logging so we can see what's happening
 import logging
