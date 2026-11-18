@@ -2,7 +2,7 @@
 
 <img src="./frontend/public/logo.png" alt="Prysm Logo" width="105" height="105" />
 
-# ⚡ PRYSM · PromptHub
+# ⚡ PRYSM
 ### *The GitHub for AI Prompts & LLM Engineering Workflows*
 
 <p align="center">
