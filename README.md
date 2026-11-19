@@ -26,7 +26,7 @@
 
 ## 🌌 Overview
 
-**Prysm (PromptHub)** redefines prompt engineering from scratch. Just as **GitHub** transformed source code management, **Prysm** brings true **Git-style version control, side-by-side prompt diffing, semantic release commits, forking, branching, and open community sharing** to LLM system instructions, agent workflows, and prompt engineering.
+**Prysm** redefines prompt engineering from scratch. Just as **GitHub** transformed source code management, **Prysm** brings true **Git-style version control, side-by-side prompt diffing, semantic release commits, forking, branching, and open community sharing** to LLM system instructions, agent workflows, and prompt engineering.
 
 Crafted with an **Apple-inspired glassmorphism design system**, instant optimistic updates (0ms lag), real-time notifications, interactive contribution heatmaps, and native multi-model AI optimization (OpenAI, Google Gemini, Groq), Prysm is built for AI engineers, researchers, and prompt creators.
 
@@ -121,7 +121,7 @@ Crafted with an **Apple-inspired glassmorphism design system**, instant optimist
 ## 📁 Repository Structure
 
 ```
-academic-PromptHub/
+Prysm/
 ├── backend/
 │   ├── app/
 │   │   ├── api/             # FastAPI routes (auth, repos, prompts, notifications, ai)
@@ -161,8 +161,8 @@ academic-PromptHub/
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/nipunn-git/academic-PromptHub.git
-cd academic-PromptHub
+git clone https://github.com/nipunn-git/Prysm.git
+cd Prysm
 ```
 
 ### 2. Frontend Configuration
@@ -262,5 +262,5 @@ This project is open-source and available under the **[MIT License](LICENSE)**.
 <div align="center">
   <sub>Built with Apple-inspired precision, passion, and next-generation AI tooling.</sub>
   <br/>
-  <b>© 2026 Prysm (PromptHub). All rights reserved.</b>
+  <b>© 2026 Prysm. All rights reserved.</b>
 </div>
