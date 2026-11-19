@@ -260,7 +260,7 @@ This project is conceived, architected, and engineered with ❤️ by:
 This project is open-source and available under the **[MIT License](LICENSE)**.
 
 <div align="center">
-  <sub>Built with Apple-inspired precision, passion, and next-generation AI tooling.</sub>
+  
   <br/>
   <b>© 2026 Prysm. All rights reserved.</b>
 </div>
